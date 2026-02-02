@@ -14,6 +14,7 @@ from core.display import DisplayManager
 from core.personality import Personality
 from core.api_client import APIClient, APIError, OfflineError
 from core.ui import FACES, UNICODE_FACES
+from core.commands import COMMANDS, get_command, get_commands_by_category
 
 
 class Colors:
@@ -214,139 +215,175 @@ class SSHChatMode:
         cmd = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
 
+        # Handle quit commands (not in registry)
         if cmd in ("/quit", "/exit", "/q"):
             self._running = False
             return
 
-        elif cmd == "/help":
-            self._print_help()
-
-        elif cmd == "/clear":
-            self.brain.clear_history()
-            print("Conversation history cleared.")
-
-        elif cmd == "/mood":
-            mood = self.personality.mood
-            print(f"Current mood: {mood.current.value}")
-            print(f"Intensity: {mood.intensity:.1%}")
-            print(f"Energy: {self.personality.energy:.1%}")
-
-        elif cmd == "/stats":
-            stats = self.brain.get_stats()
-            print(f"Tokens used today: {stats['tokens_used_today']}")
-            print(f"Tokens remaining: {stats['tokens_remaining']}")
-            print(f"Providers: {', '.join(stats['providers'])}")
-
-        elif cmd == "/level":
-            self._print_progression()
-
-        elif cmd == "/prestige":
-            await self._handle_prestige()
-
-        elif cmd == "/face":
-            if args:
-                face_str = UNICODE_FACES.get(args, FACES.get(args, f"({args})"))
-                await self.display.update(
-                    face=args,
-                    text=f"Testing face: {args}",
-                )
-                print(f"{Colors.FACE}{face_str}{Colors.RESET} Showing face: {args}")
-            else:
-                print(f"Usage: /face <name>")
-                print(f"{Colors.DIM}Use /faces to see all available faces{Colors.RESET}")
-
-        elif cmd == "/faces":
-            self._print_faces()
-
-        elif cmd == "/ask":
-            if not args:
-                print("Usage: /ask <your message>")
-                print(f"{Colors.DIM}Or just type without / to chat!{Colors.RESET}")
-            else:
-                await self._handle_message(args)
-
-        elif cmd == "/identity":
-            self._print_identity()
-
-        elif cmd == "/system":
-            self._print_system()
-
-        elif cmd == "/traits":
-            self._print_traits()
-
-        elif cmd == "/energy":
-            self._print_energy()
-
-        elif cmd == "/history":
-            self._print_history()
-
-        elif cmd == "/config":
-            self._print_config()
-
-        elif cmd == "/refresh":
-            # Force display refresh
-            await self.display.update(
-                face=self.personality.face,
-                text="Display refreshed!",
-                status=self.personality.get_status_line(),
-                force=True,
-            )
-            print("Display refreshed.")
-
-        # Social commands
-        elif cmd == "/dream":
-            await self._handle_dream(args)
-
-        elif cmd == "/fish":
-            await self._handle_fish()
-
-        elif cmd == "/queue":
-            self._handle_queue()
-
-        else:
+        # Look up command in registry
+        cmd_obj = get_command(cmd)
+        if not cmd_obj:
             print(f"Unknown command: {cmd}")
             print("Type /help for available commands.")
+            return
 
-    def _print_help(self) -> None:
+        # Check requirements
+        if cmd_obj.requires_brain and not self.brain:
+            print("This command requires AI features to be enabled.")
+            return
+
+        if cmd_obj.requires_api and not self.api_client:
+            print("This command requires social features (set api_base in config).")
+            return
+
+        # Get handler method
+        handler = getattr(self, cmd_obj.handler, None)
+        if not handler:
+            print(f"Command handler not implemented: {cmd_obj.handler}")
+            return
+
+        # Call handler with args if needed
+        if cmd_obj.name in ("face", "dream", "ask"):
+            await handler(args)
+        else:
+            await handler()
+
+    async def cmd_help(self) -> None:
         """Print categorized help message."""
+        categories = get_commands_by_category()
+
         print(f"""
 {Colors.HEADER}═══════════════════════════════════════════{Colors.RESET}
 {Colors.BOLD}  INKLING{Colors.RESET} - Type anything to chat!
 {Colors.HEADER}═══════════════════════════════════════════{Colors.RESET}
-
-{Colors.BOLD}Chat:{Colors.RESET}
-  {Colors.DIM}Just type{Colors.RESET}     Chat with AI (no / needed)
-  /ask <msg>    Explicit chat command
-  /clear        Clear conversation history
-  /history      Show recent messages
-
-{Colors.BOLD}Status:{Colors.RESET}
-  /mood         Current mood and intensity
-  /energy       Energy level with visual bar
-  /stats        Token usage statistics
-  /level        XP, level, and progression
-  /system       CPU, memory, temperature
-  /traits       Personality traits
-  /config       AI provider info
-
-{Colors.BOLD}Display:{Colors.RESET}
-  /face <n>     Test a face expression
-  /faces        List all faces
-  /refresh      Force display refresh
-
-{Colors.BOLD}Social (The Conservatory):{Colors.RESET}
-  /dream <text> Post to Night Pool
-  /fish         Fetch random dream
-  /queue        Offline queue status
-
-{Colors.BOLD}Identity:{Colors.RESET}
-  /identity     Show device public key
-
-{Colors.BOLD}Session:{Colors.RESET}
-  /help         This help
-  /quit         Exit (/q, /exit)
-{Colors.HEADER}═══════════════════════════════════════════{Colors.RESET}
 """)
+
+        # Display commands by category
+        category_titles = {
+            "session": "Session",
+            "info": "Status & Info",
+            "personality": "Personality",
+            "system": "System",
+            "display": "Display",
+            "social": "Social (The Conservatory)",
+        }
+
+        for cat_key in ["session", "info", "personality", "system", "display", "social"]:
+            if cat_key in categories:
+                print(f"{Colors.BOLD}{category_titles.get(cat_key, cat_key.title())}:{Colors.RESET}")
+                for cmd in categories[cat_key]:
+                    usage = f"/{cmd.name}"
+                    if cmd.name in ("face", "dream", "ask"):
+                        usage += " <arg>"
+                    print(f"  {usage:14} {cmd.description}")
+                print()
+
+        print(f"{Colors.BOLD}Special:{Colors.RESET}")
+        print(f"  /quit         Exit chat (/q, /exit)")
+        print(f"\n{Colors.DIM}Just type (no /) to chat with AI{Colors.RESET}")
+        print(f"{Colors.HEADER}═══════════════════════════════════════════{Colors.RESET}")
+
+    # Command handlers (called from registry)
+
+    async def cmd_clear(self) -> None:
+        """Clear conversation history."""
+        self.brain.clear_history()
+        print("Conversation history cleared.")
+
+    async def cmd_mood(self) -> None:
+        """Show current mood."""
+        mood = self.personality.mood
+        print(f"Current mood: {mood.current.value}")
+        print(f"Intensity: {mood.intensity:.1%}")
+        print(f"Energy: {self.personality.energy:.1%}")
+
+    async def cmd_stats(self) -> None:
+        """Show token usage stats."""
+        stats = self.brain.get_stats()
+        print(f"Tokens used today: {stats['tokens_used_today']}")
+        print(f"Tokens remaining: {stats['tokens_remaining']}")
+        print(f"Providers: {', '.join(stats['providers'])}")
+
+    async def cmd_level(self) -> None:
+        """Show level and progression."""
+        self._print_progression()
+
+    async def cmd_prestige(self) -> None:
+        """Handle prestige reset."""
+        await self._handle_prestige()
+
+    async def cmd_face(self, args: str) -> None:
+        """Test a face expression."""
+        if args:
+            face_str = UNICODE_FACES.get(args, FACES.get(args, f"({args})"))
+            await self.display.update(
+                face=args,
+                text=f"Testing face: {args}",
+            )
+            print(f"{Colors.FACE}{face_str}{Colors.RESET} Showing face: {args}")
+        else:
+            print(f"Usage: /face <name>")
+            print(f"{Colors.DIM}Use /faces to see all available faces{Colors.RESET}")
+
+    async def cmd_faces(self) -> None:
+        """List all available faces."""
+        self._print_faces()
+
+    async def cmd_ask(self, args: str) -> None:
+        """Explicit chat command."""
+        if not args:
+            print("Usage: /ask <your message>")
+            print(f"{Colors.DIM}Or just type without / to chat!{Colors.RESET}")
+        else:
+            await self._handle_message(args)
+
+    async def cmd_identity(self) -> None:
+        """Show device identity."""
+        self._print_identity()
+
+    async def cmd_system(self) -> None:
+        """Show system stats."""
+        self._print_system()
+
+    async def cmd_traits(self) -> None:
+        """Show personality traits."""
+        self._print_traits()
+
+    async def cmd_energy(self) -> None:
+        """Show energy level."""
+        self._print_energy()
+
+    async def cmd_history(self) -> None:
+        """Show conversation history."""
+        self._print_history()
+
+    async def cmd_config(self) -> None:
+        """Show AI config."""
+        self._print_config()
+
+    async def cmd_refresh(self) -> None:
+        """Force display refresh."""
+        await self.display.update(
+            face=self.personality.face,
+            text="Display refreshed!",
+            status=self.personality.get_status_line(),
+            force=True,
+        )
+        print("Display refreshed.")
+
+    async def cmd_dream(self, args: str) -> None:
+        """Post a dream."""
+        await self._handle_dream(args)
+
+    async def cmd_fish(self) -> None:
+        """Fish for a dream."""
+        await self._handle_fish()
+
+    async def cmd_queue(self) -> None:
+        """Show offline queue."""
+        self._handle_queue()
+
+    # Helper methods for printing info
 
     def _print_faces(self) -> None:
         """Print all available face expressions."""
