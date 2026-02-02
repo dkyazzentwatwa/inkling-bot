@@ -219,7 +219,7 @@ class OpenAIProvider(AIProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "gpt-4o-mini",
+        model: str = "gpt-5-mini",
         max_tokens: int = 150,
         base_url: Optional[str] = None,
     ):
@@ -258,22 +258,11 @@ class OpenAIProvider(AIProvider):
         ])
 
         try:
-            # Check if model needs max_completion_tokens (o1, o3 models)
-            use_max_completion_tokens = any(
-                self.model.startswith(prefix)
-                for prefix in ("o1", "o3")
-            )
-
             kwargs = {
                 "model": self.model,
                 "messages": api_messages,
+                "max_completion_tokens": self.max_tokens,
             }
-
-            # Use appropriate token limit parameter
-            if use_max_completion_tokens:
-                kwargs["max_completion_tokens"] = self.max_tokens
-            else:
-                kwargs["max_tokens"] = self.max_tokens
 
             # Convert tools to OpenAI format
             if tools:
@@ -503,7 +492,7 @@ class Brain:
         if openai_key:
             self.providers.append(OpenAIProvider(
                 api_key=openai_key,
-                model=openai_config.get("model", "gpt-4o-mini"),
+                model=openai_config.get("model", "gpt-5-mini"),
                 max_tokens=openai_config.get("max_tokens", 150),
                 base_url=openai_config.get("base_url"),
             ))

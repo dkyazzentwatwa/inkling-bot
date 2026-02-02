@@ -19,7 +19,7 @@ ai:
   # OpenAI settings (also works with compatible APIs)
   openai:
     api_key: ${OPENAI_API_KEY}
-    model: "gpt-4o-mini"
+    model: "gpt-5-mini"
     max_tokens: 150
     # base_url: null  # Default: OpenAI API
     #
