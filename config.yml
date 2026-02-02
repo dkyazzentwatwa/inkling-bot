@@ -64,3 +64,30 @@ gossip:
   enabled: false
   mdns_name: "_inkling._tcp.local."
   port: 8471
+
+# MCP Servers (Model Context Protocol)
+# Gives Inkling access to external tools
+mcp:
+  enabled: false
+  servers:
+    # Example: File system access
+    # filesystem:
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/pi"]
+
+    # Example: Web fetching
+    # fetch:
+    #   command: "uvx"
+    #   args: ["mcp-server-fetch"]
+
+    # Example: Memory/notes
+    # memory:
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-memory"]
+
+    # Example: Brave search
+    # brave-search:
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-brave-search"]
+    #   env:
+    #     BRAVE_API_KEY: "your-api-key"

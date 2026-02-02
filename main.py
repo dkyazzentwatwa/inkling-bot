@@ -28,6 +28,7 @@ import yaml
 from core.brain import Brain
 from core.crypto import Identity
 from core.display import DisplayManager
+from core.mcp_client import MCPClientManager
 from core.personality import Personality, PersonalityTraits
 from core.api_client import APIClient
 from modes.ssh_chat import SSHChatMode
@@ -126,6 +127,7 @@ class Inkling:
         self.personality: Optional[Personality] = None
         self.brain: Optional[Brain] = None
         self.api_client: Optional[APIClient] = None
+        self.mcp_client: Optional[MCPClientManager] = None
 
         # Current mode
         self._mode = None
@@ -166,10 +168,21 @@ class Inkling:
         # Register mood change callback to update display
         self.personality.on_mood_change(self._on_mood_change)
 
+        # MCP Client (tool integration)
+        mcp_config = self.config.get("mcp", {})
+        if mcp_config.get("enabled", False):
+            print("  - Starting MCP servers...")
+            self.mcp_client = MCPClientManager(mcp_config)
+            await self.mcp_client.start_all()
+            if self.mcp_client.has_tools:
+                print(f"    Tools available: {self.mcp_client.tool_count}")
+            else:
+                print("    No tools loaded (check server configs)")
+
         # Brain (AI)
         print("  - Connecting brain...")
         ai_config = self.config.get("ai", {})
-        self.brain = Brain(ai_config)
+        self.brain = Brain(ai_config, mcp_client=self.mcp_client)
 
         if self.brain.has_providers:
             print(f"    Providers: {', '.join(self.brain.available_providers)}")
@@ -248,6 +261,9 @@ class Inkling:
 
         if self._mode:
             self._mode.stop()
+
+        if self.mcp_client:
+            await self.mcp_client.stop_all()
 
         if self.api_client:
             await self.api_client.close()

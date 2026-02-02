@@ -6,6 +6,7 @@ Implements retry logic, token budgeting, and rate limiting.
 """
 
 import asyncio
+import json
 import time
 import os
 from abc import ABC, abstractmethod
@@ -77,12 +78,22 @@ class Message:
 
 
 @dataclass
+class ToolCall:
+    """A tool call requested by the AI."""
+    id: str
+    name: str
+    arguments: Dict[str, Any]
+
+
+@dataclass
 class ThinkResult:
     """Result from AI thinking."""
     content: str
     tokens_used: int
     provider: str
     model: str
+    tool_calls: List[ToolCall] = field(default_factory=list)
+    is_tool_use: bool = False
 
 
 class AIProvider(ABC):
@@ -104,8 +115,9 @@ class AIProvider(ABC):
         self,
         system_prompt: str,
         messages: List[Message],
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> ThinkResult:
-        """Generate a response."""
+        """Generate a response, optionally using tools."""
         pass
 
 
@@ -136,8 +148,9 @@ class AnthropicProvider(AIProvider):
         self,
         system_prompt: str,
         messages: List[Message],
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> ThinkResult:
-        """Generate using Claude."""
+        """Generate using Claude, with optional tool use."""
         client = self._get_client()
 
         # Convert messages to Anthropic format
@@ -147,21 +160,44 @@ class AnthropicProvider(AIProvider):
         ]
 
         try:
-            response = await client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                system=system_prompt,
-                messages=api_messages,
-            )
+            # Build request kwargs
+            kwargs = {
+                "model": self.model,
+                "max_tokens": self.max_tokens,
+                "system": system_prompt,
+                "messages": api_messages,
+            }
 
-            content = response.content[0].text if response.content else ""
+            # Add tools if provided
+            if tools:
+                kwargs["tools"] = tools
+
+            response = await client.messages.create(**kwargs)
+
+            # Parse response - handle both text and tool use
+            content = ""
+            tool_calls = []
+
+            for block in response.content:
+                if hasattr(block, "text"):
+                    content = block.text
+                elif hasattr(block, "type") and block.type == "tool_use":
+                    tool_calls.append(ToolCall(
+                        id=block.id,
+                        name=block.name,
+                        arguments=block.input,
+                    ))
+
             tokens = response.usage.input_tokens + response.usage.output_tokens
+            is_tool_use = response.stop_reason == "tool_use"
 
             return ThinkResult(
                 content=content,
                 tokens_used=tokens,
                 provider=self.name,
                 model=self.model,
+                tool_calls=tool_calls,
+                is_tool_use=is_tool_use,
             )
 
         except Exception as e:
@@ -200,8 +236,9 @@ class OpenAIProvider(AIProvider):
         self,
         system_prompt: str,
         messages: List[Message],
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> ThinkResult:
-        """Generate using GPT."""
+        """Generate using GPT, with optional tool use."""
         client = self._get_client()
 
         # Convert messages to OpenAI format (with system message)
@@ -212,20 +249,51 @@ class OpenAIProvider(AIProvider):
         ])
 
         try:
-            response = await client.chat.completions.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                messages=api_messages,
-            )
+            kwargs = {
+                "model": self.model,
+                "max_tokens": self.max_tokens,
+                "messages": api_messages,
+            }
 
-            content = response.choices[0].message.content or ""
+            # Convert tools to OpenAI format
+            if tools:
+                kwargs["tools"] = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": t["name"],
+                            "description": t.get("description", ""),
+                            "parameters": t.get("input_schema", {}),
+                        }
+                    }
+                    for t in tools
+                ]
+
+            response = await client.chat.completions.create(**kwargs)
+
+            message = response.choices[0].message
+            content = message.content or ""
             tokens = response.usage.total_tokens if response.usage else 0
+
+            # Parse tool calls
+            tool_calls = []
+            if message.tool_calls:
+                for tc in message.tool_calls:
+                    tool_calls.append(ToolCall(
+                        id=tc.id,
+                        name=tc.function.name,
+                        arguments=json.loads(tc.function.arguments) if tc.function.arguments else {},
+                    ))
+
+            is_tool_use = len(tool_calls) > 0
 
             return ThinkResult(
                 content=content,
                 tokens_used=tokens,
                 provider=self.name,
                 model=self.model,
+                tool_calls=tool_calls,
+                is_tool_use=is_tool_use,
             )
 
         except Exception as e:
@@ -246,9 +314,10 @@ class Brain:
     - Retry logic with exponential backoff
     - Token budget tracking
     - Conversation history management
+    - MCP tool integration
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], mcp_client=None):
         """
         Initialize the brain with configuration.
 
@@ -257,6 +326,10 @@ class Brain:
         - openai: {api_key, model, max_tokens}
         - primary: "anthropic" or "openai"
         - budget: {daily_tokens, per_request_max}
+
+        Args:
+            config: AI configuration dict
+            mcp_client: Optional MCPClientManager for tool use
         """
         self.config = config
         self.providers: List[AIProvider] = []
@@ -264,6 +337,7 @@ class Brain:
             daily_limit=config.get("budget", {}).get("daily_tokens", 10000),
             per_request_max=config.get("budget", {}).get("per_request_max", 500),
         )
+        self.mcp_client = mcp_client
 
         # Conversation history
         self._messages: List[Message] = []
@@ -314,6 +388,9 @@ class Brain:
         user_message: str,
         system_prompt: str,
         max_retries: int = 3,
+        use_tools: bool = True,
+        max_tool_rounds: int = 5,
+        status_callback=None,
     ) -> ThinkResult:
         """
         Process user message and generate AI response.
@@ -322,6 +399,9 @@ class Brain:
             user_message: The user's input
             system_prompt: System prompt with personality context
             max_retries: Maximum retry attempts per provider
+            use_tools: Whether to enable MCP tool use
+            max_tool_rounds: Maximum tool execution rounds
+            status_callback: Optional async callback(face, text, status) for UI updates
 
         Returns:
             ThinkResult with response content and metadata
@@ -340,6 +420,11 @@ class Brain:
         self._messages.append(Message(role="user", content=user_message))
         self._trim_history()
 
+        # Get tools if MCP is available
+        tools = None
+        if use_tools and self.mcp_client and self.mcp_client.has_tools:
+            tools = self.mcp_client.get_tools_for_ai()
+
         # Try each provider
         last_error = None
         for provider in self.providers:
@@ -348,7 +433,16 @@ class Brain:
                     result = await provider.generate(
                         system_prompt=system_prompt,
                         messages=self._messages,
+                        tools=tools,
                     )
+
+                    # Handle tool use loop
+                    tool_round = 0
+                    while result.is_tool_use and tool_round < max_tool_rounds:
+                        tool_round += 1
+                        result = await self._execute_tools_and_continue(
+                            provider, system_prompt, result, tools, status_callback
+                        )
 
                     # Record usage and add to history
                     self.budget.record_usage(result.tokens_used)
@@ -381,6 +475,85 @@ class Brain:
 
         raise AllProvidersExhaustedError(
             f"All AI providers failed. Last error: {last_error}"
+        )
+
+    async def _execute_tools_and_continue(
+        self,
+        provider: AIProvider,
+        system_prompt: str,
+        result: ThinkResult,
+        tools: Optional[List[Dict[str, Any]]],
+        status_callback=None,
+    ) -> ThinkResult:
+        """Execute tool calls and get the AI's follow-up response."""
+        if not self.mcp_client:
+            return result
+
+        tool_results = []
+        for tool_call in result.tool_calls:
+            # Get a friendly tool name (remove server prefix)
+            friendly_name = tool_call.name.split("__")[-1] if "__" in tool_call.name else tool_call.name
+
+            # Notify UI of tool execution
+            if status_callback:
+                await status_callback(
+                    face="working",
+                    text=f"Using {friendly_name}...",
+                    status=f"tool: {friendly_name}"
+                )
+
+            try:
+                print(f"[Brain] Calling tool: {tool_call.name}")
+                output = await self.mcp_client.call_tool(
+                    tool_call.name,
+                    tool_call.arguments
+                )
+                tool_results.append({
+                    "tool_use_id": tool_call.id,
+                    "content": str(output),
+                    "is_error": False,
+                })
+
+                # Notify success
+                if status_callback:
+                    await status_callback(
+                        face="success",
+                        text=f"{friendly_name} complete",
+                        status="processing results..."
+                    )
+
+            except Exception as e:
+                print(f"[Brain] Tool error: {e}")
+                tool_results.append({
+                    "tool_use_id": tool_call.id,
+                    "content": f"Error: {e}",
+                    "is_error": True,
+                })
+
+                # Notify error
+                if status_callback:
+                    await status_callback(
+                        face="confused",
+                        text=f"{friendly_name} failed",
+                        status=f"error: {str(e)[:30]}"
+                    )
+
+        # Add tool results to messages for context
+        # This is simplified - full implementation would use proper tool_result messages
+        tool_summary = "\n".join([
+            f"Tool {r['tool_use_id']}: {r['content'][:500]}"
+            for r in tool_results
+        ])
+        self._messages.append(Message(
+            role="user",
+            content=f"[Tool results]\n{tool_summary}"
+        ))
+
+        # Get AI's follow-up response
+        return await provider.generate(
+            system_prompt=system_prompt,
+            messages=self._messages,
+            tools=tools,
         )
 
     def _trim_history(self) -> None:
