@@ -7,7 +7,7 @@ device:
 # AI Provider Configuration
 # Set API keys via environment variables or here
 ai:
-  # Primary provider (anthropic or openai)
+  # Primary provider (anthropic, openai, or gemini)
   primary: "anthropic"
 
   # Anthropic settings
@@ -20,6 +20,12 @@ ai:
   openai:
     api_key: ${OPENAI_API_KEY}
     model: "gpt-4o-mini"
+    max_tokens: 150
+
+  # Gemini settings (fallback)
+  gemini:
+    api_key: ${GOOGLE_API_KEY}
+    model: "gemini-2.5-flash"
     max_tokens: 150
 
   # Token budgets

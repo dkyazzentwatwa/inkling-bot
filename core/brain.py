@@ -305,6 +305,112 @@ class OpenAIProvider(AIProvider):
             raise ProviderError(f"OpenAI error: {e}")
 
 
+class GeminiProvider(AIProvider):
+    """Google Gemini provider."""
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gemini-2.5-flash",
+        max_tokens: int = 150
+    ):
+        super().__init__(api_key, model, max_tokens)
+        self._client = None
+
+    @property
+    def name(self) -> str:
+        return "gemini"
+
+    def _get_client(self):
+        """Lazy-load the Gemini client."""
+        if self._client is None:
+            from google import genai
+            self._client = genai.Client(api_key=self.api_key)
+        return self._client
+
+    async def generate(
+        self,
+        system_prompt: str,
+        messages: List[Message],
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> ThinkResult:
+        """Generate using Gemini, with optional tool use."""
+        client = self._get_client()
+
+        # Build contents (Gemini uses role "model" for assistant)
+        contents = []
+        for m in messages:
+            contents.append({
+                "role": "user" if m.role == "user" else "model",
+                "parts": [{"text": m.content}]
+            })
+
+        # Convert tools to Gemini format if provided
+        gemini_tools = self._convert_tools(tools) if tools else None
+
+        try:
+            config = {
+                "system_instruction": system_prompt,
+                "max_output_tokens": self.max_tokens,
+            }
+            if gemini_tools:
+                config["tools"] = gemini_tools
+
+            response = await client.aio.models.generate_content(
+                model=self.model,
+                contents=contents,
+                config=config,
+            )
+
+            # Parse response
+            content = response.text or ""
+            tokens = response.usage_metadata.total_token_count if response.usage_metadata else 0
+
+            # Handle function calls
+            tool_calls = []
+            is_tool_use = False
+            if response.candidates and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, 'function_call') and part.function_call:
+                        fc = part.function_call
+                        tool_calls.append(ToolCall(
+                            id=fc.name,  # Gemini doesn't use IDs like Anthropic
+                            name=fc.name,
+                            arguments=dict(fc.args) if fc.args else {},
+                        ))
+                        is_tool_use = True
+
+            return ThinkResult(
+                content=content,
+                tokens_used=tokens,
+                provider=self.name,
+                model=self.model,
+                tool_calls=tool_calls,
+                is_tool_use=is_tool_use,
+            )
+
+        except Exception as e:
+            error_str = str(e).lower()
+            if "rate" in error_str or "429" in error_str or "quota" in error_str:
+                raise RateLimitError(f"Gemini rate limit: {e}")
+            if "resource" in error_str or "exhausted" in error_str:
+                raise QuotaExceededError(f"Gemini quota: {e}")
+            raise ProviderError(f"Gemini error: {e}")
+
+    def _convert_tools(self, tools: List[Dict[str, Any]]) -> List[Dict]:
+        """Convert MCP tools to Gemini function declaration format."""
+        gemini_tools = []
+        for t in tools:
+            gemini_tools.append({
+                "function_declarations": [{
+                    "name": t["name"],
+                    "description": t.get("description", ""),
+                    "parameters": t.get("input_schema", {}),
+                }]
+            })
+        return gemini_tools
+
+
 class Brain:
     """
     Multi-provider AI brain for Inkling.
@@ -324,7 +430,8 @@ class Brain:
         Config should include:
         - anthropic: {api_key, model, max_tokens}
         - openai: {api_key, model, max_tokens}
-        - primary: "anthropic" or "openai"
+        - gemini: {api_key, model, max_tokens}
+        - primary: "anthropic", "openai", or "gemini"
         - budget: {daily_tokens, per_request_max}
 
         Args:
@@ -353,9 +460,11 @@ class Brain:
         # Get API keys from config or environment
         anthropic_config = self.config.get("anthropic", {})
         openai_config = self.config.get("openai", {})
+        gemini_config = self.config.get("gemini", {})
 
         anthropic_key = anthropic_config.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
         openai_key = openai_config.get("api_key") or os.environ.get("OPENAI_API_KEY")
+        gemini_key = gemini_config.get("api_key") or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
         # Build provider list with primary first
         if primary == "anthropic" and anthropic_key:
@@ -364,12 +473,26 @@ class Brain:
                 model=anthropic_config.get("model", "claude-3-haiku-20240307"),
                 max_tokens=anthropic_config.get("max_tokens", 150),
             ))
+        elif primary == "gemini" and gemini_key:
+            self.providers.append(GeminiProvider(
+                api_key=gemini_key,
+                model=gemini_config.get("model", "gemini-2.5-flash"),
+                max_tokens=gemini_config.get("max_tokens", 150),
+            ))
 
         if openai_key:
             self.providers.append(OpenAIProvider(
                 api_key=openai_key,
                 model=openai_config.get("model", "gpt-4o-mini"),
                 max_tokens=openai_config.get("max_tokens", 150),
+            ))
+
+        # Add gemini as fallback if not primary
+        if primary != "gemini" and gemini_key:
+            self.providers.append(GeminiProvider(
+                api_key=gemini_key,
+                model=gemini_config.get("model", "gemini-2.5-flash"),
+                max_tokens=gemini_config.get("max_tokens", 150),
             ))
 
         # Add anthropic as fallback if not primary
