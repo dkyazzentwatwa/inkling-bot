@@ -14,6 +14,9 @@ cryptography>=41.0.0
 # Async HTTP
 aiohttp>=3.9.0
 
+# Networking (Gossip Protocol)
+zeroconf>=0.131.0
+
 # Configuration
 pyyaml>=6.0
 

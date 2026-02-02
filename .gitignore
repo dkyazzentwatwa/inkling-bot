@@ -1,0 +1,98 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local config (contains API keys)
+config.local.yml
+.env
+.env.local
+.env.*.local
+
+# Inkling data directory
+.inkling/
+
+# Node.js (cloud/)
+node_modules/
+.vercel/
+.next/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Secrets & credentials
+*.pem
+*.key
+secrets/
+credentials/
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Compiled assets
+*.pyc
+*.pyo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# E-ink display images (generated)
+*.pbm
+*.bmp
