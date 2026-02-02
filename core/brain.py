@@ -390,6 +390,7 @@ class Brain:
         max_retries: int = 3,
         use_tools: bool = True,
         max_tool_rounds: int = 5,
+        status_callback=None,
     ) -> ThinkResult:
         """
         Process user message and generate AI response.
@@ -400,6 +401,7 @@ class Brain:
             max_retries: Maximum retry attempts per provider
             use_tools: Whether to enable MCP tool use
             max_tool_rounds: Maximum tool execution rounds
+            status_callback: Optional async callback(face, text, status) for UI updates
 
         Returns:
             ThinkResult with response content and metadata
@@ -439,7 +441,7 @@ class Brain:
                     while result.is_tool_use and tool_round < max_tool_rounds:
                         tool_round += 1
                         result = await self._execute_tools_and_continue(
-                            provider, system_prompt, result, tools
+                            provider, system_prompt, result, tools, status_callback
                         )
 
                     # Record usage and add to history
@@ -481,6 +483,7 @@ class Brain:
         system_prompt: str,
         result: ThinkResult,
         tools: Optional[List[Dict[str, Any]]],
+        status_callback=None,
     ) -> ThinkResult:
         """Execute tool calls and get the AI's follow-up response."""
         if not self.mcp_client:
@@ -488,6 +491,17 @@ class Brain:
 
         tool_results = []
         for tool_call in result.tool_calls:
+            # Get a friendly tool name (remove server prefix)
+            friendly_name = tool_call.name.split("__")[-1] if "__" in tool_call.name else tool_call.name
+
+            # Notify UI of tool execution
+            if status_callback:
+                await status_callback(
+                    face="working",
+                    text=f"Using {friendly_name}...",
+                    status=f"tool: {friendly_name}"
+                )
+
             try:
                 print(f"[Brain] Calling tool: {tool_call.name}")
                 output = await self.mcp_client.call_tool(
@@ -499,6 +513,15 @@ class Brain:
                     "content": str(output),
                     "is_error": False,
                 })
+
+                # Notify success
+                if status_callback:
+                    await status_callback(
+                        face="success",
+                        text=f"{friendly_name} complete",
+                        status="processing results..."
+                    )
+
             except Exception as e:
                 print(f"[Brain] Tool error: {e}")
                 tool_results.append({
@@ -506,6 +529,14 @@ class Brain:
                     "content": f"Error: {e}",
                     "is_error": True,
                 })
+
+                # Notify error
+                if status_callback:
+                    await status_callback(
+                        face="confused",
+                        text=f"{friendly_name} failed",
+                        status=f"error: {str(e)[:30]}"
+                    )
 
         # Add tool results to messages for context
         # This is simplified - full implementation would use proper tool_result messages

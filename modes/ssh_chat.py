@@ -225,11 +225,17 @@ Just type normally to chat!
             status=self.personality.get_status_line(),
         )
 
+        # Status callback for tool use updates
+        async def on_tool_status(face: str, text: str, status: str):
+            await self.display.update(face=face, text=text, status=status)
+            print(f"  [{status}] {text}")
+
         try:
             # Get AI response
             result = await self.brain.think(
                 user_message=message,
                 system_prompt=self.personality.get_system_prompt_context(),
+                status_callback=on_tool_status,
             )
 
             # Success!

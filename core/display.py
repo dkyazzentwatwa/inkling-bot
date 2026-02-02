@@ -46,6 +46,12 @@ FACES = {
     "wink": "(^_~)",
     "debug": "[DEBUG]",
     "default": "(^_^)",
+    # Tool use faces
+    "working": "(•̀ᴗ•́)و",
+    "searching": "(◉_◉)",
+    "fetching": "(↺_↺)",
+    "writing": "(✎_✎)",
+    "success": "(✓‿✓)",
 }
 
 # Extended Unicode faces (Pwnagotchi style)
