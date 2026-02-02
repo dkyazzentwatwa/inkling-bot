@@ -121,3 +121,10 @@ mcp:
     #   args: ["-y", "@modelcontextprotocol/server-brave-search"]
     #   env:
     #     BRAVE_API_KEY: "your-api-key"
+
+    # Composio MCP (HTTP)
+    # composio:
+    #   transport: "http"
+    #   url: "https://backend.composio.dev/v3/mcp/YOUR_SERVER_ID/mcp?user_id=YOUR_USER_ID"
+    #   headers:
+    #     x-api-key: "${COMPOSIO_API_KEY}"

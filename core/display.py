@@ -263,6 +263,7 @@ class DisplayManager:
         min_refresh_interval: float = 5.0,
         device_name: str = "inkling",
         personality=None,
+        prefer_ascii_faces: Optional[bool] = None,
     ):
         self.width = width
         self.height = height
@@ -275,6 +276,10 @@ class DisplayManager:
         self._last_refresh = 0.0
         self._refresh_count = 0
         self._lock = asyncio.Lock()
+
+        # Face preference: ASCII for e-ink (better rendering), Unicode for mock (prettier)
+        # Will be set to True for v3/v4, False for mock if not specified
+        self._prefer_ascii_faces = prefer_ascii_faces
 
         # Pwnagotchi UI renderer
         self._ui: Optional[PwnagotchiUI] = None
@@ -310,19 +315,45 @@ class DisplayManager:
 
     def _create_driver(self) -> DisplayDriver:
         """Create appropriate display driver based on type."""
+        # Set face preference if not explicitly set
+        if self._prefer_ascii_faces is None:
+            # E-ink displays (v3/v4) use ASCII for better rendering
+            # Mock display uses Unicode for prettier appearance
+            if self._display_type in ("v3", "v4"):
+                self._prefer_ascii_faces = True
+            elif self._display_type == "mock":
+                self._prefer_ascii_faces = False
+            else:  # auto - will be set after detection
+                self._prefer_ascii_faces = None
+
         if self._display_type == "mock":
+            if self._prefer_ascii_faces is None:
+                self._prefer_ascii_faces = False
             return MockDisplay(self.width, self.height)
 
         if self._display_type == "v3":
+            if self._prefer_ascii_faces is None:
+                self._prefer_ascii_faces = True
             return WaveshareV3Display(self.width, self.height)
 
         if self._display_type == "v4":
+            if self._prefer_ascii_faces is None:
+                self._prefer_ascii_faces = True
             return WaveshareV4Display(self.width, self.height)
 
         if self._display_type == "auto":
-            return self._auto_detect_display()
+            driver = self._auto_detect_display()
+            # Set preference based on detected type
+            if self._prefer_ascii_faces is None:
+                if isinstance(driver, MockDisplay):
+                    self._prefer_ascii_faces = False
+                else:  # Real e-ink
+                    self._prefer_ascii_faces = True
+            return driver
 
         # Default to mock
+        if self._prefer_ascii_faces is None:
+            self._prefer_ascii_faces = False
         return MockDisplay(self.width, self.height)
 
     def _auto_detect_display(self) -> DisplayDriver:
@@ -407,8 +438,13 @@ class DisplayManager:
         Returns:
             PIL Image ready for display
         """
-        # Get face string
-        face_str = UNICODE_FACES.get(face, FACES.get(face, FACES["default"]))
+        # Get face string - prefer ASCII on e-ink, Unicode on mock
+        if self._prefer_ascii_faces:
+            # E-ink: Try ASCII first, fallback to Unicode if not found
+            face_str = FACES.get(face, UNICODE_FACES.get(face, FACES["default"]))
+        else:
+            # Mock/Web: Try Unicode first for prettier faces
+            face_str = UNICODE_FACES.get(face, FACES.get(face, FACES["default"]))
 
         # Get mood display text
         if mood_text is None:

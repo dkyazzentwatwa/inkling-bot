@@ -70,7 +70,9 @@ HTML_TEMPLATE = """
             text-align: center;
             font-size: 3rem;
             padding: 2rem;
-            font-family: sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif;
+            line-height: 1.2;
+            letter-spacing: 0.05em;
         }
         .messages {
             flex: 1;
@@ -361,8 +363,9 @@ class WebChatMode:
         self._message_queue: Queue = Queue()
 
         # Import faces from UI module
+        # Use Unicode faces for web (better appearance), with ASCII fallback
         from core.ui import FACES, UNICODE_FACES
-        self._faces = FACES
+        self._faces = {**FACES, **UNICODE_FACES}  # Unicode takes precedence
 
         # Set display mode
         self.display.set_mode("WEB")

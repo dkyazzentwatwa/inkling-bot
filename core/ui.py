@@ -59,33 +59,55 @@ FACES = {
     "success": "(^_^)v",
 }
 
-# Extended Unicode faces (Pwnagotchi style)
+# Extended Unicode faces (cleaner, more compatible)
+# These use well-supported Unicode characters that render correctly
+# in browsers, terminals, and e-ink displays
 UNICODE_FACES = {
-    "look_r": "( \u2686_\u2686)",
-    "look_l": "(\u2609_\u2609 )",
-    "look_r_happy": "( \u2686\u203f\u2686)",
-    "look_l_happy": "(\u2609\u203f\u2609 )",
-    "sleep": "(\u21c0\u203f\u203f\u21bc)",
-    "sleep2": "(\u2022\u203f\u203f\u2022)",
-    "awake": "(\u2609\u203f\u2609)",
+    # Looking directions
+    "look_r": "( ◉_◉)",
+    "look_l": "(◉_◉ )",
+    "look_r_happy": "( ◉‿◉)",
+    "look_l_happy": "(◉‿◉ )",
+
+    # Sleep states
+    "sleep": "(ᴗ﹏ᴗ)",
+    "sleep2": "(•﹏•)",
+    "sleepy": "(-‿‿-)",
+
+    # Basic emotions
+    "awake": "(◉‿◉)",
     "bored": "(-__-)",
-    "intense": "(\u2022_\u2022)",
-    "cool": "(\u2312_\u2312)",
-    "happy": "(\u2022\u203f\u203f\u2022)",
-    "excited": "(\u1d52\u25e1\u25e1\u1d52)",
-    "grateful": "(\u1d3c\u203f\u203f\u1d3c)",
-    "motivated": "(\u2686\u203f\u203f\u2686)",
-    "demotivated": "(\u2022__\u2022)",
-    "smart": "(\u2686_\u2686)",
-    "lonely": "(\u22c5\u2022\u22c5)",
-    "sad": "(\u2565\u2601\u2565 )",
-    "angry": "(\u2565\u203f\u2565)",
-    "friend": "(\u0361\u00b0 \u035c\u0296 \u0361\u00b0)",
-    "broken": "(\u2686_\u2686\u0029\u20e0",
-    "debug": "(\u25b8\u203f\u25c2)",
-    "upload": "(\u0029\u20d2\u2022\u203f\u203f\u2022\u0028\u20d2",
-    "upload1": "(\u0029\u203f\u2022\u203f\u203f\u2022\u203f\u0028",
-    "upload2": "(\u0029\u2022\u203f\u203f\u2022\u0028",
+    "intense": "(•_•)",
+    "cool": "(⌐■_■)",
+    "happy": "(•‿‿•)",
+    "excited": "(◕‿◕)",
+    "grateful": "(◕‿◕)",
+    "motivated": "(◉‿◉)",
+    "demotivated": "(•__•)",
+
+    # Moods
+    "smart": "(◉_◉)",
+    "lonely": "(·•·)",
+    "sad": "(╥﹏╥)",
+    "angry": "(ಠ_ಠ)",
+    "curious": "(ಠ‿ಠ)?",
+    "thinking": "(◕.◕)",
+    "confused": "(•_•)?",
+    "surprised": "(◉_◉)!",
+
+    # Special
+    "friend": "(◕‿◕✿)",
+    "broken": "(✖╭╮✖)",
+    "debug": "(◈‿◈)",
+    "love": "(♥‿♥)",
+
+    # Upload/working states
+    "upload": "(⌐◉‿◉)",
+    "upload1": "(◉‿•)",
+    "upload2": "(•‿◉)",
+    "working": "(◉_•)",
+    "searching": "(◉_◉)",
+    "success": "(◕‿◕)v",
 }
 
 
@@ -473,13 +495,19 @@ class FaceBox:
         # Separator line
         draw_hline(draw, 0, self.y, DISPLAY_WIDTH, color=0)
 
-        # Draw face centered
+        # Draw face centered using the larger face font
         if ctx.face_str:
             face_text = ctx.face_str
-            bbox = draw.textbbox((0, 0), face_text, font=self.fonts.normal)
+            # Use face font for better rendering (38px)
+            bbox = draw.textbbox((0, 0), face_text, font=self.fonts.face)
             text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+
+            # Center horizontally and vertically in the face box
             face_x = (DISPLAY_WIDTH - text_width) // 2
-            draw.text((face_x, self.y + 4), face_text, font=self.fonts.normal, fill=0)
+            face_y = self.y + (self.height - text_height) // 2
+
+            draw.text((face_x, face_y), face_text, font=self.fonts.face, fill=0)
 
 
 class FooterBar:

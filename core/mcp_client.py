@@ -12,6 +12,7 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional
 from contextlib import asynccontextmanager
+import aiohttp
 
 
 @dataclass
@@ -30,6 +31,10 @@ class MCPServer:
     command: str
     args: List[str] = field(default_factory=list)
     env: Dict[str, str] = field(default_factory=dict)
+    transport: str = "stdio"  # stdio | http
+    url: Optional[str] = None
+    headers: Dict[str, str] = field(default_factory=dict)
+    session_id: Optional[str] = None
 
 
 class MCPClientManager:
@@ -69,6 +74,7 @@ class MCPClientManager:
         self._writers: Dict[str, asyncio.StreamWriter] = {}
         self._request_id = 0
         self._pending_requests: Dict[int, asyncio.Future] = {}
+        self._http_sessions: Dict[str, aiohttp.ClientSession] = {}
 
         self._parse_config()
 
@@ -81,6 +87,9 @@ class MCPClientManager:
                 command=server_config.get("command", ""),
                 args=server_config.get("args", []),
                 env=server_config.get("env", {}),
+                transport=server_config.get("transport", "http" if server_config.get("url") else "stdio"),
+                url=server_config.get("url"),
+                headers=server_config.get("headers", {}),
             )
 
     async def start_all(self) -> None:
@@ -97,6 +106,14 @@ class MCPClientManager:
             raise ValueError(f"Unknown server: {name}")
 
         server = self.servers[name]
+
+        if server.transport == "http":
+            # Initialize HTTP-based MCP server
+            if not server.url:
+                raise ValueError(f"HTTP transport requires url for server: {name}")
+            await self._initialize(name)
+            await self._discover_tools(name)
+            return
 
         # Build environment
         env = os.environ.copy()
@@ -162,6 +179,10 @@ class MCPClientManager:
 
     async def _send_request(self, server: str, method: str, params: Dict) -> Dict:
         """Send a JSON-RPC request and wait for response."""
+        srv = self.servers.get(server)
+        if srv and srv.transport == "http":
+            return await self._send_request_http(server, method, params)
+
         self._request_id += 1
         request_id = self._request_id
 
@@ -195,6 +216,11 @@ class MCPClientManager:
 
     async def _send_notification(self, server: str, method: str, params: Dict) -> None:
         """Send a JSON-RPC notification (no response expected)."""
+        srv = self.servers.get(server)
+        if srv and srv.transport == "http":
+            await self._send_notification_http(server, method, params)
+            return
+
         notification = {
             "jsonrpc": "2.0",
             "method": method,
@@ -236,6 +262,69 @@ class MCPClientManager:
         except Exception as e:
             print(f"[MCP] Reader error for {server}: {e}")
 
+    async def _send_request_http(self, server: str, method: str, params: Dict) -> Dict:
+        """Send a JSON-RPC request over HTTP and return response."""
+        self._request_id += 1
+        request_id = self._request_id
+        srv = self.servers[server]
+
+        if server not in self._http_sessions:
+            self._http_sessions[server] = aiohttp.ClientSession()
+
+        headers = {
+            "content-type": "application/json",
+            **(srv.headers or {}),
+        }
+        if srv.session_id:
+            headers["Mcp-Session-Id"] = srv.session_id
+
+        payload = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": method,
+            "params": params,
+        }
+
+        session = self._http_sessions[server]
+        async with session.post(srv.url, json=payload, headers=headers) as resp:
+            if resp.status >= 400:
+                text = await resp.text()
+                raise RuntimeError(f"HTTP {resp.status} from {server}: {text}")
+
+            # Capture MCP session id if provided
+            session_id = resp.headers.get("Mcp-Session-Id") or resp.headers.get("mcp-session-id")
+            if session_id:
+                srv.session_id = session_id
+
+            data = await resp.json()
+            if "error" in data:
+                raise RuntimeError(data["error"])
+            return data.get("result", {})
+
+    async def _send_notification_http(self, server: str, method: str, params: Dict) -> None:
+        """Send a JSON-RPC notification over HTTP (no response expected)."""
+        srv = self.servers[server]
+        if server not in self._http_sessions:
+            self._http_sessions[server] = aiohttp.ClientSession()
+
+        headers = {
+            "content-type": "application/json",
+            **(srv.headers or {}),
+        }
+        if srv.session_id:
+            headers["Mcp-Session-Id"] = srv.session_id
+
+        payload = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+        }
+
+        session = self._http_sessions[server]
+        async with session.post(srv.url, json=payload, headers=headers) as resp:
+            if resp.status >= 400:
+                text = await resp.text()
+                raise RuntimeError(f"HTTP {resp.status} from {server}: {text}")
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """
         Call a tool by name.
@@ -289,10 +378,17 @@ class MCPClientManager:
                 process.kill()
             print(f"[MCP] Stopped {name}")
 
+        for name, session in self._http_sessions.items():
+            try:
+                await session.close()
+            except Exception:
+                pass
+
         self.processes.clear()
         self._readers.clear()
         self._writers.clear()
         self.tools.clear()
+        self._http_sessions.clear()
 
     @property
     def has_tools(self) -> bool:

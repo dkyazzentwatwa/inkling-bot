@@ -1,0 +1,22 @@
+[Unit]
+Description=Inkling AI Companion (SSH Mode)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/inkling
+Environment="PATH=/home/pi/inkling/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/home/pi/inkling/.env
+ExecStart=/home/pi/inkling/.venv/bin/python main.py --mode ssh
+Restart=on-failure
+RestartSec=10
+StandardInput=tty
+TTY=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
