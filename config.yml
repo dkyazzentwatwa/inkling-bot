@@ -16,11 +16,18 @@ ai:
     model: "claude-3-haiku-20240307"
     max_tokens: 150
 
-  # OpenAI settings (fallback)
+  # OpenAI settings (also works with compatible APIs)
   openai:
     api_key: ${OPENAI_API_KEY}
     model: "gpt-4o-mini"
     max_tokens: 150
+    # base_url: null  # Default: OpenAI API
+    #
+    # Examples for OpenAI-compatible providers:
+    # Ollama (local): base_url: "http://localhost:11434/v1"
+    # Together AI:    base_url: "https://api.together.xyz/v1"
+    # Groq:           base_url: "https://api.groq.com/openai/v1"
+    # OpenRouter:     base_url: "https://openrouter.ai/api/v1"
 
   # Gemini settings (fallback)
   gemini:

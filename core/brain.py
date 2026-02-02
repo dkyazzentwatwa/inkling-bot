@@ -210,16 +210,22 @@ class AnthropicProvider(AIProvider):
 
 
 class OpenAIProvider(AIProvider):
-    """OpenAI (GPT) provider."""
+    """OpenAI (GPT) provider.
+
+    Also supports OpenAI-compatible APIs (Ollama, Together, Groq, OpenRouter, etc.)
+    by specifying a custom base_url.
+    """
 
     def __init__(
         self,
         api_key: str,
         model: str = "gpt-4o-mini",
-        max_tokens: int = 150
+        max_tokens: int = 150,
+        base_url: Optional[str] = None,
     ):
         super().__init__(api_key, model, max_tokens)
         self._client = None
+        self.base_url = base_url
 
     @property
     def name(self) -> str:
@@ -229,7 +235,10 @@ class OpenAIProvider(AIProvider):
         """Lazy-load the OpenAI client."""
         if self._client is None:
             import openai
-            self._client = openai.AsyncOpenAI(api_key=self.api_key)
+            self._client = openai.AsyncOpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,  # None uses default OpenAI URL
+            )
         return self._client
 
     async def generate(
@@ -485,6 +494,7 @@ class Brain:
                 api_key=openai_key,
                 model=openai_config.get("model", "gpt-4o-mini"),
                 max_tokens=openai_config.get("max_tokens", 150),
+                base_url=openai_config.get("base_url"),
             ))
 
         # Add gemini as fallback if not primary
