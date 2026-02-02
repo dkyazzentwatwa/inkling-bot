@@ -292,17 +292,17 @@ class Inkling:
                 )
                 await self._mode.run()
 
-        elif mode == "web":
-            self._mode = WebChatMode(
-                brain=self.brain,
-                display=self.display,
-                personality=self.personality,
-                api_client=self.api_client,
-                port=self.config.get("web", {}).get("port", 8080),
-            )
-            await self._mode.run()
+            elif mode == "web":
+                self._mode = WebChatMode(
+                    brain=self.brain,
+                    display=self.display,
+                    personality=self.personality,
+                    api_client=self.api_client,
+                    port=self.config.get("web", {}).get("port", 8080),
+                )
+                await self._mode.run()
 
-        elif mode == "demo":
+            elif mode == "demo":
                 await self._run_demo()
 
             else:
