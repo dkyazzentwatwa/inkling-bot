@@ -60,6 +60,10 @@ HTML_TEMPLATE = """
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
         }
         .name { font-size: 1.25rem; }
         .status {
@@ -73,6 +77,11 @@ HTML_TEMPLATE = """
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif;
             line-height: 1.2;
             letter-spacing: 0.05em;
+            position: sticky;
+            top: 60px;
+            z-index: 99;
+            background: var(--bg);
+            border-bottom: 2px solid var(--border);
         }
         .messages {
             flex: 1;
@@ -130,9 +139,22 @@ HTML_TEMPLATE = """
             opacity: 0.5;
         }
         .command-palette {
-            padding: 1rem;
-            border-top: 2px solid var(--border);
+            border: 2px solid var(--border);
+            margin: 1rem;
+        }
+        .command-palette summary {
+            padding: 0.75rem;
+            cursor: pointer;
+            font-weight: bold;
+            background: var(--border);
+            color: var(--bg);
+            user-select: none;
+        }
+        .command-palette[open] summary {
             border-bottom: 2px solid var(--border);
+        }
+        .command-groups {
+            padding: 1rem;
             max-height: 200px;
             overflow-y: auto;
         }
@@ -179,46 +201,50 @@ HTML_TEMPLATE = """
 
     <div class="messages" id="messages"></div>
 
-    <div class="command-palette">
-        <div class="command-group">
-            <h4>Info</h4>
-            <div class="command-buttons">
-                <button onclick="runCommand('/help')">Help</button>
-                <button onclick="runCommand('/level')">Level</button>
-                <button onclick="runCommand('/stats')">Stats</button>
-                <button onclick="runCommand('/history')">History</button>
+    <details class="command-palette" open>
+        <summary>⚙️ Commands</summary>
+        <div class="command-groups">
+            <div class="command-group">
+                <h4>Info</h4>
+                <div class="command-buttons">
+                    <button onclick="runCommand('/help')">Help</button>
+                    <button onclick="runCommand('/level')">Level</button>
+                    <button onclick="runCommand('/stats')">Stats</button>
+                    <button onclick="runCommand('/history')">History</button>
+                </div>
             </div>
-        </div>
 
-        <div class="command-group">
-            <h4>Personality</h4>
-            <div class="command-buttons">
-                <button onclick="runCommand('/mood')">Mood</button>
-                <button onclick="runCommand('/energy')">Energy</button>
-                <button onclick="runCommand('/traits')">Traits</button>
+            <div class="command-group">
+                <h4>Personality</h4>
+                <div class="command-buttons">
+                    <button onclick="runCommand('/mood')">Mood</button>
+                    <button onclick="runCommand('/energy')">Energy</button>
+                    <button onclick="runCommand('/traits')">Traits</button>
+                </div>
             </div>
-        </div>
 
-        <div class="command-group">
-            <h4>Social</h4>
-            <div class="command-buttons">
-                <button onclick="runCommand('/fish')">Fish</button>
-                <button onclick="runCommand('/queue')">Queue</button>
+            <div class="command-group">
+                <h4>Social</h4>
+                <div class="command-buttons">
+                    <button onclick="runCommand('/fish')">Fish</button>
+                    <button onclick="runCommand('/queue')">Queue</button>
+                </div>
             </div>
-        </div>
 
-        <div class="command-group">
-            <h4>System</h4>
-            <div class="command-buttons">
-                <button onclick="runCommand('/system')">System</button>
-                <button onclick="runCommand('/config')">Config</button>
-                <button onclick="runCommand('/identity')">Identity</button>
-                <button onclick="runCommand('/faces')">Faces</button>
-                <button onclick="runCommand('/refresh')">Refresh</button>
-                <button onclick="runCommand('/clear')">Clear</button>
+            <div class="command-group">
+                <h4>System</h4>
+                <div class="command-buttons">
+                    <button onclick="runCommand('/system')">System</button>
+                    <button onclick="runCommand('/config')">Config</button>
+                    <button onclick="runCommand('/identity')">Identity</button>
+                    <button onclick="runCommand('/faces')">Faces</button>
+                    <button onclick="runCommand('/refresh')">Refresh</button>
+                    <button onclick="runCommand('/clear')">Clear</button>
+                    <button onclick="location.href='/settings'">Settings</button>
+                </div>
             </div>
         </div>
-    </div>
+    </details>
 
     <div class="input-area">
         <input type="text" id="input" placeholder="Say something..." autocomplete="off">
@@ -334,6 +360,283 @@ HTML_TEMPLATE = """
 """
 
 
+# Settings page template
+SETTINGS_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Settings - {{name}}</title>
+    <style>
+        :root {
+            --bg: #f5f5f0;
+            --text: #1a1a1a;
+            --border: #333;
+            --muted: #666;
+            --accent: #4a90d9;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1a1a1a;
+                --text: #e5e5e0;
+                --border: #555;
+                --muted: #999;
+                --accent: #6ab0f3;
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        header {
+            padding: 1rem 0;
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        h1 { font-size: 1.5rem; }
+        h2 {
+            font-size: 1.125rem;
+            margin: 2rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .back-button {
+            padding: 0.5rem 1rem;
+            font-family: inherit;
+            font-size: 1rem;
+            background: transparent;
+            color: var(--text);
+            border: 2px solid var(--border);
+            cursor: pointer;
+        }
+        .back-button:hover {
+            background: var(--text);
+            color: var(--bg);
+        }
+        .settings-section {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+        .input-group input[type="text"] {
+            width: 100%;
+            padding: 0.75rem;
+            font-family: inherit;
+            font-size: 1rem;
+            border: 2px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+        }
+        .slider-container {
+            margin-bottom: 1.5rem;
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+        .slider-label span:first-child {
+            font-weight: bold;
+        }
+        .slider-value {
+            color: var(--muted);
+        }
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: var(--border);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--text);
+            cursor: pointer;
+        }
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--text);
+            cursor: pointer;
+            border: none;
+        }
+        .save-button {
+            width: 100%;
+            padding: 1rem;
+            font-family: inherit;
+            font-size: 1rem;
+            background: var(--text);
+            color: var(--bg);
+            border: none;
+            cursor: pointer;
+            margin-top: 2rem;
+        }
+        .save-button:disabled {
+            opacity: 0.5;
+        }
+        .message {
+            padding: 1rem;
+            margin-top: 1rem;
+            border: 2px solid var(--accent);
+            background: var(--bg);
+            display: none;
+        }
+        .message.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>⚙️ Settings</h1>
+        <button class="back-button" onclick="location.href='/'">← Back to Chat</button>
+    </header>
+
+    <div class="settings-section">
+        <h2>👤 Device & Personality</h2>
+
+        <div class="input-group">
+            <label for="name">Name</label>
+            <input type="text" id="name" value="{{name}}" maxlength="20">
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-label">
+                <span>Curiosity</span>
+                <span class="slider-value" id="curiosity-val">{{int(traits['curiosity'] * 100)}}%</span>
+            </div>
+            <input type="range" class="slider" id="curiosity" min="0" max="100" value="{{int(traits['curiosity'] * 100)}}" oninput="updateSlider('curiosity')">
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-label">
+                <span>Cheerfulness</span>
+                <span class="slider-value" id="cheerfulness-val">{{int(traits['cheerfulness'] * 100)}}%</span>
+            </div>
+            <input type="range" class="slider" id="cheerfulness" min="0" max="100" value="{{int(traits['cheerfulness'] * 100)}}" oninput="updateSlider('cheerfulness')">
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-label">
+                <span>Verbosity</span>
+                <span class="slider-value" id="verbosity-val">{{int(traits['verbosity'] * 100)}}%</span>
+            </div>
+            <input type="range" class="slider" id="verbosity" min="0" max="100" value="{{int(traits['verbosity'] * 100)}}" oninput="updateSlider('verbosity')">
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-label">
+                <span>Playfulness</span>
+                <span class="slider-value" id="playfulness-val">{{int(traits['playfulness'] * 100)}}%</span>
+            </div>
+            <input type="range" class="slider" id="playfulness" min="0" max="100" value="{{int(traits['playfulness'] * 100)}}" oninput="updateSlider('playfulness')">
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-label">
+                <span>Empathy</span>
+                <span class="slider-value" id="empathy-val">{{int(traits['empathy'] * 100)}}%</span>
+            </div>
+            <input type="range" class="slider" id="empathy" min="0" max="100" value="{{int(traits['empathy'] * 100)}}" oninput="updateSlider('empathy')">
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-label">
+                <span>Independence</span>
+                <span class="slider-value" id="independence-val">{{int(traits['independence'] * 100)}}%</span>
+            </div>
+            <input type="range" class="slider" id="independence" min="0" max="100" value="{{int(traits['independence'] * 100)}}" oninput="updateSlider('independence')">
+        </div>
+
+        <button class="save-button" id="save-btn" onclick="saveSettings()">💾 Save Settings</button>
+
+        <div class="message" id="message"></div>
+    </div>
+
+    <script>
+        function updateSlider(name) {
+            const slider = document.getElementById(name);
+            const display = document.getElementById(name + '-val');
+            display.textContent = slider.value + '%';
+        }
+
+        async function saveSettings() {
+            const saveBtn = document.getElementById('save-btn');
+            const messageEl = document.getElementById('message');
+
+            saveBtn.disabled = true;
+            messageEl.classList.remove('show');
+
+            const settings = {
+                name: document.getElementById('name').value.trim(),
+                traits: {
+                    curiosity: parseFloat(document.getElementById('curiosity').value) / 100,
+                    cheerfulness: parseFloat(document.getElementById('cheerfulness').value) / 100,
+                    verbosity: parseFloat(document.getElementById('verbosity').value) / 100,
+                    playfulness: parseFloat(document.getElementById('playfulness').value) / 100,
+                    empathy: parseFloat(document.getElementById('empathy').value) / 100,
+                    independence: parseFloat(document.getElementById('independence').value) / 100,
+                }
+            };
+
+            // Validate name
+            if (!settings.name || settings.name.length === 0) {
+                messageEl.textContent = 'Error: Name cannot be empty';
+                messageEl.classList.add('show');
+                saveBtn.disabled = false;
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(settings)
+                });
+
+                const data = await resp.json();
+
+                if (resp.ok && data.success) {
+                    messageEl.textContent = '✓ Settings saved! Changes applied immediately.';
+                    messageEl.classList.add('show');
+                } else {
+                    messageEl.textContent = 'Error: ' + (data.error || 'Failed to save settings');
+                    messageEl.classList.add('show');
+                }
+            } catch (e) {
+                messageEl.textContent = 'Connection error: ' + e.message;
+                messageEl.classList.add('show');
+            }
+
+            saveBtn.disabled = false;
+        }
+    </script>
+</body>
+</html>
+"""
+
+
 class WebChatMode:
     """
     Web-based chat mode using Bottle.
@@ -384,6 +687,14 @@ class WebChatMode:
                 status=self.personality.get_status_line(),
             )
 
+        @self._app.route("/settings")
+        def settings_page():
+            return template(
+                SETTINGS_TEMPLATE,
+                name=self.personality.name,
+                traits=self.personality.traits.to_dict(),
+            )
+
         @self._app.route("/api/chat", method="POST")
         def chat():
             response.content_type = "application/json"
@@ -423,10 +734,79 @@ class WebChatMode:
                 "mood": self.personality.mood.current.value,
             })
 
+        @self._app.route("/api/settings", method="GET")
+        def get_settings():
+            response.content_type = "application/json"
+            return json.dumps({
+                "name": self.personality.name,
+                "traits": self.personality.traits.to_dict(),
+            })
+
+        @self._app.route("/api/settings", method="POST")
+        def save_settings():
+            response.content_type = "application/json"
+            data = request.json or {}
+
+            try:
+                # Update personality name
+                if "name" in data:
+                    name = data["name"].strip()
+                    if not name:
+                        return json.dumps({"success": False, "error": "Name cannot be empty"})
+                    if len(name) > 20:
+                        return json.dumps({"success": False, "error": "Name too long (max 20 characters)"})
+                    self.personality.name = name
+
+                # Update traits (validate 0.0-1.0 range)
+                if "traits" in data:
+                    for trait, value in data["traits"].items():
+                        if hasattr(self.personality.traits, trait):
+                            # Clamp value to 0.0-1.0
+                            value = max(0.0, min(1.0, float(value)))
+                            setattr(self.personality.traits, trait, value)
+
+                # Save to config.local.yml
+                self._save_config_file(data)
+
+                return json.dumps({"success": True})
+
+            except Exception as e:
+                return json.dumps({"success": False, "error": str(e)})
+
     def _get_face_str(self) -> str:
         """Get current face as string."""
         face_name = self.personality.face
         return self._faces.get(face_name, self._faces["default"])
+
+    def _save_config_file(self, new_settings: dict) -> None:
+        """Save settings to config.local.yml"""
+        from pathlib import Path
+        import yaml
+
+        config_file = Path("config.local.yml")
+
+        # Load existing config or start fresh
+        if config_file.exists():
+            with open(config_file) as f:
+                config = yaml.safe_load(f) or {}
+        else:
+            config = {}
+
+        # Update device name
+        if "name" in new_settings:
+            if "device" not in config:
+                config["device"] = {}
+            config["device"]["name"] = new_settings["name"]
+
+        # Update personality traits
+        if "traits" in new_settings:
+            if "personality" not in config:
+                config["personality"] = {}
+            config["personality"].update(new_settings["traits"])
+
+        # Write back to file
+        with open(config_file, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False)
 
     # Command handlers (all prefixed with _cmd_)
 
