@@ -146,11 +146,13 @@ class Inkling:
         # Display
         print("  - Initializing display...")
         display_config = self.config.get("display", {})
+        device_name = self.config.get("device", {}).get("name", "Inkling")
         self.display = DisplayManager(
             display_type=display_config.get("type", "mock"),
             width=display_config.get("width", 250),
             height=display_config.get("height", 122),
             min_refresh_interval=display_config.get("min_refresh_interval", 5.0),
+            device_name=device_name.lower()[:8],  # Truncate for header
         )
         self.display.init()
 
@@ -240,15 +242,65 @@ class Inkling:
             print("Available modes: ssh, demo")
 
     async def _run_demo(self) -> None:
-        """Run a quick demo of the display."""
+        """Run a demo of the Pwnagotchi-style display."""
         print("Running display demo...")
 
-        faces = ["happy", "excited", "curious", "sad", "sleepy", "cool"]
-        for face in faces:
+        # Demo data showing different states
+        demo_states = [
+            {
+                "face": "happy",
+                "text": "Hello! I'm your new companion.",
+                "mood": "Happy",
+                "chat_count": 0,
+            },
+            {
+                "face": "curious",
+                "text": "I wonder what we'll discover today?",
+                "mood": "Curious",
+                "chat_count": 5,
+            },
+            {
+                "face": "excited",
+                "text": "Wow, that's amazing!",
+                "mood": "Excited",
+                "chat_count": 12,
+                "dream_count": 3,
+            },
+            {
+                "face": "thinking",
+                "text": "Let me think about that...",
+                "mood": "Thinking",
+                "chat_count": 42,
+                "telegram_count": 2,
+            },
+            {
+                "face": "cool",
+                "text": "Everything is under control.",
+                "mood": "Cool",
+                "chat_count": 100,
+                "friend_nearby": True,
+            },
+            {
+                "face": "sleepy",
+                "text": "Time for a rest...",
+                "mood": "Sleepy",
+                "chat_count": 142,
+            },
+        ]
+
+        for state in demo_states:
+            # Update social stats for demo
+            self.display.set_social_stats(
+                chat_count=state.get("chat_count", 0),
+                dream_count=state.get("dream_count", 0),
+                telegram_count=state.get("telegram_count", 0),
+                friend_nearby=state.get("friend_nearby", False),
+            )
+
             await self.display.update(
-                face=face,
-                text=f"This is the {face} face!",
-                status=self.personality.get_status_line(),
+                face=state["face"],
+                text=state["text"],
+                mood_text=state["mood"],
                 force=True,
             )
             await asyncio.sleep(2)

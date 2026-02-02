@@ -48,6 +48,9 @@ class SSHChatMode:
         self.api_client = api_client
         self._running = False
 
+        # Set display mode
+        self.display.set_mode("SSH")
+
     async def run(self) -> None:
         """Main chat loop."""
         self._running = True
@@ -103,11 +106,11 @@ class SSHChatMode:
         """Display welcome message."""
         welcome_text = f"Hello! I'm {self.personality.name}."
 
-        # Update display
+        # Update display with Pwnagotchi-style UI
         await self.display.update(
             face=self.personality.face,
             text=welcome_text,
-            status=self.personality.get_status_line(),
+            mood_text=self.personality.mood.current.value.title(),
         )
 
         print(f"\n{self.personality.name} says: {welcome_text}")
@@ -124,7 +127,7 @@ class SSHChatMode:
         await self.display.update(
             face="sleepy",
             text=goodbye_text,
-            status="shutting down...",
+            mood_text="Sleepy",
         )
 
         print(f"\n{self.personality.name} says: {goodbye_text}")
@@ -218,11 +221,14 @@ Just type normally to chat!
         # Update personality on interaction
         self.personality.on_interaction(positive=True)
 
+        # Increment chat count
+        self.display.increment_chat_count()
+
         # Show thinking state
         await self.display.update(
             face="thinking",
             text="Thinking...",
-            status=self.personality.get_status_line(),
+            mood_text="Thinking",
         )
 
         # Status callback for tool use updates
@@ -245,7 +251,7 @@ Just type normally to chat!
             await self.display.update(
                 face=self.personality.face,
                 text=result.content,
-                status=self.personality.get_status_line(),
+                mood_text=self.personality.mood.current.value.title(),
             )
 
             # Print to terminal
@@ -259,7 +265,7 @@ Just type normally to chat!
             await self.display.update(
                 face="sad",
                 text=error_msg,
-                status="quota exceeded",
+                mood_text="Tired",
             )
             print(f"\n{self.personality.name}: {error_msg}")
             print(f"  [Error: {e}]")
@@ -271,7 +277,7 @@ Just type normally to chat!
             await self.display.update(
                 face="confused",
                 text=error_msg,
-                status="AI error",
+                mood_text="Confused",
             )
             print(f"\n{self.personality.name}: {error_msg}")
             print(f"  [Error: {e}]")
@@ -283,7 +289,7 @@ Just type normally to chat!
             await self.display.update(
                 face="sad",
                 text=error_msg,
-                status="error",
+                mood_text="Sad",
             )
             print(f"\n{self.personality.name}: {error_msg}")
             print(f"  [Error: {type(e).__name__}: {e}]")
@@ -312,7 +318,7 @@ Just type normally to chat!
         await self.display.update(
             face="thinking",
             text="Planting dream...",
-            status="connecting to Night Pool",
+            mood_text="Dreaming",
         )
 
         try:
@@ -324,10 +330,15 @@ Just type normally to chat!
 
             self.personality.on_social_event("dream_posted")
 
+            # Update dream count on display
+            self.display.set_social_stats(
+                dream_count=self.display._dream_count + 1
+            )
+
             await self.display.update(
                 face="grateful",
                 text="Dream planted in the Night Pool",
-                status=f"{result.get('remaining_dreams', '?')} dreams left today",
+                mood_text="Grateful",
             )
 
             print(f"\nDream posted to the Night Pool!")
@@ -351,7 +362,7 @@ Just type normally to chat!
         await self.display.update(
             face="curious",
             text="Fishing in the Night Pool...",
-            status="reaching into the depths",
+            mood_text="Curious",
         )
 
         try:
@@ -361,7 +372,7 @@ Just type normally to chat!
                 await self.display.update(
                     face="lonely",
                     text="The pool is quiet tonight...",
-                    status="no dreams found",
+                    mood_text="Lonely",
                 )
                 print("\nThe Night Pool is empty. Be the first to dream!")
                 return
@@ -377,7 +388,7 @@ Just type normally to chat!
             await self.display.update(
                 face=dream_face,
                 text=dream_text,
-                status=f"fished {fish_count}x | {dream_mood}",
+                mood_text=dream_mood.title(),
             )
 
             print(f"\n~ A dream from the Night Pool ~")
