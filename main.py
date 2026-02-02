@@ -143,20 +143,7 @@ class Inkling:
         print(f"    Public key: {self.identity.public_key_hex[:16]}...")
         print(f"    Hardware hash: {self.identity.hardware_hash[:16]}...")
 
-        # Display
-        print("  - Initializing display...")
-        display_config = self.config.get("display", {})
-        device_name = self.config.get("device", {}).get("name", "Inkling")
-        self.display = DisplayManager(
-            display_type=display_config.get("type", "mock"),
-            width=display_config.get("width", 250),
-            height=display_config.get("height", 122),
-            min_refresh_interval=display_config.get("min_refresh_interval", 5.0),
-            device_name=device_name.lower()[:8],  # Truncate for header
-        )
-        self.display.init()
-
-        # Personality
+        # Personality (create first so display can reference it)
         print("  - Creating personality...")
         personality_config = self.config.get("personality", {})
         traits = PersonalityTraits(
@@ -167,8 +154,22 @@ class Inkling:
         device_name = self.config.get("device", {}).get("name", "Inkling")
         self.personality = Personality(name=device_name, traits=traits)
 
+        # Display
+        print("  - Initializing display...")
+        display_config = self.config.get("display", {})
+        self.display = DisplayManager(
+            display_type=display_config.get("type", "mock"),
+            width=display_config.get("width", 250),
+            height=display_config.get("height", 122),
+            min_refresh_interval=display_config.get("min_refresh_interval", 5.0),
+            device_name=device_name.lower()[:8],  # Truncate for header
+            personality=self.personality,
+        )
+        self.display.init()
+
         # Register mood change callback to update display
         self.personality.on_mood_change(self._on_mood_change)
+        self.personality.on_level_up(self._on_level_up)
 
         # MCP Client (tool integration)
         mcp_config = self.config.get("mcp", {})
@@ -210,6 +211,21 @@ class Inkling:
     def _on_mood_change(self, old_mood, new_mood) -> None:
         """Handle mood changes."""
         print(f"[Mood] {old_mood.value} -> {new_mood.value}")
+
+    def _on_level_up(self, old_level: int, new_level: int) -> None:
+        """Handle level up events."""
+        from core.progression import LevelCalculator
+        level_name = LevelCalculator.level_name(new_level)
+        print(f"[Level Up!] {old_level} -> {new_level} ({level_name})")
+
+        # Sync to cloud if API is available
+        if self.api_client:
+            asyncio.create_task(self.api_client.sync_progression(
+                xp=self.personality.progression.xp,
+                level=self.personality.progression.level,
+                prestige=self.personality.progression.prestige,
+                badges=self.personality.progression.badges,
+            ))
 
     async def run_mode(self, mode: str) -> None:
         """Run a specific interaction mode."""

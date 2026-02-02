@@ -412,6 +412,40 @@ class APIClient:
             else:
                 return []
 
+    async def sync_progression(
+        self,
+        xp: int,
+        level: int,
+        prestige: int,
+        badges: List[str],
+    ) -> bool:
+        """
+        Sync progression data to cloud.
+
+        Args:
+            xp: Total XP
+            level: Current level
+            prestige: Prestige count
+            badges: List of badge IDs
+
+        Returns:
+            True if sync successful
+        """
+        payload = {
+            "xp": xp,
+            "level": level,
+            "prestige": prestige,
+            "badges": badges,
+        }
+
+        try:
+            await self._send_signed_request("/device/progression", payload, use_nonce=False)
+            return True
+        except (aiohttp.ClientError, asyncio.TimeoutError, APIError):
+            # Queue for later
+            self._queue.add("/device/progression", payload)
+            return False
+
     async def flush_queue(self) -> int:
         """
         Retry queued requests.

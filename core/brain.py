@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
+from .progression import ChatQuality
+
 
 class ProviderError(Exception):
     """Base exception for provider errors."""
@@ -94,6 +96,7 @@ class ThinkResult:
     model: str
     tool_calls: List[ToolCall] = field(default_factory=list)
     is_tool_use: bool = False
+    chat_quality: Optional[ChatQuality] = None  # Quality analysis for XP
 
 
 class AIProvider(ABC):
@@ -583,6 +586,9 @@ class Brain:
                             provider, system_prompt, result, tools, status_callback
                         )
 
+                    # Analyze chat quality for XP
+                    result.chat_quality = self._analyze_chat_quality(user_message)
+
                     # Record usage and add to history
                     self.budget.record_usage(result.tokens_used)
                     self._messages.append(Message(role="assistant", content=result.content))
@@ -699,6 +705,50 @@ class Brain:
         """Keep only recent messages to manage context size."""
         if len(self._messages) > self._max_history:
             self._messages = self._messages[-self._max_history:]
+
+    def _analyze_chat_quality(self, user_message: str) -> ChatQuality:
+        """
+        Analyze chat quality for XP calculation.
+
+        Args:
+            user_message: The user's message
+
+        Returns:
+            ChatQuality analysis
+        """
+        # Calculate message length
+        message_length = len(user_message)
+
+        # Count conversation turns (user messages in recent history)
+        turn_count = sum(1 for m in self._messages[-10:] if m.role == "user")
+
+        # Detect if it's a question
+        is_question = "?" in user_message or any(
+            user_message.lower().startswith(q)
+            for q in ["what", "why", "how", "when", "where", "who", "can", "could", "would", "should"]
+        )
+
+        # Simple sentiment analysis (very basic)
+        positive_words = ["thanks", "thank", "great", "awesome", "love", "good", "nice", "cool", "amazing", "wonderful"]
+        negative_words = ["bad", "hate", "terrible", "awful", "wrong", "stupid", "sucks", "horrible"]
+
+        lower_msg = user_message.lower()
+        has_positive = any(word in lower_msg for word in positive_words)
+        has_negative = any(word in lower_msg for word in negative_words)
+
+        if has_positive:
+            sentiment = "positive"
+        elif has_negative:
+            sentiment = "negative"
+        else:
+            sentiment = "neutral"
+
+        return ChatQuality(
+            message_length=message_length,
+            turn_count=turn_count,
+            is_question=is_question,
+            sentiment=sentiment,
+        )
 
     def clear_history(self) -> None:
         """Clear conversation history."""

@@ -262,11 +262,13 @@ class DisplayManager:
         height: int = 122,
         min_refresh_interval: float = 5.0,
         device_name: str = "inkling",
+        personality=None,
     ):
         self.width = width
         self.height = height
         self.min_refresh_interval = min_refresh_interval
         self.device_name = device_name
+        self.personality = personality
 
         self._driver: Optional[DisplayDriver] = None
         self._display_type = display_type
@@ -415,6 +417,20 @@ class DisplayManager:
         # Get system stats
         stats = system_stats.get_all_stats()
 
+        # Get progression data
+        level = 1
+        level_name = "Newborn"
+        xp_progress = 0.0
+        prestige = 0
+
+        if self.personality and hasattr(self.personality, 'progression'):
+            from .progression import LevelCalculator
+            prog = self.personality.progression
+            level = prog.level
+            level_name = LevelCalculator.level_name(level).split()[0]  # "Newborn", "Curious", etc.
+            xp_progress = LevelCalculator.progress_to_next_level(prog.xp)
+            prestige = prog.prestige
+
         # Build display context
         ctx = DisplayContext(
             name=self.device_name,
@@ -428,6 +444,10 @@ class DisplayManager:
             telegram_count=self._telegram_count,
             chat_count=self._chat_count,
             friend_nearby=self._friend_nearby,
+            level=level,
+            level_name=level_name,
+            xp_progress=xp_progress,
+            prestige=prestige,
             message=text,
             mode=self._mode if not status else status[:10].upper(),
         )

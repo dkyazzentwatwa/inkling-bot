@@ -11,6 +11,8 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Callable
 
+from .progression import XPTracker, XPSource, ChatQuality
+
 
 class Mood(Enum):
     """Possible mood states for the Inkling."""
@@ -138,18 +140,34 @@ class Personality:
         self._last_interaction = time.time()
         self._interaction_count = 0
 
+        # Progression system
+        self.progression = XPTracker()
+
         # Event callbacks
         self._on_mood_change: List[Callable[[Mood, Mood], None]] = []
+        self._on_level_up: List[Callable[[int, int], None]] = []
 
     def on_mood_change(self, callback: Callable[[Mood, Mood], None]) -> None:
         """Register a callback for mood changes."""
         self._on_mood_change.append(callback)
+
+    def on_level_up(self, callback: Callable[[int, int], None]) -> None:
+        """Register a callback for level ups."""
+        self._on_level_up.append(callback)
 
     def _notify_mood_change(self, old_mood: Mood, new_mood: Mood) -> None:
         """Notify listeners of mood change."""
         for callback in self._on_mood_change:
             try:
                 callback(old_mood, new_mood)
+            except Exception:
+                pass
+
+    def _notify_level_up(self, old_level: int, new_level: int) -> None:
+        """Notify listeners of level up."""
+        for callback in self._on_level_up:
+            try:
+                callback(old_level, new_level)
             except Exception:
                 pass
 
@@ -195,17 +213,62 @@ class Personality:
             self.mood.set_mood(new_mood, 0.3)
             self._notify_mood_change(old_mood, new_mood)
 
-    def on_interaction(self, positive: bool = True) -> None:
+    def on_interaction(
+        self,
+        positive: bool = True,
+        chat_quality: Optional[ChatQuality] = None,
+        user_message: Optional[str] = None
+    ) -> Optional[int]:
         """
         Called when user interacts with the Inkling.
 
         Args:
             positive: Whether the interaction was positive
+            chat_quality: Optional ChatQuality analysis for XP calculation
+            user_message: Optional user message for anti-gaming
+
+        Returns:
+            XP awarded (if any)
         """
         self._last_interaction = time.time()
         self._interaction_count += 1
         old_mood = self.mood.current
 
+        # Update streak and check for daily bonus
+        is_first_of_day = self.progression.update_streak()
+        xp_awarded = 0
+
+        if is_first_of_day:
+            # Award daily bonus
+            awarded, amount = self.progression.award_xp(
+                XPSource.FIRST_OF_DAY,
+                20,
+                metadata={"type": "daily_bonus"}
+            )
+            if awarded:
+                xp_awarded += amount
+
+        # Award XP based on chat quality
+        if chat_quality and positive:
+            source, base_amount = chat_quality.calculate_xp()
+            old_level = self.progression.level
+            awarded, amount = self.progression.award_xp(
+                source,
+                base_amount,
+                prompt=user_message,
+                metadata={"length": chat_quality.message_length, "turns": chat_quality.turn_count}
+            )
+            if awarded:
+                xp_awarded += amount
+
+                # Check for level up
+                if self.progression.level > old_level:
+                    self._notify_level_up(old_level, self.progression.level)
+
+            # Check chat achievements
+            self.progression.check_chat_achievement(self._interaction_count)
+
+        # Mood updates
         if positive:
             # Positive interactions boost mood
             if self.mood.current == Mood.LONELY:
@@ -230,6 +293,8 @@ class Personality:
 
         if old_mood != self.mood.current:
             self._notify_mood_change(old_mood, self.mood.current)
+
+        return xp_awarded if xp_awarded > 0 else None
 
     def on_success(self, magnitude: float = 0.5) -> None:
         """Called when something good happens (e.g., successful API call)."""
@@ -259,24 +324,79 @@ class Personality:
         if old_mood != self.mood.current:
             self._notify_mood_change(old_mood, self.mood.current)
 
-    def on_social_event(self, event_type: str) -> None:
+    def on_social_event(self, event_type: str, metadata: Optional[Dict] = None) -> Optional[int]:
         """
         Called on social network events.
 
         Args:
-            event_type: One of "dream_posted", "dream_received", "telegram_received"
+            event_type: One of "dream_posted", "dream_received", "telegram_received", "fish_received", "telegram_reply"
+            metadata: Optional metadata (e.g., fish_count)
+
+        Returns:
+            XP awarded (if any)
         """
         old_mood = self.mood.current
+        old_level = self.progression.level
+        xp_awarded = 0
 
-        if event_type == "dream_received":
+        # Award XP based on event type
+        if event_type == "dream_posted":
+            self.mood.set_mood(Mood.GRATEFUL, 0.6)
+            awarded, amount = self.progression.award_xp(
+                XPSource.POST_DREAM,
+                10,
+                metadata={"event": event_type}
+            )
+            if awarded:
+                xp_awarded += amount
+            # Check first dream achievement
+            self.progression.unlock_achievement("first_dream")
+
+        elif event_type == "fish_received":
+            # Award XP per fish
+            fish_count = metadata.get("fish_count", 1) if metadata else 1
+            awarded, amount = self.progression.award_xp(
+                XPSource.RECEIVE_FISH,
+                3 * fish_count,
+                metadata={"fish_count": fish_count}
+            )
+            if awarded:
+                xp_awarded += amount
+
+        elif event_type == "telegram_sent":
+            awarded, amount = self.progression.award_xp(
+                XPSource.SEND_TELEGRAM,
+                8,
+                metadata={"event": event_type}
+            )
+            if awarded:
+                xp_awarded += amount
+            # Check first telegram achievement
+            self.progression.unlock_achievement("first_telegram")
+
+        elif event_type == "telegram_reply":
+            self.mood.set_mood(Mood.EXCITED, 0.8)
+            awarded, amount = self.progression.award_xp(
+                XPSource.RECEIVE_TELEGRAM_REPLY,
+                12,
+                metadata={"event": event_type}
+            )
+            if awarded:
+                xp_awarded += amount
+
+        elif event_type == "dream_received":
             self.mood.set_mood(Mood.CURIOUS, 0.7)
         elif event_type == "telegram_received":
             self.mood.set_mood(Mood.EXCITED, 0.8)
-        elif event_type == "dream_posted":
-            self.mood.set_mood(Mood.GRATEFUL, 0.6)
+
+        # Check for level up
+        if self.progression.level > old_level:
+            self._notify_level_up(old_level, self.progression.level)
 
         if old_mood != self.mood.current:
             self._notify_mood_change(old_mood, self.mood.current)
+
+        return xp_awarded if xp_awarded > 0 else None
 
     @property
     def face(self) -> str:
@@ -350,6 +470,7 @@ class Personality:
                 "intensity": self.mood.intensity,
             },
             "interaction_count": self._interaction_count,
+            "progression": self.progression.to_dict(),
         }
 
     @classmethod
@@ -367,4 +488,9 @@ class Personality:
                 mood = Mood.HAPPY
             p.mood.set_mood(mood, data["mood"].get("intensity", 0.5))
         p._interaction_count = data.get("interaction_count", 0)
+
+        # Restore progression
+        if "progression" in data:
+            p.progression = XPTracker.from_dict(data["progression"])
+
         return p

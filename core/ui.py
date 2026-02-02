@@ -10,12 +10,12 @@ Layout (250x122 pixels):
 ┌─────────────────────────────────────────────────────┐
 │ inkling>█              Curious          UP 00:15:32 │  <- Header (12px)
 ├─────────────────────────────────────────────────────┤
-│                              │ mem  cpu  temp       │
-│      (  ◉  ‿  ◉  )          │ 42%  18%   41°       │  <- Main (70px)
-│                              │                      │
-│                              │ DRM 5    TLG 2       │
-├──────────────────────────────┴──────────────────────┤
-│ "Today feels pretty good!"                          │  <- Message (20px)
+│ Hey there! I'm feeling   │ mem  cpu  temp       │
+│ pretty curious about     │ 42%  18%   41°       │  <- Main (70px)
+│ the world today. What's  │                      │
+│ on your mind?            │ DRM 5    TLG 2       │
+├──────────────────────────┴──────────────────────────┤
+│                     (  ◉  ‿  ◉  )                   │  <- Face (20px)
 ├─────────────────────────────────────────────────────┤
 │ ♥ friend nearby │ CHAT 142 │                   AUTO │  <- Footer (12px)
 └─────────────────────────────────────────────────────┘
@@ -104,8 +104,8 @@ MESSAGE_HEIGHT = 18
 MAIN_HEIGHT = DISPLAY_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT - MESSAGE_HEIGHT - 4  # 72px
 
 # Divider positions
-STATS_PANEL_WIDTH = 70  # Right panel width (shrunk from 90 to give face more room)
-FACE_PANEL_WIDTH = DISPLAY_WIDTH - STATS_PANEL_WIDTH - 2  # Left panel width (now 178px)
+STATS_PANEL_WIDTH = 70  # Right panel width for stats
+MESSAGE_PANEL_WIDTH = DISPLAY_WIDTH - STATS_PANEL_WIDTH - 2  # Left panel width for messages (178px)
 
 
 @dataclass
@@ -279,6 +279,12 @@ class DisplayContext:
     chat_count: int = 0
     friend_nearby: bool = False
 
+    # Progression
+    level: int = 1
+    level_name: str = "Newborn"
+    xp_progress: float = 0.0  # 0.0-1.0
+    prestige: int = 0
+
     # Message
     message: str = ""
 
@@ -323,36 +329,40 @@ class HeaderBar:
         )
 
 
-class FacePanel:
+class MessagePanel:
     """
-    Left panel showing the large face expression.
+    Left panel showing AI message responses (was FacePanel).
 
-    Renders Unicode face characters at large size, centered in the panel.
+    Renders multi-line text with word wrapping.
     """
 
     def __init__(self, fonts: Fonts):
         self.fonts = fonts
         self.x = 0
         self.y = HEADER_HEIGHT
-        self.width = FACE_PANEL_WIDTH
+        self.width = MESSAGE_PANEL_WIDTH
         self.height = MAIN_HEIGHT
 
     def render(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> None:
-        """Render the face panel."""
-        # Get face text
-        face_str = ctx.face_str
+        """Render the message panel with word-wrapped text."""
+        if not ctx.message:
+            return
 
-        # Calculate text dimensions for centering
-        bbox = draw.textbbox((0, 0), face_str, font=self.fonts.face)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
+        # Word wrap to fit panel (approx 28 chars per line at font size 11)
+        max_chars_per_line = 28
+        lines = word_wrap(ctx.message, max_chars_per_line)
 
-        # Center in panel
-        text_x = self.x + (self.width - text_width) // 2
-        text_y = self.y + (self.height - text_height) // 2 - 2
+        # Calculate starting Y to vertically center text block
+        line_height = 13
+        total_text_height = len(lines) * line_height
+        start_y = self.y + (self.height - total_text_height) // 2
 
-        # Draw face
-        draw.text((text_x, text_y), face_str, font=self.fonts.face, fill=0)
+        # Draw each line
+        text_x = self.x + 4
+        text_y = start_y
+        for line in lines[:5]:  # Max 5 lines to fit in panel
+            draw.text((text_x, text_y), line, font=self.fonts.normal, fill=0)
+            text_y += line_height
 
 
 class StatsPanel:
@@ -368,7 +378,7 @@ class StatsPanel:
 
     def __init__(self, fonts: Fonts):
         self.fonts = fonts
-        self.x = FACE_PANEL_WIDTH + 1
+        self.x = MESSAGE_PANEL_WIDTH + 1
         self.y = HEADER_HEIGHT
         self.width = STATS_PANEL_WIDTH
         self.height = MAIN_HEIGHT
@@ -397,8 +407,45 @@ class StatsPanel:
         draw.text((stats_x + 22, stats_y), cpu_str, font=self.fonts.small, fill=0)
         draw.text((stats_x + 44, stats_y), temp_str, font=self.fonts.small, fill=0)
 
-        # Social stats section (stacked vertically for narrow panel)
-        social_y = self.y + self.height - 24
+        # Level section (middle area)
+        level_y = self.y + 30
+
+        # Level badge
+        level_display = f"L{ctx.level}"
+        if ctx.prestige > 0:
+            stars = "⭐" * min(ctx.prestige, 3)  # Max 3 stars to fit
+            level_display = f"L{ctx.level} {stars}"
+
+        draw.text((stats_x, level_y), level_display, font=self.fonts.small, fill=0)
+
+        # Level name (abbreviated)
+        level_name_short = ctx.level_name.split()[0][:4].upper()  # "NEWB", "CURI", "CHAT", "WISE", "SAGE", "ANCI", "LEGE"
+        draw.text((stats_x, level_y + 11), level_name_short, font=self.fonts.tiny, fill=0)
+
+        # XP progress bar (60px wide, 4px tall)
+        bar_width = 60
+        bar_height = 4
+        bar_x = stats_x
+        bar_y = level_y + 22
+
+        # Draw bar outline
+        draw.rectangle(
+            [bar_x, bar_y, bar_x + bar_width - 1, bar_y + bar_height - 1],
+            fill=255,
+            outline=0,
+            width=1
+        )
+
+        # Draw progress fill
+        fill_width = int((bar_width - 2) * ctx.xp_progress)
+        if fill_width > 0:
+            draw.rectangle(
+                [bar_x + 1, bar_y + 1, bar_x + 1 + fill_width, bar_y + bar_height - 2],
+                fill=0
+            )
+
+        # Social stats section (bottom)
+        social_y = self.y + self.height - 14
 
         # Dream count
         drm_str = f"DRM {ctx.dream_count}"
@@ -409,11 +456,11 @@ class StatsPanel:
         draw.text((stats_x + 34, social_y), tlg_str, font=self.fonts.tiny, fill=0)
 
 
-class MessageBox:
+class FaceBox:
     """
-    Message area for AI responses and status text.
+    Face expression area (was MessageBox).
 
-    Shows a single line of text with word wrapping to fit.
+    Shows the face expression centered in the bottom bar.
     """
 
     def __init__(self, fonts: Fonts):
@@ -422,24 +469,17 @@ class MessageBox:
         self.height = MESSAGE_HEIGHT
 
     def render(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> None:
-        """Render the message box."""
+        """Render the face box."""
         # Separator line
         draw_hline(draw, 0, self.y, DISPLAY_WIDTH, color=0)
 
-        # Message text with quotes
-        if ctx.message:
-            # Truncate to fit
-            max_chars = 38
-            msg = ctx.message[:max_chars]
-            if len(ctx.message) > max_chars:
-                msg = msg[:-3] + "..."
-
-            # Add decorative quotes
-            display_msg = f'"{msg}"'
-        else:
-            display_msg = ""
-
-        draw.text((4, self.y + 4), display_msg, font=self.fonts.normal, fill=0)
+        # Draw face centered
+        if ctx.face_str:
+            face_text = ctx.face_str
+            bbox = draw.textbbox((0, 0), face_text, font=self.fonts.normal)
+            text_width = bbox[2] - bbox[0]
+            face_x = (DISPLAY_WIDTH - text_width) // 2
+            draw.text((face_x, self.y + 4), face_text, font=self.fonts.normal, fill=0)
 
 
 class FooterBar:
@@ -496,9 +536,9 @@ class PwnagotchiUI:
     def __init__(self):
         self.fonts = Fonts.load()
         self.header = HeaderBar(self.fonts)
-        self.face_panel = FacePanel(self.fonts)
+        self.message_panel = MessagePanel(self.fonts)
         self.stats_panel = StatsPanel(self.fonts)
-        self.message_box = MessageBox(self.fonts)
+        self.face_box = FaceBox(self.fonts)
         self.footer = FooterBar(self.fonts)
 
     def render(self, ctx: DisplayContext) -> Image.Image:
@@ -520,9 +560,9 @@ class PwnagotchiUI:
 
         # Render all components
         self.header.render(draw, ctx)
-        self.face_panel.render(draw, ctx)
+        self.message_panel.render(draw, ctx)
         self.stats_panel.render(draw, ctx)
-        self.message_box.render(draw, ctx)
+        self.face_box.render(draw, ctx)
         self.footer.render(draw, ctx)
 
         return image

@@ -237,6 +237,12 @@ class SSHChatMode:
             print(f"Tokens remaining: {stats['tokens_remaining']}")
             print(f"Providers: {', '.join(stats['providers'])}")
 
+        elif cmd == "/level":
+            self._print_progression()
+
+        elif cmd == "/prestige":
+            await self._handle_prestige()
+
         elif cmd == "/face":
             if args:
                 face_str = UNICODE_FACES.get(args, FACES.get(args, f"({args})"))
@@ -318,6 +324,7 @@ class SSHChatMode:
   /mood         Current mood and intensity
   /energy       Energy level with visual bar
   /stats        Token usage statistics
+  /level        XP, level, and progression
   /system       CPU, memory, temperature
   /traits       Personality traits
   /config       AI provider info
@@ -448,9 +455,6 @@ class SSHChatMode:
 
     async def _handle_message(self, message: str) -> None:
         """Process a chat message."""
-        # Update personality on interaction
-        self.personality.on_interaction(positive=True)
-
         # Increment chat count
         self.display.increment_chat_count()
 
@@ -477,6 +481,13 @@ class SSHChatMode:
             # Success!
             self.personality.on_success(0.5)
 
+            # Award XP based on chat quality
+            xp_awarded = self.personality.on_interaction(
+                positive=True,
+                chat_quality=result.chat_quality,
+                user_message=message
+            )
+
             # Display response
             await self.display.update(
                 face=self.personality.face,
@@ -494,7 +505,19 @@ class SSHChatMode:
 
             print(f"\n{Colors.FACE}{face_str}{Colors.RESET} {Colors.BOLD}{self.personality.name}{Colors.RESET}")
             print(f"{mood_color}{result.content}{Colors.RESET}")
-            print(f"{Colors.DIM}  {result.provider} • {result.tokens_used} tokens{Colors.RESET}")
+
+            # Show XP feedback if awarded
+            token_info = f"{result.provider} • {result.tokens_used} tokens"
+            if xp_awarded:
+                xp_info = f"+{xp_awarded} XP"
+                # Check if we're close to leveling up
+                from core.progression import LevelCalculator
+                xp_to_next = LevelCalculator.xp_to_next_level(self.personality.progression.xp)
+                if xp_to_next <= 20:
+                    xp_info += f" ({xp_to_next} to next level!)"
+                print(f"{Colors.DIM}  {token_info} • {Colors.SUCCESS}{xp_info}{Colors.RESET}")
+            else:
+                print(f"{Colors.DIM}  {token_info}{Colors.RESET}")
 
         except QuotaExceededError as e:
             self.personality.on_failure(0.7)
@@ -534,6 +557,95 @@ class SSHChatMode:
             print(f"\n{Colors.FACE}(;_;){Colors.RESET} {Colors.BOLD}{self.personality.name}{Colors.RESET}")
             print(f"{Colors.SAD}{error_msg}{Colors.RESET}")
             print(f"{Colors.ERROR}  Error: {type(e).__name__}: {e}{Colors.RESET}")
+
+    def _print_progression(self) -> None:
+        """Print progression stats (XP, level, badges)."""
+        from core.progression import LevelCalculator
+
+        prog = self.personality.progression
+        level_name = LevelCalculator.level_name(prog.level)
+
+        print(f"\n{Colors.BOLD}Progression{Colors.RESET}")
+
+        # Level display
+        level_display = prog.get_display_level()
+        print(f"  {Colors.SUCCESS}{level_display}{Colors.RESET} - {level_name}")
+
+        # XP progress bar
+        xp_progress = LevelCalculator.progress_to_next_level(prog.xp)
+        xp_to_next = LevelCalculator.xp_to_next_level(prog.xp)
+        bar_filled = int(xp_progress * 20)
+        bar = "█" * bar_filled + "░" * (20 - bar_filled)
+
+        print(f"  [{bar}] {xp_progress:.0%}")
+        print(f"  {Colors.DIM}Total XP: {prog.xp}  •  Next level: {xp_to_next} XP{Colors.RESET}")
+
+        # Streak info
+        if prog.current_streak > 0:
+            streak_emoji = "🔥" if prog.current_streak >= 7 else "✨"
+            print(f"  {streak_emoji} {prog.current_streak} day streak")
+
+        # Badges
+        if prog.badges:
+            print(f"\n  {Colors.BOLD}Badges:{Colors.RESET}")
+            for badge_id in prog.badges[:10]:  # Show first 10
+                achievement = prog.achievements.get(badge_id)
+                if achievement:
+                    print(f"    {Colors.SUCCESS}✓{Colors.RESET} {achievement.name} - {achievement.description}")
+
+            if len(prog.badges) > 10:
+                print(f"    {Colors.DIM}... and {len(prog.badges) - 10} more{Colors.RESET}")
+
+        # Prestige info
+        if prog.can_prestige():
+            print(f"\n  {Colors.EXCITED}🌟 You can prestige! Use /prestige to reset at L1 with XP bonus{Colors.RESET}")
+
+    async def _handle_prestige(self) -> None:
+        """Handle prestige reset."""
+        from core.progression import LevelCalculator
+
+        prog = self.personality.progression
+
+        if not prog.can_prestige():
+            print(f"{Colors.ERROR}You must reach Level 25 to prestige.{Colors.RESET}")
+            print(f"Current level: {prog.level}")
+            return
+
+        # Confirm prestige
+        print(f"\n{Colors.EXCITED}Prestige Reset{Colors.RESET}")
+        print(f"This will reset you to Level 1 with a {Colors.SUCCESS}{(prog.prestige + 1) * 2}x XP multiplier{Colors.RESET}.")
+        print(f"Your badges and achievements will be preserved.")
+        print(f"\nType 'yes' to confirm prestige: ", end="")
+
+        try:
+            confirmation = await self._read_input()
+            if confirmation and confirmation.strip().lower() == "yes":
+                old_prestige = prog.prestige
+                if prog.do_prestige():
+                    print(f"\n{Colors.SUCCESS}✨ PRESTIGE {prog.prestige}! ✨{Colors.RESET}")
+                    print(f"You are now Level 1 with {prog.prestige}⭐ prestige stars!")
+
+                    # Update display
+                    await self.display.update(
+                        face="excited",
+                        text=f"✨ PRESTIGE {prog.prestige}! ✨",
+                        mood_text="Legendary",
+                    )
+
+                    # Sync to cloud
+                    if self.api_client:
+                        await self.api_client.sync_progression(
+                            xp=prog.xp,
+                            level=prog.level,
+                            prestige=prog.prestige,
+                            badges=prog.badges,
+                        )
+                else:
+                    print(f"{Colors.ERROR}Prestige failed. You may have already reached max prestige (10).{Colors.RESET}")
+            else:
+                print("Prestige canceled.")
+        except Exception as e:
+            print(f"{Colors.ERROR}Error during prestige: {e}{Colors.RESET}")
 
     def stop(self) -> None:
         """Stop the chat loop."""
