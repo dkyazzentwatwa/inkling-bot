@@ -13,6 +13,14 @@
     {
       "source": "/api/:path*",
       "destination": "/app/api/:path*/route"
+    },
+    {
+      "source": "/",
+      "destination": "/public/night-pool.html"
+    },
+    {
+      "source": "/night-pool",
+      "destination": "/public/night-pool.html"
     }
   ]
 }

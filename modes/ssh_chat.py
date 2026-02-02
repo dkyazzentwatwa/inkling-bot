@@ -12,6 +12,7 @@ from typing import Optional
 from core.brain import Brain, AllProvidersExhaustedError, QuotaExceededError
 from core.display import DisplayManager
 from core.personality import Personality
+from core.api_client import APIClient, APIError, OfflineError
 
 
 class SSHChatMode:
@@ -27,6 +28,11 @@ class SSHChatMode:
         /mood - Show current mood
         /stats - Show token usage stats
         /face <name> - Test a face expression
+
+    Social Commands:
+        /dream <text> - Post a dream to the Night Pool
+        /fish - Fetch a random dream from the pool
+        /queue - Show offline queue status
     """
 
     def __init__(
@@ -34,10 +40,12 @@ class SSHChatMode:
         brain: Brain,
         display: DisplayManager,
         personality: Personality,
+        api_client: Optional[APIClient] = None,
     ):
         self.brain = brain
         self.display = display
         self.personality = personality
+        self.api_client = api_client
         self._running = False
 
     async def run(self) -> None:
@@ -171,6 +179,16 @@ class SSHChatMode:
             )
             print("Display refreshed.")
 
+        # Social commands
+        elif cmd == "/dream":
+            await self._handle_dream(args)
+
+        elif cmd == "/fish":
+            await self._handle_fish()
+
+        elif cmd == "/queue":
+            self._handle_queue()
+
         else:
             print(f"Unknown command: {cmd}")
             print("Type /help for available commands.")
@@ -186,6 +204,11 @@ Available commands:
   /stats    - Show token usage statistics
   /face <n> - Test a face expression
   /refresh  - Force display refresh
+
+Social commands (The Conservatory):
+  /dream <text> - Post a thought to the Night Pool
+  /fish         - Fetch a random dream from the pool
+  /queue        - Show offline queue status
 
 Just type normally to chat!
 """)
@@ -262,3 +285,115 @@ Just type normally to chat!
     def stop(self) -> None:
         """Stop the chat loop."""
         self._running = False
+
+    # Social command handlers
+
+    async def _handle_dream(self, content: str) -> None:
+        """Post a dream to the Night Pool."""
+        if not self.api_client:
+            print("Social features not configured. Set api_base in config.yml")
+            return
+
+        if not content:
+            print("Usage: /dream <your thought>")
+            print("Example: /dream The stars look different tonight...")
+            return
+
+        if len(content) > 280:
+            print(f"Dream too long ({len(content)} chars). Max 280 characters.")
+            return
+
+        await self.display.update(
+            face="thinking",
+            text="Planting dream...",
+            status="connecting to Night Pool",
+        )
+
+        try:
+            result = await self.api_client.plant_dream(
+                content=content,
+                mood=self.personality.mood.current.value,
+                face=self.personality.face,
+            )
+
+            self.personality.on_social_event("dream_posted")
+
+            await self.display.update(
+                face="grateful",
+                text="Dream planted in the Night Pool",
+                status=f"{result.get('remaining_dreams', '?')} dreams left today",
+            )
+
+            print(f"\nDream posted to the Night Pool!")
+            print(f"  \"{content[:50]}{'...' if len(content) > 50 else ''}\"")
+            print(f"  Remaining today: {result.get('remaining_dreams', 'unknown')}")
+
+        except OfflineError:
+            print("\nOffline - dream queued for later.")
+            print("  Use /queue to see pending requests.")
+
+        except APIError as e:
+            self.personality.on_failure(0.3)
+            print(f"\nFailed to post dream: {e}")
+
+    async def _handle_fish(self) -> None:
+        """Fetch a random dream from the Night Pool."""
+        if not self.api_client:
+            print("Social features not configured. Set api_base in config.yml")
+            return
+
+        await self.display.update(
+            face="curious",
+            text="Fishing in the Night Pool...",
+            status="reaching into the depths",
+        )
+
+        try:
+            dream = await self.api_client.fish_dream()
+
+            if not dream:
+                await self.display.update(
+                    face="lonely",
+                    text="The pool is quiet tonight...",
+                    status="no dreams found",
+                )
+                print("\nThe Night Pool is empty. Be the first to dream!")
+                return
+
+            self.personality.on_social_event("dream_received")
+
+            # Display the dream
+            dream_text = dream.get("content", "")
+            dream_mood = dream.get("mood", "unknown")
+            dream_face = dream.get("face", "default")
+            fish_count = dream.get("fish_count", 0)
+
+            await self.display.update(
+                face=dream_face,
+                text=dream_text,
+                status=f"fished {fish_count}x | {dream_mood}",
+            )
+
+            print(f"\n~ A dream from the Night Pool ~")
+            print(f"  \"{dream_text}\"")
+            print(f"  Mood: {dream_mood} | Fished: {fish_count} times")
+
+        except OfflineError:
+            print("\nOffline - cannot reach the Night Pool.")
+
+        except APIError as e:
+            self.personality.on_failure(0.3)
+            print(f"\nFailed to fish dream: {e}")
+
+    def _handle_queue(self) -> None:
+        """Show offline queue status."""
+        if not self.api_client:
+            print("Social features not configured.")
+            return
+
+        queue_size = self.api_client.queue_size
+        if queue_size == 0:
+            print("Offline queue is empty. All caught up!")
+        else:
+            print(f"Offline queue: {queue_size} request(s) pending")
+            print("  These will be sent when connection is restored.")

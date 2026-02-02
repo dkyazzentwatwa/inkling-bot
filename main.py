@@ -29,7 +29,9 @@ from core.brain import Brain
 from core.crypto import Identity
 from core.display import DisplayManager
 from core.personality import Personality, PersonalityTraits
+from core.api_client import APIClient
 from modes.ssh_chat import SSHChatMode
+from modes.web_chat import WebChatMode
 
 
 # Memory management for Pi Zero 2W (512MB RAM)
@@ -123,6 +125,7 @@ class Inkling:
         self.display: Optional[DisplayManager] = None
         self.personality: Optional[Personality] = None
         self.brain: Optional[Brain] = None
+        self.api_client: Optional[APIClient] = None
 
         # Current mode
         self._mode = None
@@ -174,6 +177,19 @@ class Inkling:
             print("    Warning: No AI providers configured!")
             print("    Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variables.")
 
+        # API Client (for social features)
+        network_config = self.config.get("network", {})
+        api_base = network_config.get("api_base", "")
+        if api_base and api_base != "https://your-project.vercel.app/api":
+            print("  - Connecting to Conservatory...")
+            self.api_client = APIClient(
+                identity=self.identity,
+                api_base=api_base,
+            )
+            print(f"    API: {api_base}")
+        else:
+            print("  - Social features disabled (no api_base configured)")
+
         print("Initialization complete!")
 
     def _on_mood_change(self, old_mood, new_mood) -> None:
@@ -189,12 +205,19 @@ class Inkling:
                 brain=self.brain,
                 display=self.display,
                 personality=self.personality,
+                api_client=self.api_client,
             )
             await self._mode.run()
 
         elif mode == "web":
-            print("Web mode not yet implemented (Phase 2)")
-            # TODO: Implement WebChatMode
+            self._mode = WebChatMode(
+                brain=self.brain,
+                display=self.display,
+                personality=self.personality,
+                api_client=self.api_client,
+                port=self.config.get("web", {}).get("port", 8080),
+            )
+            await self._mode.run()
 
         elif mode == "demo":
             await self._run_demo()
@@ -225,6 +248,9 @@ class Inkling:
 
         if self._mode:
             self._mode.stop()
+
+        if self.api_client:
+            await self.api_client.close()
 
         if self.display:
             self.display.sleep()

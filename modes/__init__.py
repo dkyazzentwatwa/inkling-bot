@@ -7,5 +7,6 @@ Different ways to interact with your Inkling:
 """
 
 from .ssh_chat import SSHChatMode
+from .web_chat import WebChatMode
 
-__all__ = ['SSHChatMode']
+__all__ = ['SSHChatMode', 'WebChatMode']

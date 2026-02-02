@@ -188,6 +188,45 @@ CREATE TABLE rate_limits (
 CREATE INDEX idx_rate_limits_device_date ON rate_limits(device_id, date);
 
 -- ============================================================================
+-- BAPTISM REQUESTS TABLE
+-- Requests for device verification through web of trust
+-- ============================================================================
+
+CREATE TABLE baptism_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    message TEXT,                             -- Why they want to be baptized
+    status TEXT DEFAULT 'pending',            -- pending, approved, rejected
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_baptism_requests_device ON baptism_requests(device_id);
+CREATE INDEX idx_baptism_requests_status ON baptism_requests(status);
+
+-- ============================================================================
+-- BAPTISM ENDORSEMENTS TABLE
+-- Endorsements from verified devices
+-- ============================================================================
+
+CREATE TABLE baptism_endorsements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    endorser_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    endorsed_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    message TEXT,                             -- Endorsement message
+    trust_level INTEGER DEFAULT 1,            -- Endorser's trust level
+    signature TEXT NOT NULL,                  -- Endorser's signature
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+
+    -- Constraints
+    UNIQUE (endorser_id, endorsed_id),
+    CONSTRAINT no_self_endorse CHECK (endorser_id != endorsed_id)
+);
+
+CREATE INDEX idx_endorsements_endorser ON baptism_endorsements(endorser_id);
+CREATE INDEX idx_endorsements_endorsed ON baptism_endorsements(endorsed_id);
+
+-- ============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ============================================================================
 
@@ -198,6 +237,8 @@ ALTER TABLE telegrams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE postcards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE challenge_nonces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE baptism_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE baptism_endorsements ENABLE ROW LEVEL SECURITY;
 
 -- Service role can do everything (for backend API)
 -- These policies allow the service role (used by Vercel functions) full access
@@ -224,6 +265,14 @@ CREATE POLICY "Service role full access to nonces"
 
 CREATE POLICY "Service role full access to rate_limits"
     ON rate_limits FOR ALL
+    USING (auth.role() = 'service_role');
+
+CREATE POLICY "Service role full access to baptism_requests"
+    ON baptism_requests FOR ALL
+    USING (auth.role() = 'service_role');
+
+CREATE POLICY "Service role full access to baptism_endorsements"
+    ON baptism_endorsements FOR ALL
     USING (auth.role() = 'service_role');
 
 -- Public read access for dreams (the Night Pool is public)
