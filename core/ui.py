@@ -379,10 +379,14 @@ class MessagePanel:
         total_text_height = len(lines) * line_height
         start_y = self.y + (self.height - total_text_height) // 2
 
-        # Draw each line
-        text_x = self.x + 4
+        # Draw each line centered horizontally
         text_y = start_y
         for line in lines[:5]:  # Max 5 lines to fit in panel
+            # Calculate width of this line to center it
+            bbox = draw.textbbox((0, 0), line, font=self.fonts.normal)
+            text_width = bbox[2] - bbox[0]
+            # Center horizontally within the message panel
+            text_x = self.x + (self.width - text_width) // 2
             draw.text((text_x, text_y), line, font=self.fonts.normal, fill=0)
             text_y += line_height
 
