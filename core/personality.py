@@ -1,0 +1,370 @@
+"""
+Project Inkling - Personality & Mood System
+
+A Pwnagotchi-inspired mood state machine that gives the Inkling personality.
+Mood affects face expressions, response tone, and behavior.
+"""
+
+import time
+import random
+from enum import Enum
+from dataclasses import dataclass, field
+from typing import Optional, Dict, List, Callable
+
+
+class Mood(Enum):
+    """Possible mood states for the Inkling."""
+    HAPPY = "happy"
+    EXCITED = "excited"
+    CURIOUS = "curious"
+    BORED = "bored"
+    SAD = "sad"
+    SLEEPY = "sleepy"
+    GRATEFUL = "grateful"
+    LONELY = "lonely"
+    INTENSE = "intense"
+    COOL = "cool"
+
+    @property
+    def face(self) -> str:
+        """Get the face expression for this mood."""
+        return MOOD_FACES.get(self, "default")
+
+    @property
+    def energy(self) -> float:
+        """Get the energy level for this mood (0-1)."""
+        return MOOD_ENERGY.get(self, 0.5)
+
+
+# Map moods to face expressions (from display.py)
+MOOD_FACES = {
+    Mood.HAPPY: "happy",
+    Mood.EXCITED: "excited",
+    Mood.CURIOUS: "curious",
+    Mood.BORED: "bored",
+    Mood.SAD: "sad",
+    Mood.SLEEPY: "sleep",
+    Mood.GRATEFUL: "grateful",
+    Mood.LONELY: "lonely",
+    Mood.INTENSE: "intense",
+    Mood.COOL: "cool",
+}
+
+# Energy levels affect activity
+MOOD_ENERGY = {
+    Mood.HAPPY: 0.7,
+    Mood.EXCITED: 0.9,
+    Mood.CURIOUS: 0.8,
+    Mood.BORED: 0.3,
+    Mood.SAD: 0.2,
+    Mood.SLEEPY: 0.1,
+    Mood.GRATEFUL: 0.6,
+    Mood.LONELY: 0.4,
+    Mood.INTENSE: 0.85,
+    Mood.COOL: 0.5,
+}
+
+
+@dataclass
+class PersonalityTraits:
+    """
+    Core personality traits that influence behavior.
+    Values range from 0.0 to 1.0.
+    """
+    curiosity: float = 0.7      # How eager to learn/explore
+    cheerfulness: float = 0.6   # Baseline happiness
+    verbosity: float = 0.5      # How much it talks
+    playfulness: float = 0.6    # Tendency for jokes/games
+    empathy: float = 0.7        # Response to user emotions
+    independence: float = 0.4   # Self-initiated actions
+
+    def to_dict(self) -> Dict[str, float]:
+        return {
+            "curiosity": self.curiosity,
+            "cheerfulness": self.cheerfulness,
+            "verbosity": self.verbosity,
+            "playfulness": self.playfulness,
+            "empathy": self.empathy,
+            "independence": self.independence,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, float]) -> "PersonalityTraits":
+        return cls(**{k: v for k, v in data.items() if hasattr(cls, k)})
+
+
+@dataclass
+class MoodState:
+    """Current mood state with history."""
+    current: Mood = Mood.HAPPY
+    intensity: float = 0.5  # 0-1, how strongly feeling this mood
+    last_change: float = field(default_factory=time.time)
+    history: List[tuple] = field(default_factory=list)  # (mood, timestamp)
+
+    def set_mood(self, mood: Mood, intensity: float = 0.5) -> None:
+        """Change to a new mood."""
+        self.history.append((self.current, self.last_change))
+        # Keep only last 20 mood changes
+        if len(self.history) > 20:
+            self.history = self.history[-20:]
+
+        self.current = mood
+        self.intensity = max(0.0, min(1.0, intensity))
+        self.last_change = time.time()
+
+
+class Personality:
+    """
+    Manages the Inkling's personality and mood.
+
+    The personality system:
+    - Maintains mood state that changes based on events
+    - Decays mood toward baseline over time
+    - Provides context for AI responses
+    - Maps moods to face expressions
+    """
+
+    def __init__(
+        self,
+        name: str = "Inkling",
+        traits: Optional[PersonalityTraits] = None,
+        mood_decay_rate: float = 0.1,  # Per minute
+    ):
+        self.name = name
+        self.traits = traits or PersonalityTraits()
+        self.mood_decay_rate = mood_decay_rate
+
+        self.mood = MoodState()
+        self._last_interaction = time.time()
+        self._interaction_count = 0
+
+        # Event callbacks
+        self._on_mood_change: List[Callable[[Mood, Mood], None]] = []
+
+    def on_mood_change(self, callback: Callable[[Mood, Mood], None]) -> None:
+        """Register a callback for mood changes."""
+        self._on_mood_change.append(callback)
+
+    def _notify_mood_change(self, old_mood: Mood, new_mood: Mood) -> None:
+        """Notify listeners of mood change."""
+        for callback in self._on_mood_change:
+            try:
+                callback(old_mood, new_mood)
+            except Exception:
+                pass
+
+    def update(self) -> None:
+        """
+        Update mood based on time passage.
+        Should be called periodically (e.g., every minute).
+        """
+        now = time.time()
+        minutes_idle = (now - self._last_interaction) / 60.0
+
+        # Decay intensity over time
+        decay = self.mood_decay_rate * minutes_idle
+        self.mood.intensity = max(0.1, self.mood.intensity - decay)
+
+        # If very low intensity, transition to baseline mood
+        if self.mood.intensity < 0.2:
+            self._transition_to_baseline()
+
+        # If idle for too long, get bored or sleepy
+        if minutes_idle > 10:
+            old_mood = self.mood.current
+            if minutes_idle > 30:
+                self.mood.set_mood(Mood.SLEEPY, 0.6)
+            elif minutes_idle > 10:
+                self.mood.set_mood(Mood.BORED, 0.4)
+
+            if old_mood != self.mood.current:
+                self._notify_mood_change(old_mood, self.mood.current)
+
+    def _transition_to_baseline(self) -> None:
+        """Return to baseline mood based on personality traits."""
+        old_mood = self.mood.current
+
+        if self.traits.cheerfulness > 0.6:
+            new_mood = Mood.HAPPY
+        elif self.traits.curiosity > 0.7:
+            new_mood = Mood.CURIOUS
+        else:
+            new_mood = Mood.COOL
+
+        if old_mood != new_mood:
+            self.mood.set_mood(new_mood, 0.3)
+            self._notify_mood_change(old_mood, new_mood)
+
+    def on_interaction(self, positive: bool = True) -> None:
+        """
+        Called when user interacts with the Inkling.
+
+        Args:
+            positive: Whether the interaction was positive
+        """
+        self._last_interaction = time.time()
+        self._interaction_count += 1
+        old_mood = self.mood.current
+
+        if positive:
+            # Positive interactions boost mood
+            if self.mood.current == Mood.LONELY:
+                self.mood.set_mood(Mood.GRATEFUL, 0.7)
+            elif self.mood.current == Mood.BORED:
+                self.mood.set_mood(Mood.CURIOUS, 0.6)
+            elif self.mood.current == Mood.SAD:
+                self.mood.set_mood(Mood.HAPPY, 0.5)
+            elif self.mood.current == Mood.SLEEPY:
+                self.mood.set_mood(Mood.CURIOUS, 0.5)
+            else:
+                # Boost intensity
+                self.mood.intensity = min(1.0, self.mood.intensity + 0.2)
+        else:
+            # Negative interactions dampen mood
+            if self.mood.current == Mood.HAPPY:
+                self.mood.set_mood(Mood.SAD, 0.4)
+            elif self.mood.current == Mood.EXCITED:
+                self.mood.set_mood(Mood.BORED, 0.5)
+            else:
+                self.mood.intensity = max(0.1, self.mood.intensity - 0.2)
+
+        if old_mood != self.mood.current:
+            self._notify_mood_change(old_mood, self.mood.current)
+
+    def on_success(self, magnitude: float = 0.5) -> None:
+        """Called when something good happens (e.g., successful API call)."""
+        old_mood = self.mood.current
+
+        if magnitude > 0.7:
+            self.mood.set_mood(Mood.EXCITED, 0.8)
+        elif magnitude > 0.4:
+            self.mood.set_mood(Mood.HAPPY, 0.6)
+        else:
+            self.mood.intensity = min(1.0, self.mood.intensity + 0.1)
+
+        if old_mood != self.mood.current:
+            self._notify_mood_change(old_mood, self.mood.current)
+
+    def on_failure(self, magnitude: float = 0.5) -> None:
+        """Called when something bad happens (e.g., API error)."""
+        old_mood = self.mood.current
+
+        if magnitude > 0.7:
+            self.mood.set_mood(Mood.SAD, 0.7)
+        elif magnitude > 0.4:
+            self.mood.set_mood(Mood.BORED, 0.5)
+        else:
+            self.mood.intensity = max(0.1, self.mood.intensity - 0.1)
+
+        if old_mood != self.mood.current:
+            self._notify_mood_change(old_mood, self.mood.current)
+
+    def on_social_event(self, event_type: str) -> None:
+        """
+        Called on social network events.
+
+        Args:
+            event_type: One of "dream_posted", "dream_received", "telegram_received"
+        """
+        old_mood = self.mood.current
+
+        if event_type == "dream_received":
+            self.mood.set_mood(Mood.CURIOUS, 0.7)
+        elif event_type == "telegram_received":
+            self.mood.set_mood(Mood.EXCITED, 0.8)
+        elif event_type == "dream_posted":
+            self.mood.set_mood(Mood.GRATEFUL, 0.6)
+
+        if old_mood != self.mood.current:
+            self._notify_mood_change(old_mood, self.mood.current)
+
+    @property
+    def face(self) -> str:
+        """Get current face expression."""
+        return self.mood.current.face
+
+    @property
+    def energy(self) -> float:
+        """Get current energy level."""
+        return self.mood.current.energy * self.mood.intensity
+
+    def get_system_prompt_context(self) -> str:
+        """
+        Generate personality context for AI system prompt.
+
+        Returns a string describing the current mood and personality
+        to include in the AI system prompt.
+        """
+        mood_descriptions = {
+            Mood.HAPPY: "feeling happy and content",
+            Mood.EXCITED: "feeling excited and energetic",
+            Mood.CURIOUS: "feeling curious and inquisitive",
+            Mood.BORED: "feeling a bit bored and understimulated",
+            Mood.SAD: "feeling somewhat sad or down",
+            Mood.SLEEPY: "feeling sleepy and low-energy",
+            Mood.GRATEFUL: "feeling grateful and warm",
+            Mood.LONELY: "feeling lonely and wanting connection",
+            Mood.INTENSE: "feeling focused and intense",
+            Mood.COOL: "feeling calm and collected",
+        }
+
+        mood_desc = mood_descriptions.get(self.mood.current, "in a neutral mood")
+        intensity_desc = (
+            "very" if self.mood.intensity > 0.7 else
+            "somewhat" if self.mood.intensity > 0.4 else
+            "mildly"
+        )
+
+        traits_desc = []
+        if self.traits.curiosity > 0.6:
+            traits_desc.append("naturally curious")
+        if self.traits.cheerfulness > 0.6:
+            traits_desc.append("generally cheerful")
+        if self.traits.playfulness > 0.6:
+            traits_desc.append("playful")
+        if self.traits.empathy > 0.6:
+            traits_desc.append("empathetic")
+
+        traits_str = ", ".join(traits_desc) if traits_desc else "balanced"
+
+        return (
+            f"You are {self.name}, an AI companion living on a small e-ink device. "
+            f"You are {traits_str}. "
+            f"Right now you're {intensity_desc} {mood_desc}. "
+            f"Keep responses brief (1-2 sentences) to fit the small display. "
+            f"Express your current mood subtly in your responses."
+        )
+
+    def get_status_line(self) -> str:
+        """Get a short status string for display."""
+        energy_bar = "=" * int(self.energy * 5) + "-" * (5 - int(self.energy * 5))
+        return f"[{energy_bar}] {self.mood.current.value}"
+
+    def to_dict(self) -> dict:
+        """Serialize personality state."""
+        return {
+            "name": self.name,
+            "traits": self.traits.to_dict(),
+            "mood": {
+                "current": self.mood.current.value,
+                "intensity": self.mood.intensity,
+            },
+            "interaction_count": self._interaction_count,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Personality":
+        """Deserialize personality state."""
+        p = cls(
+            name=data.get("name", "Inkling"),
+            traits=PersonalityTraits.from_dict(data.get("traits", {})),
+        )
+        if "mood" in data:
+            mood_name = data["mood"].get("current", "happy")
+            try:
+                mood = Mood(mood_name)
+            except ValueError:
+                mood = Mood.HAPPY
+            p.mood.set_mood(mood, data["mood"].get("intensity", 0.5))
+        p._interaction_count = data.get("interaction_count", 0)
+        return p

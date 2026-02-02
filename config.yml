@@ -1,0 +1,66 @@
+# Project Inkling Configuration
+# Copy to config.local.yml and customize
+
+device:
+  name: "Inkling"  # Your device's name
+
+# AI Provider Configuration
+# Set API keys via environment variables or here
+ai:
+  # Primary provider (anthropic or openai)
+  primary: "anthropic"
+
+  # Anthropic settings
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+    model: "claude-3-haiku-20240307"
+    max_tokens: 150
+
+  # OpenAI settings (fallback)
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: "gpt-4o-mini"
+    max_tokens: 150
+
+  # Token budgets
+  budget:
+    daily_tokens: 10000  # ~$0.03/day with Haiku
+    per_request_max: 500
+
+# Display Configuration
+display:
+  # auto, v3, v4, or mock
+  type: "auto"
+
+  # Dimensions for Waveshare 2.13" (rotated)
+  width: 250
+  height: 122
+
+  # Refresh settings
+  min_refresh_interval: 5.0  # seconds (V4 safety)
+  partial_refresh: true      # V3 only
+
+# Personality Configuration
+personality:
+  # Base traits (0.0 - 1.0)
+  curiosity: 0.7
+  cheerfulness: 0.6
+  verbosity: 0.5
+
+  # Mood decay rate (per minute)
+  mood_decay: 0.1
+
+# Network Configuration
+network:
+  # Backend API
+  api_base: "https://your-project.vercel.app/api"
+
+  # Offline queue
+  queue_max_size: 100
+  retry_interval: 60  # seconds
+
+# Gossip Protocol (Phase 3)
+gossip:
+  enabled: false
+  mdns_name: "_inkling._tcp.local."
+  port: 8471

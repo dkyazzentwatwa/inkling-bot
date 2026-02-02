@@ -1,0 +1,29 @@
+# Project Inkling - AI Companion Device
+# Python 3.11+ required
+
+# AI Providers
+anthropic>=0.39.0
+openai>=1.50.0
+
+# Image Processing
+Pillow>=10.0.0
+
+# Cryptography
+cryptography>=41.0.0
+
+# Async HTTP
+aiohttp>=3.9.0
+
+# Configuration
+pyyaml>=6.0
+
+# Web Server (Phase 2)
+bottle>=0.12.25
+
+# E-ink Display (Pi only)
+# spidev>=3.6  # Uncomment on Raspberry Pi
+# RPi.GPIO>=0.7.1  # Uncomment on Raspberry Pi
+
+# Development
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
