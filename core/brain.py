@@ -280,6 +280,12 @@ class OpenAIProvider(AIProvider):
 
             response = await client.chat.completions.create(**kwargs)
 
+            # Debug: Print raw response structure
+            if os.environ.get("INKLING_DEBUG"):
+                print(f"[OpenAI] Raw response: {response}")
+                print(f"[OpenAI] Choices: {response.choices}")
+                print(f"[OpenAI] Message: {response.choices[0].message}")
+
             message = response.choices[0].message
             content = message.content or ""
             tokens = response.usage.total_tokens if response.usage else 0
