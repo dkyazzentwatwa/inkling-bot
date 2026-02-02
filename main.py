@@ -31,6 +31,7 @@ from core.display import DisplayManager
 from core.mcp_client import MCPClientManager
 from core.personality import Personality, PersonalityTraits
 from core.api_client import APIClient
+from core.heartbeat import Heartbeat, HeartbeatConfig
 from modes.ssh_chat import SSHChatMode
 from modes.web_chat import WebChatMode
 
@@ -128,6 +129,7 @@ class Inkling:
         self.brain: Optional[Brain] = None
         self.api_client: Optional[APIClient] = None
         self.mcp_client: Optional[MCPClientManager] = None
+        self.heartbeat: Optional[Heartbeat] = None
 
         # Current mode
         self._mode = None
@@ -170,6 +172,38 @@ class Inkling:
         # Register mood change callback to update display
         self.personality.on_mood_change(self._on_mood_change)
         self.personality.on_level_up(self._on_level_up)
+
+        # Heartbeat (proactive behaviors)
+        heartbeat_config_data = self.config.get("heartbeat", {})
+        heartbeat_enabled = heartbeat_config_data.get("enabled", True)
+
+        if heartbeat_enabled:
+            print("  - Starting heartbeat...")
+            heartbeat_config = HeartbeatConfig(
+                tick_interval_seconds=heartbeat_config_data.get("tick_interval", 60),
+                enable_mood_behaviors=heartbeat_config_data.get("enable_mood_behaviors", True),
+                enable_time_behaviors=heartbeat_config_data.get("enable_time_behaviors", True),
+                enable_social_behaviors=heartbeat_config_data.get("enable_social_behaviors", True),
+                enable_maintenance=heartbeat_config_data.get("enable_maintenance", True),
+                quiet_hours_start=heartbeat_config_data.get("quiet_hours_start", 23),
+                quiet_hours_end=heartbeat_config_data.get("quiet_hours_end", 7),
+            )
+
+            self.heartbeat = Heartbeat(
+                personality=self.personality,
+                display_manager=self.display,
+                api_client=self.api_client,
+                brain=self.brain,
+                config=heartbeat_config,
+            )
+
+            # Register callback for spontaneous messages
+            self.heartbeat.on_message(self._on_heartbeat_message)
+
+            print(f"    Behaviors: {len(self.heartbeat._behaviors)}")
+            print(f"    Tick interval: {heartbeat_config.tick_interval_seconds}s")
+        else:
+            print("  - Heartbeat disabled")
 
         # MCP Client (tool integration)
         mcp_config = self.config.get("mcp", {})
@@ -227,18 +261,36 @@ class Inkling:
                 badges=self.personality.progression.badges,
             ))
 
+    async def _on_heartbeat_message(self, message: str, face: str) -> None:
+        """Handle spontaneous messages from heartbeat."""
+        print(f"[Heartbeat] {message}")
+
+        # Update display with spontaneous thought
+        if self.display:
+            await self.display.update(
+                face=face,
+                text=message,
+                mood_text=self.personality.mood.current.value.title(),
+            )
+
     async def run_mode(self, mode: str) -> None:
         """Run a specific interaction mode."""
         self._running = True
 
-        if mode == "ssh":
-            self._mode = SSHChatMode(
-                brain=self.brain,
-                display=self.display,
-                personality=self.personality,
-                api_client=self.api_client,
-            )
-            await self._mode.run()
+        # Start heartbeat in background if enabled
+        heartbeat_task = None
+        if self.heartbeat:
+            heartbeat_task = asyncio.create_task(self.heartbeat.start())
+
+        try:
+            if mode == "ssh":
+                self._mode = SSHChatMode(
+                    brain=self.brain,
+                    display=self.display,
+                    personality=self.personality,
+                    api_client=self.api_client,
+                )
+                await self._mode.run()
 
         elif mode == "web":
             self._mode = WebChatMode(
@@ -251,11 +303,22 @@ class Inkling:
             await self._mode.run()
 
         elif mode == "demo":
-            await self._run_demo()
+                await self._run_demo()
 
-        else:
-            print(f"Unknown mode: {mode}")
-            print("Available modes: ssh, demo")
+            else:
+                print(f"Unknown mode: {mode}")
+                print("Available modes: ssh, demo")
+
+        finally:
+            # Stop heartbeat when mode exits
+            if self.heartbeat:
+                self.heartbeat.stop()
+                if heartbeat_task:
+                    heartbeat_task.cancel()
+                    try:
+                        await heartbeat_task
+                    except asyncio.CancelledError:
+                        pass
 
     async def _run_demo(self) -> None:
         """Run a demo of the Pwnagotchi-style display."""

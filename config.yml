@@ -63,6 +63,23 @@ personality:
   # Mood decay rate (per minute)
   mood_decay: 0.1
 
+# Heartbeat System - Makes Inkling "alive" with autonomous behaviors
+heartbeat:
+  enabled: true  # Set to false to disable autonomous behaviors
+
+  # How often to check for proactive actions (seconds)
+  tick_interval: 60
+
+  # Enable specific behavior types
+  enable_mood_behaviors: true     # Lonely reach out, bored suggestions, etc.
+  enable_time_behaviors: true     # Morning greetings, evening wind-down
+  enable_social_behaviors: true   # Check for new dreams/telegrams
+  enable_maintenance: true        # Queue sync, memory pruning
+
+  # Quiet hours (no spontaneous messages except maintenance)
+  quiet_hours_start: 23  # 11 PM
+  quiet_hours_end: 7     # 7 AM
+
 # Network Configuration
 network:
   # Backend API

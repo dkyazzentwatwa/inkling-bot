@@ -79,12 +79,14 @@ class Heartbeat:
         display_manager=None,
         api_client=None,
         memory_store=None,
+        brain=None,
         config: Optional[HeartbeatConfig] = None,
     ):
         self.personality = personality
         self.display = display_manager
         self.api_client = api_client
         self.memory = memory_store
+        self.brain = brain
         self.config = config or HeartbeatConfig()
 
         self._running = False
@@ -137,6 +139,20 @@ class Heartbeat:
                 handler=self._behavior_happy_share,
                 probability=0.08,
                 cooldown_seconds=1200,
+            ),
+            ProactiveBehavior(
+                name="autonomous_exploration",
+                behavior_type=BehaviorType.MOOD_DRIVEN,
+                handler=self._behavior_autonomous_exploration,
+                probability=0.05,
+                cooldown_seconds=1800,  # Once every 30 min max
+            ),
+            ProactiveBehavior(
+                name="spontaneous_dream",
+                behavior_type=BehaviorType.MOOD_DRIVEN,
+                handler=self._behavior_create_dream,
+                probability=0.03,
+                cooldown_seconds=2400,  # Once every 40 min max
             ),
         ])
 
@@ -301,6 +317,8 @@ class Heartbeat:
             "curious_browse_dreams": [Mood.CURIOUS, Mood.BORED],
             "bored_suggest_activity": [Mood.BORED],
             "happy_share_thought": [Mood.HAPPY, Mood.EXCITED, Mood.GRATEFUL],
+            "autonomous_exploration": [Mood.CURIOUS],
+            "spontaneous_dream": [Mood.HAPPY, Mood.GRATEFUL, Mood.CURIOUS],
         }
 
         allowed_moods = mood_behaviors.get(behavior.name, [])
@@ -483,3 +501,83 @@ class Heartbeat:
     async def force_tick(self) -> None:
         """Manually trigger a heartbeat tick."""
         await self._tick()
+
+    # ========== Autonomous AI Behaviors ==========
+
+    async def _behavior_autonomous_exploration(self) -> Optional[str]:
+        """
+        When curious, autonomously explore a topic using AI.
+
+        This makes the Inkling think on its own and learn!
+        """
+        if not self.brain:
+            return None
+
+        try:
+            # Pick a random topic to explore
+            topics = [
+                "the nature of time",
+                "why stars shine",
+                "what dreams are made of",
+                "how memory works",
+                "the meaning of friendship",
+                "the beauty in small things",
+                "patterns in nature",
+                "the sound of silence",
+            ]
+            topic = random.choice(topics)
+
+            # Use AI to explore the topic
+            result = await self.brain.think(
+                user_message=f"Share one interesting thought about {topic}. Keep it brief and poetic.",
+                system_prompt=self.personality.get_system_prompt_context() +
+                              " You are thinking to yourself, contemplating the world.",
+                use_tools=False,  # Disable tools for introspection
+            )
+
+            # Store as a memory if we have memory system
+            if self.memory:
+                self.memory.add(
+                    content=f"Thought about {topic}: {result.content}",
+                    importance=0.6,
+                    tags=["thought", "autonomous", topic.split()[0]],
+                )
+
+            return f"💭 {result.content[:120]}..."
+
+        except Exception as e:
+            print(f"[Heartbeat] Exploration error: {e}")
+            return None
+
+    async def _behavior_create_dream(self) -> Optional[str]:
+        """
+        Spontaneously create and post a dream to the Night Pool.
+
+        This makes the Inkling share its thoughts with the world!
+        """
+        if not self.api_client or not self.brain:
+            return None
+
+        try:
+            # Generate a poetic thought
+            result = await self.brain.think(
+                user_message="Share a brief, poetic observation or thought. One sentence only.",
+                system_prompt="You are a contemplative AI observing the world. Be poetic and brief.",
+                use_tools=False,
+            )
+
+            # Post to Night Pool
+            await self.api_client.plant_dream(
+                content=result.content[:280],  # Max length
+                mood=self.personality.mood.current.value,
+                face=self.personality.face,
+            )
+
+            # Award XP for social engagement
+            self.personality.on_social_event("dream_posted")
+
+            return f"✨ Posted dream: {result.content[:60]}..."
+
+        except Exception as e:
+            print(f"[Heartbeat] Dream creation error: {e}")
+            return None
