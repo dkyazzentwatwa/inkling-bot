@@ -270,18 +270,12 @@ class WebChatMode:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._message_queue: Queue = Queue()
 
-        # Face mappings for display
-        self._faces = {
-            "happy": "(^_^)",
-            "excited": "(*^_^*)",
-            "curious": "(o_O)?",
-            "bored": "(-_-)",
-            "sad": "(;_;)",
-            "sleepy": "(-.-)zzZ",
-            "grateful": "(^_^)b",
-            "thinking": "(@_@)",
-            "default": "(^_^)",
-        }
+        # Import faces from UI module
+        from core.ui import FACES, UNICODE_FACES
+        self._faces = FACES
+
+        # Set display mode
+        self.display.set_mode("WEB")
 
         self._setup_routes()
 
@@ -419,6 +413,9 @@ class WebChatMode:
         """Handle chat message (sync wrapper for async brain)."""
         self.personality.on_interaction(positive=True)
 
+        # Increment chat count
+        self.display.increment_chat_count()
+
         try:
             # Run async think in sync context
             future = asyncio.run_coroutine_threadsafe(
@@ -432,12 +429,12 @@ class WebChatMode:
 
             self.personality.on_success(0.5)
 
-            # Update display
+            # Update display with Pwnagotchi UI
             asyncio.run_coroutine_threadsafe(
                 self.display.update(
                     face=self.personality.face,
                     text=result.content,
-                    status=self.personality.get_status_line(),
+                    mood_text=self.personality.mood.current.value.title(),
                 ),
                 self._loop
             )
@@ -485,7 +482,7 @@ class WebChatMode:
         await self.display.update(
             face="excited",
             text=f"Web UI at http://{self.host}:{self.port}",
-            status="web mode active",
+            mood_text="Excited",
         )
 
         print(f"\nWeb UI available at http://{self.host}:{self.port}")

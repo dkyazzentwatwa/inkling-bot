@@ -4,7 +4,7 @@ Project Inkling - E-ink Display Manager
 Handles the Waveshare 2.13" e-ink display with support for:
 - V3 (partial refresh) and V4 (full refresh only)
 - Mock mode for development without hardware
-- Pwnagotchi-style ASCII faces
+- Pwnagotchi-style UI with panels and stats
 - Text rendering with word wrap
 """
 
@@ -12,10 +12,13 @@ import asyncio
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
+
+from .ui import PwnagotchiUI, DisplayContext, FACES, UNICODE_FACES
+from . import system_stats
 
 
 class DisplayType(Enum):
@@ -25,62 +28,24 @@ class DisplayType(Enum):
     V4 = "v4"  # Full refresh only
 
 
-# Pwnagotchi-inspired ASCII faces
-# Reference: https://github.com/evilsocket/pwnagotchi/blob/master/pwnagotchi/ui/faces.py
-FACES = {
-    "happy": "(^_^)",
-    "excited": "(*^_^*)",
-    "grateful": "(^_^)b",
-    "curious": "(o_O)?",
-    "intense": "(>_<)",
-    "cool": "( -_-)",
-    "bored": "(-_-)",
-    "sad": "(;_;)",
-    "angry": "(>_<#)",
-    "sleepy": "(-.-)zzZ",
-    "awake": "(O_O)",
-    "thinking": "(@_@)",
-    "confused": "(?_?)",
-    "surprised": "(O_o)",
-    "love": "(*^3^)",
-    "wink": "(^_~)",
-    "debug": "[DEBUG]",
-    "default": "(^_^)",
-    # Tool use faces
-    "working": "(•̀ᴗ•́)و",
-    "searching": "(◉_◉)",
-    "fetching": "(↺_↺)",
-    "writing": "(✎_✎)",
-    "success": "(✓‿✓)",
-}
-
-# Extended Unicode faces (Pwnagotchi style)
-UNICODE_FACES = {
-    "look_r": "( \u2686_\u2686)",
-    "look_l": "(\u2609_\u2609 )",
-    "look_r_happy": "( \u2686\u203f\u2686)",
-    "look_l_happy": "(\u2609\u203f\u2609 )",
-    "sleep": "(\u21c0\u203f\u203f\u21bc)",
-    "sleep2": "(\u2022\u203f\u203f\u2022)",
-    "awake": "(\u2609\u203f\u2609)",
-    "bored": "(-__-)",
-    "intense": "(\u2022_\u2022)",
-    "cool": "(\u2312_\u2312)",
-    "happy": "(\u2022\u203f\u203f\u2022)",
-    "excited": "(\u1d52\u25e1\u25e1\u1d52)",
-    "grateful": "(\u1d3c\u203f\u203f\u1d3c)",
-    "motivated": "(\u2686\u203f\u203f\u2686)",
-    "demotivated": "(\u2022__\u2022)",
-    "smart": "(\u2686_\u2686)",
-    "lonely": "(\u22c5\u2022\u22c5)",
-    "sad": "(\u2565\u2601\u2565 )",
-    "angry": "(\u2565\u203f\u2565)",
-    "friend": "(\u0361\u00b0 \u035c\u0296 \u0361\u00b0)",
-    "broken": "(\u2686_\u2686\u0029\u20e0",
-    "debug": "(\u25b8\u203f\u25c2)",
-    "upload": "(\u0029\u20d2\u2022\u203f\u203f\u2022\u0028\u20d2",
-    "upload1": "(\u0029\u203f\u2022\u203f\u203f\u2022\u203f\u0028",
-    "upload2": "(\u0029\u2022\u203f\u203f\u2022\u0028",
+# Mood to display text mapping
+MOOD_DISPLAY_TEXT = {
+    "happy": "Happy",
+    "excited": "Excited",
+    "grateful": "Grateful",
+    "curious": "Curious",
+    "intense": "Intense",
+    "cool": "Cool",
+    "bored": "Bored",
+    "sad": "Sad",
+    "angry": "Angry",
+    "sleepy": "Sleepy",
+    "awake": "Awake",
+    "thinking": "Thinking",
+    "confused": "Confused",
+    "surprised": "Surprised",
+    "lonely": "Lonely",
+    "default": "Neutral",
 }
 
 
@@ -286,7 +251,7 @@ class DisplayManager:
     Handles:
     - Display type auto-detection
     - Rate limiting for display health
-    - Face and text rendering
+    - Pwnagotchi-style UI rendering
     - Async-safe updates
     """
 
@@ -296,10 +261,12 @@ class DisplayManager:
         width: int = 250,
         height: int = 122,
         min_refresh_interval: float = 5.0,
+        device_name: str = "inkling",
     ):
         self.width = width
         self.height = height
         self.min_refresh_interval = min_refresh_interval
+        self.device_name = device_name
 
         self._driver: Optional[DisplayDriver] = None
         self._display_type = display_type
@@ -307,15 +274,26 @@ class DisplayManager:
         self._refresh_count = 0
         self._lock = asyncio.Lock()
 
-        # Font settings
+        # Pwnagotchi UI renderer
+        self._ui: Optional[PwnagotchiUI] = None
+
+        # Social stats (updated externally)
+        self._dream_count: int = 0
+        self._telegram_count: int = 0
+        self._chat_count: int = 0
+        self._friend_nearby: bool = False
+        self._mode: str = "AUTO"
+
+        # Legacy font settings (for backwards compatibility)
         self._font_face: Optional[ImageFont.FreeTypeFont] = None
         self._font_text: Optional[ImageFont.FreeTypeFont] = None
 
     def init(self) -> None:
-        """Initialize the display driver."""
+        """Initialize the display driver and UI."""
         self._driver = self._create_driver()
         self._driver.init()
         self._load_fonts()
+        self._ui = PwnagotchiUI()
 
     def _create_driver(self) -> DisplayDriver:
         """Create appropriate display driver based on type."""
@@ -394,51 +372,81 @@ class DisplayManager:
         face: str = "default",
         text: str = "",
         status: str = "",
+        mood_text: Optional[str] = None,
     ) -> Image.Image:
         """
-        Render a display frame with face and text.
+        Render a Pwnagotchi-style display frame.
 
         Args:
             face: Face expression key (from FACES or UNICODE_FACES)
-            text: Main message text (will be word-wrapped)
-            status: Status line at bottom
+            text: Main message text (shown in message box)
+            status: Status line (used as mode indicator in footer)
+            mood_text: Optional mood text override for header
 
         Returns:
             PIL Image ready for display
         """
-        # Create blank white image
-        image = Image.new("1", (self.width, self.height), 255)
-        draw = ImageDraw.Draw(image)
-
         # Get face string
         face_str = UNICODE_FACES.get(face, FACES.get(face, FACES["default"]))
 
-        # Layout:
-        # - Face at top-left (large)
-        # - Text below face (wrapped)
-        # - Status at bottom
+        # Get mood display text
+        if mood_text is None:
+            mood_text = MOOD_DISPLAY_TEXT.get(face, MOOD_DISPLAY_TEXT["default"])
+
+        # Get system stats
+        stats = system_stats.get_all_stats()
+
+        # Build display context
+        ctx = DisplayContext(
+            name=self.device_name,
+            mood_text=mood_text,
+            uptime=stats["uptime"],
+            face_str=face_str,
+            memory_percent=stats["memory"],
+            cpu_percent=stats["cpu"],
+            temperature=stats["temperature"],
+            dream_count=self._dream_count,
+            telegram_count=self._telegram_count,
+            chat_count=self._chat_count,
+            friend_nearby=self._friend_nearby,
+            message=text,
+            mode=self._mode if not status else status[:10].upper(),
+        )
+
+        # Render using Pwnagotchi UI
+        if self._ui:
+            return self._ui.render(ctx)
+
+        # Fallback to simple rendering if UI not initialized
+        return self._render_simple(face_str, text, status)
+
+    def _render_simple(
+        self,
+        face_str: str,
+        text: str,
+        status: str,
+    ) -> Image.Image:
+        """Simple fallback renderer (legacy compatibility)."""
+        image = Image.new("1", (self.width, self.height), 255)
+        draw = ImageDraw.Draw(image)
 
         # Draw face
-        face_y = 5
         try:
-            draw.text((10, face_y), face_str, font=self._font_face, fill=0)
+            draw.text((10, 5), face_str, font=self._font_face, fill=0)
         except Exception:
-            # Fall back if Unicode rendering fails
-            face_str = FACES.get(face, FACES["default"])
-            draw.text((10, face_y), face_str, font=self._font_face, fill=0)
+            draw.text((10, 5), "(^_^)", font=self._font_face, fill=0)
 
-        # Word wrap and draw text
+        # Draw text
         if text:
             text_y = 40
             wrapped = self._word_wrap(text, max_chars=35)
-            for line in wrapped[:4]:  # Max 4 lines
+            for line in wrapped[:4]:
                 draw.text((10, text_y), line, font=self._font_text, fill=0)
                 text_y += 16
 
-        # Draw status line at bottom
+        # Draw status
         if status:
-            status_y = self.height - 16
-            draw.text((10, status_y), status[:40], font=self._font_text, fill=0)
+            draw.text((10, self.height - 16), status[:40], font=self._font_text, fill=0)
 
         return image
 
@@ -467,15 +475,17 @@ class DisplayManager:
         text: str = "",
         status: str = "",
         force: bool = False,
+        mood_text: Optional[str] = None,
     ) -> bool:
         """
         Update the display asynchronously.
 
         Args:
             face: Face expression key
-            text: Main message text
-            status: Status line
+            text: Main message text (shown in message box)
+            status: Status/mode indicator
             force: Bypass rate limiting (use sparingly)
+            mood_text: Optional mood text override for header
 
         Returns:
             True if display was updated, False if rate-limited
@@ -487,7 +497,7 @@ class DisplayManager:
                 return False
 
             # Render the frame
-            image = self.render_frame(face, text, status)
+            image = self.render_frame(face, text, status, mood_text)
 
             # Update display
             if self._driver.supports_partial and self._refresh_count > 0:
@@ -518,3 +528,66 @@ class DisplayManager:
     def refresh_count(self) -> int:
         """Total number of display refreshes."""
         return self._refresh_count
+
+    # ========================================================================
+    # Social Stats Management
+    # ========================================================================
+
+    def set_social_stats(
+        self,
+        dream_count: Optional[int] = None,
+        telegram_count: Optional[int] = None,
+        chat_count: Optional[int] = None,
+        friend_nearby: Optional[bool] = None,
+    ) -> None:
+        """
+        Update social statistics for display.
+
+        Args:
+            dream_count: Number of dreams posted
+            telegram_count: Number of unread telegrams
+            chat_count: Lifetime chat/conversation count
+            friend_nearby: Whether a friend device is detected nearby
+        """
+        if dream_count is not None:
+            self._dream_count = dream_count
+        if telegram_count is not None:
+            self._telegram_count = telegram_count
+        if chat_count is not None:
+            self._chat_count = chat_count
+        if friend_nearby is not None:
+            self._friend_nearby = friend_nearby
+
+    def increment_chat_count(self) -> None:
+        """Increment the lifetime chat count by 1."""
+        self._chat_count += 1
+
+    def set_mode(self, mode: str) -> None:
+        """
+        Set the display mode indicator.
+
+        Args:
+            mode: Mode string (e.g., "AUTO", "SSH", "WEB", "GOSSIP")
+        """
+        self._mode = mode.upper()[:10]
+
+    @property
+    def chat_count(self) -> int:
+        """Get the current chat count."""
+        return self._chat_count
+
+    def get_display_stats(self) -> Dict[str, Any]:
+        """
+        Get current display statistics.
+
+        Returns:
+            Dict with refresh_count, chat_count, and social stats
+        """
+        return {
+            "refresh_count": self._refresh_count,
+            "chat_count": self._chat_count,
+            "dream_count": self._dream_count,
+            "telegram_count": self._telegram_count,
+            "friend_nearby": self._friend_nearby,
+            "mode": self._mode,
+        }
