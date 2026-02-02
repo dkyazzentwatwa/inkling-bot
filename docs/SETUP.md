@@ -355,6 +355,7 @@ journalctl -u inkling -f  # Follow logs
 
 ## Next Steps
 
+- Read the [AI Providers Guide](AI_PROVIDERS.md) for detailed API key setup
 - Read the [Usage Guide](USAGE.md) to learn all features
 - Check [Troubleshooting](TROUBLESHOOTING.md) if you hit issues
 - Join the community to get your device "baptized"

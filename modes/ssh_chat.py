@@ -13,6 +13,52 @@ from core.brain import Brain, AllProvidersExhaustedError, QuotaExceededError
 from core.display import DisplayManager
 from core.personality import Personality
 from core.api_client import APIClient, APIError, OfflineError
+from core.ui import FACES, UNICODE_FACES
+
+
+class Colors:
+    """ANSI color codes for terminal output."""
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+
+    # Mood colors
+    HAPPY = "\033[92m"      # Green
+    SAD = "\033[94m"        # Blue
+    EXCITED = "\033[93m"    # Yellow
+    BORED = "\033[90m"      # Gray
+    CURIOUS = "\033[96m"    # Cyan
+    ANGRY = "\033[91m"      # Red
+    SLEEPY = "\033[35m"     # Magenta (dim)
+    GRATEFUL = "\033[92m"   # Green
+    LONELY = "\033[94m"     # Blue
+    INTENSE = "\033[93m"    # Yellow
+    COOL = "\033[37m"       # White
+
+    # UI elements
+    FACE = "\033[1;97m"     # Bold white
+    PROMPT = "\033[95m"     # Magenta
+    INFO = "\033[90m"       # Gray
+    SUCCESS = "\033[92m"    # Green
+    ERROR = "\033[91m"      # Red
+    HEADER = "\033[1;36m"   # Bold cyan
+
+    @classmethod
+    def mood_color(cls, mood: str) -> str:
+        """Get color for a mood string."""
+        mood_colors = {
+            "happy": cls.HAPPY,
+            "excited": cls.EXCITED,
+            "curious": cls.CURIOUS,
+            "bored": cls.BORED,
+            "sad": cls.SAD,
+            "sleepy": cls.SLEEPY,
+            "grateful": cls.GRATEFUL,
+            "lonely": cls.LONELY,
+            "intense": cls.INTENSE,
+            "cool": cls.COOL,
+        }
+        return mood_colors.get(mood.lower(), cls.RESET)
 
 
 class SSHChatMode:
@@ -55,41 +101,48 @@ class SSHChatMode:
         """Main chat loop."""
         self._running = True
 
-        # Show welcome message
-        await self._welcome()
+        # Start background display refresh for live stats
+        await self.display.start_auto_refresh()
 
-        print("\nType your message (or /help for commands):")
-        print("-" * 40)
+        try:
+            # Show welcome message
+            await self._welcome()
 
-        while self._running:
-            try:
-                # Read input (non-blocking with asyncio)
-                user_input = await self._read_input()
+            print("\nType your message (or /help for commands):")
+            print("-" * 40)
 
-                if user_input is None:
-                    # EOF or error
+            while self._running:
+                try:
+                    # Read input (non-blocking with asyncio)
+                    user_input = await self._read_input()
+
+                    if user_input is None:
+                        # EOF or error
+                        break
+
+                    user_input = user_input.strip()
+                    if not user_input:
+                        continue
+
+                    # Handle commands
+                    if user_input.startswith("/"):
+                        await self._handle_command(user_input)
+                        continue
+
+                    # Process chat message
+                    await self._handle_message(user_input)
+
+                except KeyboardInterrupt:
+                    print("\n\nGoodbye!")
+                    break
+                except EOFError:
                     break
 
-                user_input = user_input.strip()
-                if not user_input:
-                    continue
-
-                # Handle commands
-                if user_input.startswith("/"):
-                    await self._handle_command(user_input)
-                    continue
-
-                # Process chat message
-                await self._handle_message(user_input)
-
-            except KeyboardInterrupt:
-                print("\n\nGoodbye!")
-                break
-            except EOFError:
-                break
-
-        # Cleanup
-        await self._goodbye()
+            # Cleanup
+            await self._goodbye()
+        finally:
+            # Stop auto-refresh when exiting
+            await self.display.stop_auto_refresh()
 
     async def _read_input(self) -> Optional[str]:
         """Read a line from stdin asynchronously."""
@@ -103,17 +156,40 @@ class SSHChatMode:
             return None
 
     async def _welcome(self) -> None:
-        """Display welcome message."""
+        """Display welcome message with styled box."""
         welcome_text = f"Hello! I'm {self.personality.name}."
 
-        # Update display with Pwnagotchi-style UI
+        # Get face string
+        face_str = UNICODE_FACES.get(
+            self.personality.face,
+            FACES.get(self.personality.face, "(^_^)")
+        )
+
+        # Energy bar
+        energy = self.personality.energy
+        bar_filled = int(energy * 5)
+        energy_bar = "█" * bar_filled + "░" * (5 - bar_filled)
+
+        # Get uptime
+        from core import system_stats
+        uptime = system_stats.get_uptime()
+
+        # Get mood color
+        mood = self.personality.mood.current.value
+        mood_color = Colors.mood_color(mood)
+
+        # Print styled welcome box
+        print(f"\n{Colors.BOLD}┌{'─' * 45}┐{Colors.RESET}")
+        print(f"{Colors.BOLD}│{Colors.RESET}  {Colors.FACE}{face_str}{Colors.RESET}  {Colors.BOLD}{self.personality.name}{Colors.RESET}")
+        print(f"{Colors.BOLD}│{Colors.RESET}  {Colors.DIM}Mood: {mood_color}{mood.title()}{Colors.RESET}  {Colors.DIM}Energy: [{energy_bar}]  UP {uptime}{Colors.RESET}")
+        print(f"{Colors.BOLD}└{'─' * 45}┘{Colors.RESET}")
+
+        # Update e-ink display
         await self.display.update(
             face=self.personality.face,
             text=welcome_text,
             mood_text=self.personality.mood.current.value.title(),
         )
-
-        print(f"\n{self.personality.name} says: {welcome_text}")
 
     async def _goodbye(self) -> None:
         """Display goodbye message."""
@@ -163,14 +239,43 @@ class SSHChatMode:
 
         elif cmd == "/face":
             if args:
+                face_str = UNICODE_FACES.get(args, FACES.get(args, f"({args})"))
                 await self.display.update(
                     face=args,
                     text=f"Testing face: {args}",
                 )
-                print(f"Showing face: {args}")
+                print(f"{Colors.FACE}{face_str}{Colors.RESET} Showing face: {args}")
             else:
-                print("Usage: /face <name>")
-                print("Available: happy, sad, excited, curious, bored, sleepy, etc.")
+                print(f"Usage: /face <name>")
+                print(f"{Colors.DIM}Use /faces to see all available faces{Colors.RESET}")
+
+        elif cmd == "/faces":
+            self._print_faces()
+
+        elif cmd == "/ask":
+            if not args:
+                print("Usage: /ask <your message>")
+                print(f"{Colors.DIM}Or just type without / to chat!{Colors.RESET}")
+            else:
+                await self._handle_message(args)
+
+        elif cmd == "/identity":
+            self._print_identity()
+
+        elif cmd == "/system":
+            self._print_system()
+
+        elif cmd == "/traits":
+            self._print_traits()
+
+        elif cmd == "/energy":
+            self._print_energy()
+
+        elif cmd == "/history":
+            self._print_history()
+
+        elif cmd == "/config":
+            self._print_config()
 
         elif cmd == "/refresh":
             # Force display refresh
@@ -197,24 +302,149 @@ class SSHChatMode:
             print("Type /help for available commands.")
 
     def _print_help(self) -> None:
-        """Print help message."""
-        print("""
-Available commands:
-  /help     - Show this help
-  /quit     - Exit chat (/exit, /q also work)
-  /clear    - Clear conversation history
-  /mood     - Show current mood state
-  /stats    - Show token usage statistics
-  /face <n> - Test a face expression
-  /refresh  - Force display refresh
+        """Print categorized help message."""
+        print(f"""
+{Colors.HEADER}═══════════════════════════════════════════{Colors.RESET}
+{Colors.BOLD}  INKLING{Colors.RESET} - Type anything to chat!
+{Colors.HEADER}═══════════════════════════════════════════{Colors.RESET}
 
-Social commands (The Conservatory):
-  /dream <text> - Post a thought to the Night Pool
-  /fish         - Fetch a random dream from the pool
-  /queue        - Show offline queue status
+{Colors.BOLD}Chat:{Colors.RESET}
+  {Colors.DIM}Just type{Colors.RESET}     Chat with AI (no / needed)
+  /ask <msg>    Explicit chat command
+  /clear        Clear conversation history
+  /history      Show recent messages
 
-Just type normally to chat!
+{Colors.BOLD}Status:{Colors.RESET}
+  /mood         Current mood and intensity
+  /energy       Energy level with visual bar
+  /stats        Token usage statistics
+  /system       CPU, memory, temperature
+  /traits       Personality traits
+  /config       AI provider info
+
+{Colors.BOLD}Display:{Colors.RESET}
+  /face <n>     Test a face expression
+  /faces        List all faces
+  /refresh      Force display refresh
+
+{Colors.BOLD}Social (The Conservatory):{Colors.RESET}
+  /dream <text> Post to Night Pool
+  /fish         Fetch random dream
+  /queue        Offline queue status
+
+{Colors.BOLD}Identity:{Colors.RESET}
+  /identity     Show device public key
+
+{Colors.BOLD}Session:{Colors.RESET}
+  /help         This help
+  /quit         Exit (/q, /exit)
+{Colors.HEADER}═══════════════════════════════════════════{Colors.RESET}
 """)
+
+    def _print_faces(self) -> None:
+        """Print all available face expressions."""
+        print(f"\n{Colors.BOLD}Available Faces{Colors.RESET}")
+
+        print(f"\n{Colors.DIM}ASCII:{Colors.RESET}")
+        for name, face in sorted(FACES.items()):
+            print(f"  {name:12} {Colors.FACE}{face}{Colors.RESET}")
+
+        print(f"\n{Colors.DIM}Unicode:{Colors.RESET}")
+        for name, face in sorted(UNICODE_FACES.items()):
+            print(f"  {name:12} {Colors.FACE}{face}{Colors.RESET}")
+
+    def _print_identity(self) -> None:
+        """Print device identity information."""
+        print(f"\n{Colors.BOLD}Device Identity{Colors.RESET}")
+
+        if self.api_client and hasattr(self.api_client, 'identity'):
+            pub_key = self.api_client.identity.public_key_hex
+            hw_hash = self.api_client.identity._hardware_hash[:16] if hasattr(self.api_client.identity, '_hardware_hash') else "N/A"
+            print(f"  Public Key: {Colors.INFO}{pub_key[:32]}...{Colors.RESET}")
+            print(f"  Hardware:   {Colors.INFO}{hw_hash}...{Colors.RESET}")
+        else:
+            print(f"  {Colors.DIM}Identity not configured{Colors.RESET}")
+
+        print(f"\n{Colors.DIM}Share your public key to receive telegrams{Colors.RESET}")
+
+    def _print_system(self) -> None:
+        """Print system statistics."""
+        from core import system_stats
+
+        stats = system_stats.get_all_stats()
+        print(f"\n{Colors.BOLD}System Status{Colors.RESET}")
+        print(f"  CPU:    {stats['cpu']}%")
+        print(f"  Memory: {stats['memory']}%")
+
+        temp = stats['temperature']
+        if temp > 0:
+            temp_color = Colors.ERROR if temp > 70 else (Colors.EXCITED if temp > 50 else Colors.SUCCESS)
+            print(f"  Temp:   {temp_color}{temp}°C{Colors.RESET}")
+        else:
+            print(f"  Temp:   {Colors.DIM}--°C{Colors.RESET}")
+
+        print(f"  Uptime: {stats['uptime']}")
+
+    def _print_traits(self) -> None:
+        """Print personality traits with visual bars."""
+        traits = self.personality.traits
+        print(f"\n{Colors.BOLD}Personality Traits{Colors.RESET}")
+
+        def bar(value: float) -> str:
+            filled = int(value * 10)
+            return "█" * filled + "░" * (10 - filled)
+
+        print(f"  Curiosity:    [{bar(traits.curiosity)}] {traits.curiosity:.0%}")
+        print(f"  Cheerfulness: [{bar(traits.cheerfulness)}] {traits.cheerfulness:.0%}")
+        print(f"  Verbosity:    [{bar(traits.verbosity)}] {traits.verbosity:.0%}")
+        print(f"  Playfulness:  [{bar(traits.playfulness)}] {traits.playfulness:.0%}")
+        print(f"  Empathy:      [{bar(traits.empathy)}] {traits.empathy:.0%}")
+        print(f"  Independence: [{bar(traits.independence)}] {traits.independence:.0%}")
+
+    def _print_energy(self) -> None:
+        """Print energy level with visual bar and mood context."""
+        energy = self.personality.energy
+        bar_filled = int(energy * 10)
+        bar = "█" * bar_filled + "░" * (10 - bar_filled)
+
+        mood = self.personality.mood.current.value
+        intensity = self.personality.mood.intensity
+        mood_color = Colors.mood_color(mood)
+
+        print(f"\n{Colors.BOLD}Energy Level{Colors.RESET}")
+        print(f"  [{bar}] {energy:.0%}")
+        print(f"  Mood: {mood_color}{mood.title()}{Colors.RESET} (intensity: {intensity:.0%})")
+
+    def _print_history(self) -> None:
+        """Print recent conversation messages."""
+        if not self.brain._messages:
+            print(f"\n{Colors.DIM}No conversation history.{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.BOLD}Recent Messages{Colors.RESET}")
+        for msg in self.brain._messages[-10:]:
+            if msg.role == "user":
+                role_color = Colors.PROMPT
+                prefix = "You"
+            else:
+                role_color = Colors.INFO
+                prefix = self.personality.name
+            content = msg.content[:60] + "..." if len(msg.content) > 60 else msg.content
+            print(f"  {role_color}{prefix}:{Colors.RESET} {content}")
+
+    def _print_config(self) -> None:
+        """Print AI configuration."""
+        print(f"\n{Colors.BOLD}AI Configuration{Colors.RESET}")
+        print(f"  Providers: {', '.join(self.brain.available_providers)}")
+
+        if self.brain.providers:
+            primary = self.brain.providers[0]
+            print(f"  Primary:   {Colors.SUCCESS}{primary.name}{Colors.RESET}")
+            print(f"  Model:     {primary.model}")
+            print(f"  Max tokens: {primary.max_tokens}")
+
+        stats = self.brain.get_stats()
+        print(f"\n{Colors.DIM}Budget: {stats['tokens_used_today']}/{stats['daily_limit']} tokens today{Colors.RESET}")
 
     async def _handle_message(self, message: str) -> None:
         """Process a chat message."""
@@ -254,9 +484,17 @@ Just type normally to chat!
                 mood_text=self.personality.mood.current.value.title(),
             )
 
-            # Print to terminal
-            print(f"\n{self.personality.name}: {result.content}")
-            print(f"  [{result.provider}/{result.model}, {result.tokens_used} tokens]")
+            # Print styled response to terminal
+            face_str = UNICODE_FACES.get(
+                self.personality.face,
+                FACES.get(self.personality.face, "(^_^)")
+            )
+            mood = self.personality.mood.current.value
+            mood_color = Colors.mood_color(mood)
+
+            print(f"\n{Colors.FACE}{face_str}{Colors.RESET} {Colors.BOLD}{self.personality.name}{Colors.RESET}")
+            print(f"{mood_color}{result.content}{Colors.RESET}")
+            print(f"{Colors.DIM}  {result.provider} • {result.tokens_used} tokens{Colors.RESET}")
 
         except QuotaExceededError as e:
             self.personality.on_failure(0.7)
@@ -267,8 +505,9 @@ Just type normally to chat!
                 text=error_msg,
                 mood_text="Tired",
             )
-            print(f"\n{self.personality.name}: {error_msg}")
-            print(f"  [Error: {e}]")
+            print(f"\n{Colors.FACE}(;_;){Colors.RESET} {Colors.BOLD}{self.personality.name}{Colors.RESET}")
+            print(f"{Colors.SAD}{error_msg}{Colors.RESET}")
+            print(f"{Colors.ERROR}  Error: {e}{Colors.RESET}")
 
         except AllProvidersExhaustedError as e:
             self.personality.on_failure(0.8)
@@ -279,8 +518,9 @@ Just type normally to chat!
                 text=error_msg,
                 mood_text="Confused",
             )
-            print(f"\n{self.personality.name}: {error_msg}")
-            print(f"  [Error: {e}]")
+            print(f"\n{Colors.FACE}(?_?){Colors.RESET} {Colors.BOLD}{self.personality.name}{Colors.RESET}")
+            print(f"{Colors.BORED}{error_msg}{Colors.RESET}")
+            print(f"{Colors.ERROR}  Error: {e}{Colors.RESET}")
 
         except Exception as e:
             self.personality.on_failure(0.5)
@@ -291,8 +531,9 @@ Just type normally to chat!
                 text=error_msg,
                 mood_text="Sad",
             )
-            print(f"\n{self.personality.name}: {error_msg}")
-            print(f"  [Error: {type(e).__name__}: {e}]")
+            print(f"\n{Colors.FACE}(;_;){Colors.RESET} {Colors.BOLD}{self.personality.name}{Colors.RESET}")
+            print(f"{Colors.SAD}{error_msg}{Colors.RESET}")
+            print(f"{Colors.ERROR}  Error: {type(e).__name__}: {e}{Colors.RESET}")
 
     def stop(self) -> None:
         """Stop the chat loop."""

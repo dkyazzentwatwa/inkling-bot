@@ -258,11 +258,22 @@ class OpenAIProvider(AIProvider):
         ])
 
         try:
+            # Check if model needs max_completion_tokens (o1, o3 models)
+            use_max_completion_tokens = any(
+                self.model.startswith(prefix)
+                for prefix in ("o1", "o3")
+            )
+
             kwargs = {
                 "model": self.model,
-                "max_tokens": self.max_tokens,
                 "messages": api_messages,
             }
+
+            # Use appropriate token limit parameter
+            if use_max_completion_tokens:
+                kwargs["max_completion_tokens"] = self.max_tokens
+            else:
+                kwargs["max_tokens"] = self.max_tokens
 
             # Convert tools to OpenAI format
             if tools:

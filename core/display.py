@@ -288,6 +288,17 @@ class DisplayManager:
         self._font_face: Optional[ImageFont.FreeTypeFont] = None
         self._font_text: Optional[ImageFont.FreeTypeFont] = None
 
+        # Auto-refresh state
+        self._refresh_task: Optional[asyncio.Task] = None
+        self._auto_refresh_interval = 1.0  # seconds between auto-refreshes
+        self._partial_refresh_interval = 0.5  # V3: fast partial updates
+        self._full_refresh_interval = 5.0  # V4: conservative full updates
+
+        # Track current display state for auto-refresh
+        self._current_face: str = "default"
+        self._current_text: str = ""
+        self._current_mood: str = "Happy"
+
     def init(self) -> None:
         """Initialize the display driver and UI."""
         self._driver = self._create_driver()
@@ -357,14 +368,22 @@ class DisplayManager:
         self._font_text = ImageFont.load_default()
 
     def _can_refresh(self) -> bool:
-        """Check if enough time has passed since last refresh."""
+        """Check refresh timing based on display capabilities."""
         elapsed = time.time() - self._last_refresh
-        return elapsed >= self.min_refresh_interval
+        # Use faster interval for displays that support partial refresh
+        if self._driver and self._driver.supports_partial:
+            return elapsed >= self._partial_refresh_interval
+        return elapsed >= self._full_refresh_interval
 
     def _wait_for_refresh(self) -> float:
         """Get seconds to wait before next refresh is allowed."""
         elapsed = time.time() - self._last_refresh
-        remaining = self.min_refresh_interval - elapsed
+        # Use appropriate interval based on display type
+        if self._driver and self._driver.supports_partial:
+            interval = self._partial_refresh_interval
+        else:
+            interval = self._full_refresh_interval
+        remaining = interval - elapsed
         return max(0, remaining)
 
     def render_frame(
@@ -491,9 +510,17 @@ class DisplayManager:
             True if display was updated, False if rate-limited
         """
         async with self._lock:
+            # Store state for auto-refresh (always, even if rate-limited)
+            self._current_face = face
+            self._current_text = text
+            if mood_text:
+                self._current_mood = mood_text
+
             if not force and not self._can_refresh():
                 wait_time = self._wait_for_refresh()
-                print(f"[Display] Rate limited, wait {wait_time:.1f}s")
+                # Only log rate limiting for non-partial displays (V4)
+                if not (self._driver and self._driver.supports_partial):
+                    print(f"[Display] Rate limited, wait {wait_time:.1f}s")
                 return False
 
             # Render the frame
@@ -513,6 +540,44 @@ class DisplayManager:
     async def show_message(self, text: str, face: str = "default") -> bool:
         """Convenience method to display a message."""
         return await self.update(face=face, text=text)
+
+    # ========================================================================
+    # Auto-Refresh Loop
+    # ========================================================================
+
+    async def start_auto_refresh(self) -> None:
+        """Start background display refresh loop for live stats updates."""
+        if self._refresh_task is not None:
+            return  # Already running
+        self._refresh_task = asyncio.create_task(self._auto_refresh_loop())
+
+    async def stop_auto_refresh(self) -> None:
+        """Stop background refresh loop."""
+        if self._refresh_task:
+            self._refresh_task.cancel()
+            try:
+                await self._refresh_task
+            except asyncio.CancelledError:
+                pass
+            self._refresh_task = None
+
+    async def _auto_refresh_loop(self) -> None:
+        """Continuously refresh display with current state (live stats)."""
+        while True:
+            await asyncio.sleep(self._auto_refresh_interval)
+
+            # Only auto-refresh if using partial refresh (V3 or mock)
+            # V4 full refresh is too slow and wears the display
+            if self._driver and self._driver.supports_partial:
+                # Re-render with updated stats (uptime, CPU, etc.)
+                image = self.render_frame(
+                    face=self._current_face,
+                    text=self._current_text,
+                    mood_text=self._current_mood,
+                )
+                # Use partial refresh directly (bypass rate limiting for auto-refresh)
+                self._driver.display_partial(image)
+                self._refresh_count += 1
 
     def clear(self) -> None:
         """Clear the display."""

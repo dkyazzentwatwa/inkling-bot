@@ -104,8 +104,8 @@ MESSAGE_HEIGHT = 18
 MAIN_HEIGHT = DISPLAY_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT - MESSAGE_HEIGHT - 4  # 72px
 
 # Divider positions
-STATS_PANEL_WIDTH = 90  # Right panel width
-FACE_PANEL_WIDTH = DISPLAY_WIDTH - STATS_PANEL_WIDTH - 2  # Left panel width
+STATS_PANEL_WIDTH = 70  # Right panel width (shrunk from 90 to give face more room)
+FACE_PANEL_WIDTH = DISPLAY_WIDTH - STATS_PANEL_WIDTH - 2  # Left panel width (now 178px)
 
 
 @dataclass
@@ -145,7 +145,7 @@ class Fonts:
                     small=ImageFont.truetype(path, 10),
                     normal=ImageFont.truetype(path, 11),
                     large=ImageFont.truetype(path, 14),
-                    face=ImageFont.truetype(path, 22),
+                    face=ImageFont.truetype(path, 38),  # Larger face (was 22)
                 )
             except (OSError, IOError):
                 continue
@@ -378,14 +378,14 @@ class StatsPanel:
         # Vertical separator
         draw_vline(draw, self.x, self.y, self.height, color=0)
 
-        # System stats section
-        stats_x = self.x + 4
+        # System stats section (compact layout for narrower panel)
+        stats_x = self.x + 3
         stats_y = self.y + 4
 
-        # Labels row
+        # Labels row (tighter spacing for 70px width)
         draw.text((stats_x, stats_y), "mem", font=self.fonts.tiny, fill=0)
-        draw.text((stats_x + 28, stats_y), "cpu", font=self.fonts.tiny, fill=0)
-        draw.text((stats_x + 56, stats_y), "temp", font=self.fonts.tiny, fill=0)
+        draw.text((stats_x + 22, stats_y), "cpu", font=self.fonts.tiny, fill=0)
+        draw.text((stats_x + 44, stats_y), "tmp", font=self.fonts.tiny, fill=0)
 
         # Values row
         stats_y += 10
@@ -394,19 +394,19 @@ class StatsPanel:
         temp_str = f"{ctx.temperature}°" if ctx.temperature > 0 else "--°"
 
         draw.text((stats_x, stats_y), mem_str, font=self.fonts.small, fill=0)
-        draw.text((stats_x + 28, stats_y), cpu_str, font=self.fonts.small, fill=0)
-        draw.text((stats_x + 56, stats_y), temp_str, font=self.fonts.small, fill=0)
+        draw.text((stats_x + 22, stats_y), cpu_str, font=self.fonts.small, fill=0)
+        draw.text((stats_x + 44, stats_y), temp_str, font=self.fonts.small, fill=0)
 
-        # Social stats section
+        # Social stats section (stacked vertically for narrow panel)
         social_y = self.y + self.height - 24
 
         # Dream count
         drm_str = f"DRM {ctx.dream_count}"
         draw.text((stats_x, social_y), drm_str, font=self.fonts.tiny, fill=0)
 
-        # Telegram count
+        # Telegram count (below dreams)
         tlg_str = f"TLG {ctx.telegram_count}"
-        draw.text((stats_x + 44, social_y), tlg_str, font=self.fonts.tiny, fill=0)
+        draw.text((stats_x + 34, social_y), tlg_str, font=self.fonts.tiny, fill=0)
 
 
 class MessageBox:
