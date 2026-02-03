@@ -106,7 +106,7 @@ self.mood.intensity = min(1.0, self.mood.intensity + 0.2)
    source .venv/bin/activate
    python main.py --mode web
    ```
-   Visit: http://localhost:8080/tasks
+   Visit: http://localhost:8081/tasks
 
 2. **Chat with AI**:
    ```bash

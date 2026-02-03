@@ -28,7 +28,7 @@ heartbeat:
 python main.py --mode web
 ```
 
-Then visit: **http://localhost:8080/tasks**
+Then visit: **http://localhost:8081/tasks**
 
 **Features**:
 - 📊 Kanban board (Pending / In Progress / Completed)
@@ -183,7 +183,7 @@ Inkling's mood affects task suggestions:
 ```
 Morning:
 1. Open web UI: python main.py --mode web
-2. Visit http://localhost:8080/tasks
+2. Visit http://localhost:8081/tasks
 3. Add 3-5 tasks for the day
 4. Drag highest priority to "In Progress"
 
@@ -281,7 +281,7 @@ heartbeat:
 
 ### Web UI not loading
 
-**Symptom**: Can't access http://localhost:8080/tasks
+**Symptom**: Can't access http://localhost:8081/tasks
 
 **Solution**:
 1. Make sure you started in web mode: `python main.py --mode web`

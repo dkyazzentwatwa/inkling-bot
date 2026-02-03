@@ -26,7 +26,7 @@ pip install -r requirements.txt
 # Run in SSH chat mode (mock display for development)
 python main.py --mode ssh
 
-# Run web UI mode (browser at http://localhost:8080)
+# Run web UI mode (browser at http://localhost:8081)
 python main.py --mode web
 
 # Run display demo
@@ -216,7 +216,7 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 - `mcp.servers.*`: Configure MCP servers (tasks, filesystem, etc.)
 - `network.api_base`: Your Vercel deployment URL
 
-**Web UI Settings** (`http://localhost:8080/settings`):
+**Web UI Settings** (`http://localhost:8081/settings`):
 - **Instant Apply** (no restart): Device name, personality traits (6 sliders), color theme
 - **Requires Restart**: AI provider, model selection, token limits
 - All changes automatically saved to `config.local.yml`
@@ -329,7 +329,7 @@ See `cloud/supabase/schema.sql` for full schema. Key tables:
 1. For existing pages: Edit template constant in `modes/web_chat.py`
 2. For new pages: Create template constant, add route with `@self._app.route()`
 3. API endpoints: Add route with JSON response using `response.content_type = "application/json"`
-4. Test with `python main.py --mode web` and visit `http://localhost:8080`
+4. Test with `python main.py --mode web` and visit `http://localhost:8081`
 
 ## Troubleshooting
 

@@ -280,7 +280,7 @@ def test_web_ui_ready(tm):
 
     print("\n  ✓ Web UI should be able to display all task data")
     print("  ℹ️  To test web UI: python main.py --mode web")
-    print("  ℹ️  Then visit: http://localhost:8080/tasks")
+    print("  ℹ️  Then visit: http://localhost:8081/tasks")
 
 
 async def main():
@@ -309,8 +309,8 @@ async def main():
     print("="*60)
     print("\nNext steps:")
     print("  1. Run 'python main.py --mode web' to test the web UI")
-    print("  2. Visit http://localhost:8080/tasks for Kanban board")
-    print("  3. Visit http://localhost:8080/settings to configure")
+    print("  2. Visit http://localhost:8081/tasks for Kanban board")
+    print("  3. Visit http://localhost:8081/settings to configure")
     print("  4. Chat with Inkling and ask it to manage tasks via AI")
     print()
 

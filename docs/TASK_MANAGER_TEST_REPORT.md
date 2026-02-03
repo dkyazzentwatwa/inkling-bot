@@ -132,9 +132,9 @@ The MCP server successfully exposes 6 tools to AI assistants:
   - Completed: 4 tasks
 
 **Web UI Routes**:
-- `http://localhost:8080/tasks` - Kanban board
-- `http://localhost:8080/settings` - Configuration
-- `http://localhost:8080/api/tasks/*` - REST API
+- `http://localhost:8081/tasks` - Kanban board
+- `http://localhost:8081/settings` - Configuration
+- `http://localhost:8081/api/tasks/*` - REST API
 
 **To Test**: Run `python main.py --mode web` and visit the URLs above.
 
@@ -221,7 +221,7 @@ Location: `~/.inkling/tasks.db`
 1. **Test the Web UI**
    ```bash
    python main.py --mode web
-   # Visit: http://localhost:8080/tasks
+   # Visit: http://localhost:8081/tasks
    ```
 
 2. **Test AI Integration**

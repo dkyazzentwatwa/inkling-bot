@@ -2,7 +2,7 @@
 Project Inkling - Web Chat Mode
 
 Local web UI for phone/browser access to the Inkling.
-Runs a Bottle server on http://inkling.local:8080
+Runs a Bottle server on http://inkling.local:8081
 """
 
 import asyncio
@@ -1992,7 +1992,7 @@ class WebChatMode:
         api_client: Optional[APIClient] = None,
         task_manager: Optional[TaskManager] = None,
         host: str = "0.0.0.0",
-        port: int = 8080,
+        port: int = 8081,
     ):
         self.brain = brain
         self.display = display

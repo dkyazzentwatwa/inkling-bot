@@ -110,11 +110,12 @@ mcp:
     # Provides access to Google Calendar, Gmail, GitHub, Slack, Notion, etc.
     # Get API key from: https://app.composio.dev/settings
     # See COMPOSIO_INTEGRATION.md for setup guide
-    composio:
-      transport: "http"
-      url: "https://backend.composio.dev/v3/mcp"
-      headers:
-        x-api-key: "${COMPOSIO_API_KEY}"
+    # NOTE: Requires MCP client HTTP transport support (not yet implemented)
+    # composio:
+    #   transport: "http"
+    #   url: "https://backend.composio.dev/v3/mcp"
+    #   headers:
+    #     x-api-key: "${COMPOSIO_API_KEY}"
 
 # Example MCP servers you can enable:
 #
