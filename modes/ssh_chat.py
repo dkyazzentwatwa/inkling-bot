@@ -15,6 +15,7 @@ from core.personality import Personality
 from core.api_client import APIClient, APIError, OfflineError
 from core.ui import FACES, UNICODE_FACES
 from core.commands import COMMANDS, get_command, get_commands_by_category
+from core.tasks import TaskManager, Task, TaskStatus, Priority
 
 
 class Colors:
@@ -88,11 +89,13 @@ class SSHChatMode:
         display: DisplayManager,
         personality: Personality,
         api_client: Optional[APIClient] = None,
+        task_manager: Optional[TaskManager] = None,
     ):
         self.brain = brain
         self.display = display
         self.personality = personality
         self.api_client = api_client
+        self.task_manager = task_manager
         self._running = False
 
         # Set display mode
@@ -804,3 +807,341 @@ class SSHChatMode:
         else:
             print(f"Offline queue: {queue_size} request(s) pending")
             print("  These will be sent when connection is restored.")
+
+    # ========================================
+    # Task Management Commands
+    # ========================================
+
+    async def cmd_tasks(self, args: str = "") -> None:
+        """List tasks with optional filters."""
+        if not self.task_manager:
+            print("Task manager not available.")
+            return
+
+        # Parse arguments for filters
+        status_filter = None
+        project_filter = None
+
+        if args:
+            args_lower = args.lower()
+            if "pending" in args_lower:
+                status_filter = TaskStatus.PENDING
+            elif "progress" in args_lower or "in-progress" in args_lower:
+                status_filter = TaskStatus.IN_PROGRESS
+            elif "done" in args_lower or "completed" in args_lower:
+                status_filter = TaskStatus.COMPLETED
+
+        # Get tasks
+        tasks = self.task_manager.list_tasks(
+            status=status_filter,
+            project=project_filter
+        )
+
+        if not tasks:
+            print(f"\n{Colors.INFO}No tasks found.{Colors.RESET}")
+            if not status_filter:
+                print("  Use '/task <title>' to create a new task!")
+            return
+
+        # Display tasks grouped by status
+        pending = [t for t in tasks if t.status == TaskStatus.PENDING]
+        in_progress = [t for t in tasks if t.status == TaskStatus.IN_PROGRESS]
+        completed = [t for t in tasks if t.status == TaskStatus.COMPLETED]
+
+        print(f"\n{Colors.HEADER}═══ TASKS ═══{Colors.RESET}\n")
+
+        if pending:
+            print(f"{Colors.BOLD}To Do ({len(pending)}):{Colors.RESET}")
+            for task in pending[:10]:  # Limit to 10
+                self._print_task_summary(task)
+            print()
+
+        if in_progress:
+            print(f"{Colors.BOLD}In Progress ({len(in_progress)}):{Colors.RESET}")
+            for task in in_progress[:10]:
+                self._print_task_summary(task)
+            print()
+
+        if completed and not status_filter:
+            print(f"{Colors.DIM}Completed today ({len(completed)}):{Colors.RESET}")
+            # Show only today's completions
+            import time
+            today_start = time.time() - (time.time() % 86400)
+            today_completed = [t for t in completed if t.completed_at and t.completed_at >= today_start]
+            for task in today_completed[:5]:
+                self._print_task_summary(task)
+
+        print(f"\n{Colors.INFO}Use '/task <id>' to view details or '/done <id>' to complete{Colors.RESET}")
+
+    def _print_task_summary(self, task: Task) -> None:
+        """Print a one-line task summary."""
+        # Priority indicator
+        priority_icons = {
+            Priority.LOW: "○",
+            Priority.MEDIUM: "●",
+            Priority.HIGH: f"{Colors.ERROR}●{Colors.RESET}",
+            Priority.URGENT: f"{Colors.ERROR}‼{Colors.RESET}",
+        }
+        priority_icon = priority_icons.get(task.priority, "●")
+
+        # Status indicator
+        if task.status == TaskStatus.COMPLETED:
+            status_icon = f"{Colors.SUCCESS}✓{Colors.RESET}"
+        elif task.status == TaskStatus.IN_PROGRESS:
+            status_icon = f"{Colors.EXCITED}⏳{Colors.RESET}"
+        else:
+            status_icon = "□"
+
+        # Overdue indicator
+        overdue = ""
+        if task.is_overdue:
+            overdue = f" {Colors.ERROR}[OVERDUE]{Colors.RESET}"
+
+        # Tags
+        tags_str = ""
+        if task.tags:
+            tags_str = f" {Colors.DIM}#{', #'.join(task.tags)}{Colors.RESET}"
+
+        print(f"  {status_icon} {priority_icon} [{task.id[:8]}] {task.title}{overdue}{tags_str}")
+
+    async def cmd_task(self, args: str) -> None:
+        """Create or show a task."""
+        if not self.task_manager:
+            print("Task manager not available.")
+            return
+
+        if not args:
+            print(f"{Colors.INFO}Usage:{Colors.RESET}")
+            print("  /task <title>           - Create a new task")
+            print("  /task <id>              - Show task details")
+            print("  /task <title> !high     - Create high-priority task")
+            print("  /task <title> #tag      - Create task with tag")
+            return
+
+        # Check if it's a task ID (8 or 36 characters UUID)
+        if len(args) in [8, 36] and "-" in args or args.count("-") >= 3:
+            # Show task details
+            task = self.task_manager.get_task(args)
+            if not task:
+                # Try to find by partial ID
+                all_tasks = self.task_manager.list_tasks()
+                matching = [t for t in all_tasks if t.id.startswith(args)]
+                if len(matching) == 1:
+                    task = matching[0]
+                elif len(matching) > 1:
+                    print(f"{Colors.ERROR}Multiple tasks match '{args}'. Be more specific:{Colors.RESET}")
+                    for t in matching[:5]:
+                        print(f"  {t.id[:16]} - {t.title}")
+                    return
+                else:
+                    print(f"{Colors.ERROR}Task not found: {args}{Colors.RESET}")
+                    return
+
+            self._print_task_details(task)
+            return
+
+        # Create new task - parse priority and tags
+        title = args
+        priority = Priority.MEDIUM
+        tags = []
+
+        # Extract priority markers
+        if "!urgent" in args.lower() or "!!" in args:
+            priority = Priority.URGENT
+            title = title.replace("!urgent", "").replace("!!", "").strip()
+        elif "!high" in args.lower() or "!" in args:
+            priority = Priority.HIGH
+            title = title.replace("!high", "").replace("!", "").strip()
+        elif "!low" in args.lower():
+            priority = Priority.LOW
+            title = title.replace("!low", "").strip()
+
+        # Extract tags (#tag)
+        import re
+        tag_matches = re.findall(r'#(\w+)', title)
+        tags.extend(tag_matches)
+        title = re.sub(r'#\w+', '', title).strip()
+
+        if not title:
+            print(f"{Colors.ERROR}Task title cannot be empty{Colors.RESET}")
+            return
+
+        # Create task
+        task = self.task_manager.create_task(
+            title=title,
+            priority=priority,
+            mood=self.personality.mood.current.value,
+            tags=tags
+        )
+
+        # Trigger personality event
+        result = self.personality.on_task_event(
+            "task_created",
+            {"priority": task.priority.value, "title": task.title}
+        )
+
+        # Update display
+        await self.display.update(
+            face=self.personality.face,
+            text=result.get('message', 'Task created!') if result else 'Task created!',
+            mood_text=self.personality.mood.current.value.title()
+        )
+
+        # Print confirmation
+        print(f"\n{Colors.SUCCESS}✓ Task created!{Colors.RESET}")
+        self._print_task_details(task)
+
+        if result and result.get('xp_awarded'):
+            print(f"{Colors.EXCITED}+{result['xp_awarded']} XP{Colors.RESET}")
+
+    def _print_task_details(self, task: Task) -> None:
+        """Print detailed task information."""
+        print(f"\n{Colors.HEADER}═══ TASK DETAILS ═══{Colors.RESET}")
+        print(f"ID:       {task.id}")
+        print(f"Title:    {Colors.BOLD}{task.title}{Colors.RESET}")
+
+        if task.description:
+            print(f"Details:  {task.description}")
+
+        print(f"Status:   {task.status.value}")
+        print(f"Priority: {task.priority.value}")
+
+        if task.due_date:
+            from datetime import datetime
+            due_str = datetime.fromtimestamp(task.due_date).strftime("%Y-%m-%d %H:%M")
+            days_until = task.days_until_due
+            if task.is_overdue:
+                print(f"Due:      {Colors.ERROR}{due_str} (OVERDUE by {abs(days_until)} days){Colors.RESET}")
+            elif days_until is not None and days_until <= 3:
+                print(f"Due:      {Colors.EXCITED}{due_str} ({days_until} days){Colors.RESET}")
+            else:
+                print(f"Due:      {due_str}")
+
+        if task.tags:
+            print(f"Tags:     #{', #'.join(task.tags)}")
+
+        if task.project:
+            print(f"Project:  {task.project}")
+
+        if task.subtasks:
+            print(f"Subtasks: {sum(task.subtasks_completed)}/{len(task.subtasks)} complete")
+            for i, subtask in enumerate(task.subtasks):
+                status = "✓" if task.subtasks_completed[i] else "□"
+                print(f"  {status} {subtask}")
+
+        from datetime import datetime
+        created = datetime.fromtimestamp(task.created_at).strftime("%Y-%m-%d %H:%M")
+        print(f"Created:  {created}")
+
+        if task.completed_at:
+            completed = datetime.fromtimestamp(task.completed_at).strftime("%Y-%m-%d %H:%M")
+            print(f"Completed: {completed}")
+
+    async def cmd_done(self, args: str) -> None:
+        """Mark a task as complete."""
+        if not self.task_manager:
+            print("Task manager not available.")
+            return
+
+        if not args:
+            print(f"{Colors.INFO}Usage: /done <task_id>{Colors.RESET}")
+            print("  Use '/tasks' to see task IDs")
+            return
+
+        # Find task
+        task = self.task_manager.get_task(args)
+        if not task:
+            # Try partial match
+            all_tasks = self.task_manager.list_tasks()
+            matching = [t for t in all_tasks if t.id.startswith(args)]
+            if len(matching) == 1:
+                task = matching[0]
+            elif len(matching) > 1:
+                print(f"{Colors.ERROR}Multiple tasks match. Be more specific:{Colors.RESET}")
+                for t in matching[:5]:
+                    print(f"  {t.id[:16]} - {t.title}")
+                return
+            else:
+                print(f"{Colors.ERROR}Task not found: {args}{Colors.RESET}")
+                return
+
+        if task.status == TaskStatus.COMPLETED:
+            print(f"{Colors.INFO}Task already completed!{Colors.RESET}")
+            return
+
+        # Complete the task
+        task = self.task_manager.complete_task(task.id)
+
+        # Calculate if on-time
+        was_on_time = (
+            not task.due_date or
+            task.completed_at <= task.due_date
+        )
+
+        # Trigger personality event
+        result = self.personality.on_task_event(
+            "task_completed",
+            {
+                "priority": task.priority.value,
+                "title": task.title,
+                "was_on_time": was_on_time
+            }
+        )
+
+        # Update display
+        celebration = result.get('message', 'Task completed!') if result else 'Task completed!'
+        await self.display.update(
+            face=self.personality.face,
+            text=celebration,
+            mood_text=self.personality.mood.current.value.title()
+        )
+
+        # Print celebration
+        print(f"\n{Colors.SUCCESS}✓ {celebration}{Colors.RESET}")
+        print(f"  {task.title}")
+
+        if result and result.get('xp_awarded'):
+            xp = result['xp_awarded']
+            print(f"\n{Colors.EXCITED}+{xp} XP earned!{Colors.RESET}")
+
+        # Show level up if it happened
+        level = self.personality.progression.level
+        xp_current = self.personality.progression.xp
+        print(f"{Colors.DIM}Level {level} | {xp_current} XP{Colors.RESET}")
+
+    async def cmd_taskstats(self) -> None:
+        """Show task statistics."""
+        if not self.task_manager:
+            print("Task manager not available.")
+            return
+
+        stats = self.task_manager.get_stats()
+
+        print(f"\n{Colors.HEADER}═══ TASK STATISTICS ═══{Colors.RESET}\n")
+
+        print(f"{Colors.BOLD}Overview:{Colors.RESET}")
+        print(f"  Total tasks:     {stats['total']}")
+        print(f"  Pending:         {stats['pending']}")
+        print(f"  In Progress:     {stats['in_progress']}")
+        print(f"  Completed:       {stats['completed']}")
+
+        if stats['overdue'] > 0:
+            print(f"  {Colors.ERROR}Overdue:         {stats['overdue']}{Colors.RESET}")
+
+        if stats['due_soon'] > 0:
+            print(f"  {Colors.EXCITED}Due soon (3d):   {stats['due_soon']}{Colors.RESET}")
+
+        print(f"\n{Colors.BOLD}30-Day Performance:{Colors.RESET}")
+        completion_rate = stats['completion_rate_30d'] * 100
+        if completion_rate >= 80:
+            color = Colors.SUCCESS
+        elif completion_rate >= 50:
+            color = Colors.EXCITED
+        else:
+            color = Colors.INFO
+        print(f"  Completion rate: {color}{completion_rate:.0f}%{Colors.RESET}")
+
+        # Show current streak if available
+        level = self.personality.progression.level
+        xp = self.personality.progression.xp
+        print(f"\n{Colors.DIM}Level {level} | {xp} XP from tasks{Colors.RESET}")

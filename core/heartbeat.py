@@ -80,6 +80,7 @@ class Heartbeat:
         api_client=None,
         memory_store=None,
         brain=None,
+        task_manager=None,
         config: Optional[HeartbeatConfig] = None,
     ):
         self.personality = personality
@@ -87,6 +88,7 @@ class Heartbeat:
         self.api_client = api_client
         self.memory = memory_store
         self.brain = brain
+        self.task_manager = task_manager
         self.config = config or HeartbeatConfig()
 
         self._running = False
@@ -209,6 +211,32 @@ class Heartbeat:
                 cooldown_seconds=300,
             ),
         ])
+
+        # Task management behaviors (if task_manager is available)
+        if self.task_manager:
+            self._behaviors.extend([
+                ProactiveBehavior(
+                    name="remind_overdue_tasks",
+                    behavior_type=BehaviorType.MAINTENANCE,
+                    handler=self._behavior_remind_overdue,
+                    probability=0.7,
+                    cooldown_seconds=3600,  # Once per hour
+                ),
+                ProactiveBehavior(
+                    name="suggest_next_task",
+                    behavior_type=BehaviorType.MOOD_DRIVEN,
+                    handler=self._behavior_suggest_task,
+                    probability=0.3,
+                    cooldown_seconds=1800,  # Every 30 minutes
+                ),
+                ProactiveBehavior(
+                    name="celebrate_completion_streak",
+                    behavior_type=BehaviorType.MAINTENANCE,
+                    handler=self._behavior_celebrate_streak,
+                    probability=0.5,
+                    cooldown_seconds=86400,  # Once per day
+                ),
+            ])
 
     async def start(self) -> None:
         """Start the heartbeat loop."""
@@ -580,4 +608,147 @@ class Heartbeat:
 
         except Exception as e:
             print(f"[Heartbeat] Dream creation error: {e}")
+            return None
+
+    # ========================================
+    # Task Management Behaviors
+    # ========================================
+
+    async def _behavior_remind_overdue(self) -> Optional[str]:
+        """Remind about overdue tasks in a gentle, personality-appropriate way."""
+        if not self.task_manager:
+            return None
+
+        try:
+            # Get overdue tasks
+            from core.tasks import TaskStatus
+            overdue = self.task_manager.get_overdue_tasks()
+
+            if not overdue:
+                return None
+
+            # Pick a random overdue task
+            task = random.choice(overdue)
+
+            # Trigger personality event for reminder message
+            result = self.personality.on_task_event(
+                "task_overdue",
+                {"title": task.title, "priority": task.priority.value}
+            )
+
+            return result.get("message") if result else None
+
+        except Exception as e:
+            print(f"[Heartbeat] Error checking overdue tasks: {e}")
+            return None
+
+    async def _behavior_suggest_task(self) -> Optional[str]:
+        """Suggest a task based on current mood and time of day."""
+        if not self.task_manager:
+            return None
+
+        try:
+            from core.tasks import TaskStatus, Priority
+
+            mood = self.personality.mood.current
+
+            # Match tasks to mood
+            tasks = None
+            if mood == Mood.CURIOUS:
+                # Suggest research/learning tasks
+                all_tasks = self.task_manager.list_tasks(status=TaskStatus.PENDING, limit=20)
+                tasks = [t for t in all_tasks if any(tag in ["research", "learning", "explore"] for tag in t.tags)]
+            elif mood == Mood.SLEEPY:
+                # Suggest low-priority, easy tasks
+                tasks = self.task_manager.list_tasks(status=TaskStatus.PENDING, limit=10)
+                tasks = [t for t in tasks if t.priority == Priority.LOW]
+            elif mood == Mood.INTENSE or mood == Mood.EXCITED:
+                # Suggest urgent/high-priority tasks
+                tasks = self.task_manager.list_tasks(status=TaskStatus.PENDING, limit=10)
+                tasks = [t for t in tasks if t.priority in [Priority.HIGH, Priority.URGENT]]
+            else:
+                # General suggestion - highest priority
+                tasks = self.task_manager.list_tasks(status=TaskStatus.PENDING, limit=5)
+
+            if not tasks:
+                return None
+
+            task = tasks[0]
+
+            # Create suggestion message based on mood
+            if mood == Mood.CURIOUS:
+                return f"🤔 Curious about... {task.title}?"
+            elif mood == Mood.SLEEPY:
+                return f"😴 Easy one: {task.title}?"
+            elif mood == Mood.INTENSE:
+                return f"💪 Ready to tackle: {task.title}?"
+            elif mood == Mood.BORED:
+                return f"Maybe work on: {task.title}? Could be interesting..."
+            else:
+                return f"How about: {task.title}?"
+
+        except Exception as e:
+            print(f"[Heartbeat] Error suggesting task: {e}")
+            return None
+
+    async def _behavior_celebrate_streak(self) -> Optional[str]:
+        """Celebrate task completion streaks and milestones."""
+        if not self.task_manager:
+            return None
+
+        try:
+            import time
+            from core.tasks import TaskStatus
+
+            # Get tasks completed in the last 7 days
+            seven_days_ago = time.time() - (7 * 86400)
+            all_tasks = self.task_manager.list_tasks(status=TaskStatus.COMPLETED)
+
+            recent_completed = [
+                t for t in all_tasks
+                if t.completed_at and t.completed_at >= seven_days_ago
+            ]
+
+            if not recent_completed:
+                return None
+
+            # Check for daily streak
+            # Count consecutive days with at least one completion
+            streak_days = 0
+            check_day = time.time()
+
+            for day in range(7):
+                day_start = check_day - (check_day % 86400)
+                day_end = day_start + 86400
+
+                day_completions = [
+                    t for t in recent_completed
+                    if t.completed_at >= day_start and t.completed_at < day_end
+                ]
+
+                if day_completions:
+                    streak_days += 1
+                    check_day -= 86400
+                else:
+                    break
+
+            # Celebrate if we have a streak
+            if streak_days >= 7:
+                return f"🔥 Amazing! 7-day task completion streak! You're unstoppable!"
+            elif streak_days >= 5:
+                return f"💪 5 days in a row! Keep the momentum going!"
+            elif streak_days >= 3:
+                return f"✨ 3-day streak! You're building great habits!"
+
+            # Otherwise celebrate total count
+            total_this_week = len(recent_completed)
+            if total_this_week >= 10:
+                return f"🎉 Wow! {total_this_week} tasks completed this week!"
+            elif total_this_week >= 5:
+                return f"👏 Nice! {total_this_week} tasks done this week!"
+
+            return None
+
+        except Exception as e:
+            print(f"[Heartbeat] Error celebrating streak: {e}")
             return None

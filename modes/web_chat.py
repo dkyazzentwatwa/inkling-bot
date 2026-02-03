@@ -18,6 +18,7 @@ from core.display import DisplayManager
 from core.personality import Personality
 from core.api_client import APIClient, APIError, OfflineError
 from core.commands import COMMANDS, get_command, get_commands_by_category
+from core.tasks import TaskManager, Task, TaskStatus, Priority
 
 
 # HTML template for the web UI
@@ -910,6 +911,7 @@ class WebChatMode:
         display: DisplayManager,
         personality: Personality,
         api_client: Optional[APIClient] = None,
+        task_manager: Optional[TaskManager] = None,
         host: str = "0.0.0.0",
         port: int = 8080,
     ):
@@ -917,6 +919,7 @@ class WebChatMode:
         self.display = display
         self.personality = personality
         self.api_client = api_client
+        self.task_manager = task_manager
         self.host = host
         self.port = port
 
@@ -1055,6 +1058,235 @@ class WebChatMode:
 
             except Exception as e:
                 return json.dumps({"success": False, "error": str(e)})
+
+        # Task Management API Routes
+        @self._app.route("/api/tasks", method="GET")
+        def get_tasks():
+            response.content_type = "application/json"
+
+            if not self.task_manager:
+                return json.dumps({"error": "Task manager not available"})
+
+            # Parse query parameters
+            status_param = request.query.get("status")
+            project_param = request.query.get("project")
+
+            status_filter = None
+            if status_param:
+                try:
+                    status_filter = TaskStatus(status_param)
+                except ValueError:
+                    pass
+
+            tasks = self.task_manager.list_tasks(
+                status=status_filter,
+                project=project_param
+            )
+
+            return json.dumps({
+                "tasks": [self._task_to_dict(t) for t in tasks]
+            })
+
+        @self._app.route("/api/tasks", method="POST")
+        def create_task():
+            response.content_type = "application/json"
+
+            if not self.task_manager:
+                return json.dumps({"error": "Task manager not available"})
+
+            data = request.json or {}
+            title = data.get("title", "").strip()
+
+            if not title:
+                return json.dumps({"error": "Task title is required"})
+
+            try:
+                priority = Priority(data.get("priority", "medium"))
+            except ValueError:
+                priority = Priority.MEDIUM
+
+            # Parse due date if provided
+            due_date = None
+            if "due_in_days" in data:
+                import time
+                days = float(data["due_in_days"])
+                due_date = time.time() + (days * 86400)
+
+            task = self.task_manager.create_task(
+                title=title,
+                description=data.get("description"),
+                priority=priority,
+                due_date=due_date,
+                mood=self.personality.mood.current.value,
+                tags=data.get("tags", []),
+                project=data.get("project")
+            )
+
+            # Trigger personality event
+            result = self.personality.on_task_event(
+                "task_created",
+                {"priority": task.priority.value, "title": task.title}
+            )
+
+            return json.dumps({
+                "success": True,
+                "task": self._task_to_dict(task),
+                "celebration": result.get("message") if result else None,
+                "xp_awarded": result.get("xp_awarded", 0) if result else 0
+            })
+
+        @self._app.route("/api/tasks/<task_id>", method="GET")
+        def get_task(task_id):
+            response.content_type = "application/json"
+
+            if not self.task_manager:
+                return json.dumps({"error": "Task manager not available"})
+
+            task = self.task_manager.get_task(task_id)
+
+            if not task:
+                response.status = 404
+                return json.dumps({"error": "Task not found"})
+
+            return json.dumps({
+                "task": self._task_to_dict(task)
+            })
+
+        @self._app.route("/api/tasks/<task_id>/complete", method="POST")
+        def complete_task(task_id):
+            response.content_type = "application/json"
+
+            if not self.task_manager:
+                return json.dumps({"error": "Task manager not available"})
+
+            task = self.task_manager.complete_task(task_id)
+
+            if not task:
+                response.status = 404
+                return json.dumps({"error": "Task not found"})
+
+            # Calculate if on-time
+            was_on_time = (
+                not task.due_date or
+                task.completed_at <= task.due_date
+            )
+
+            # Trigger personality event
+            result = self.personality.on_task_event(
+                "task_completed",
+                {
+                    "priority": task.priority.value,
+                    "title": task.title,
+                    "was_on_time": was_on_time
+                }
+            )
+
+            return json.dumps({
+                "success": True,
+                "task": self._task_to_dict(task),
+                "celebration": result.get("message") if result else None,
+                "xp_awarded": result.get("xp_awarded", 0) if result else 0
+            })
+
+        @self._app.route("/api/tasks/<task_id>", method="PUT")
+        def update_task(task_id):
+            response.content_type = "application/json"
+
+            if not self.task_manager:
+                return json.dumps({"error": "Task manager not available"})
+
+            task = self.task_manager.get_task(task_id)
+
+            if not task:
+                response.status = 404
+                return json.dumps({"error": "Task not found"})
+
+            data = request.json or {}
+
+            # Update fields
+            if "title" in data:
+                task.title = data["title"]
+            if "description" in data:
+                task.description = data["description"]
+            if "priority" in data:
+                try:
+                    task.priority = Priority(data["priority"])
+                except ValueError:
+                    pass
+            if "status" in data:
+                try:
+                    task.status = TaskStatus(data["status"])
+                except ValueError:
+                    pass
+            if "tags" in data:
+                task.tags = data["tags"]
+            if "project" in data:
+                task.project = data["project"]
+
+            self.task_manager.update_task(task)
+
+            return json.dumps({
+                "success": True,
+                "task": self._task_to_dict(task)
+            })
+
+        @self._app.route("/api/tasks/<task_id>", method="DELETE")
+        def delete_task(task_id):
+            response.content_type = "application/json"
+
+            if not self.task_manager:
+                return json.dumps({"error": "Task manager not available"})
+
+            deleted = self.task_manager.delete_task(task_id)
+
+            if not deleted:
+                response.status = 404
+                return json.dumps({"error": "Task not found"})
+
+            return json.dumps({"success": True})
+
+        @self._app.route("/api/tasks/stats", method="GET")
+        def get_task_stats():
+            response.content_type = "application/json"
+
+            if not self.task_manager:
+                return json.dumps({"error": "Task manager not available"})
+
+            stats = self.task_manager.get_stats()
+
+            return json.dumps({
+                "stats": stats
+            })
+
+    def _task_to_dict(self, task: Task) -> Dict[str, Any]:
+        """Convert Task to JSON-serializable dict."""
+        from datetime import datetime
+
+        data = {
+            "id": task.id,
+            "title": task.title,
+            "description": task.description,
+            "status": task.status.value,
+            "priority": task.priority.value,
+            "created_at": datetime.fromtimestamp(task.created_at).isoformat(),
+            "tags": task.tags,
+            "project": task.project,
+        }
+
+        if task.due_date:
+            data["due_date"] = datetime.fromtimestamp(task.due_date).isoformat()
+            data["days_until_due"] = task.days_until_due
+            data["is_overdue"] = task.is_overdue
+
+        if task.completed_at:
+            data["completed_at"] = datetime.fromtimestamp(task.completed_at).isoformat()
+
+        if task.subtasks:
+            data["subtasks"] = task.subtasks
+            data["subtasks_completed"] = task.subtasks_completed
+            data["completion_percentage"] = task.completion_percentage
+
+        return data
 
     def _get_face_str(self) -> str:
         """Get current face as string."""

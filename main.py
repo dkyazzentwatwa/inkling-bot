@@ -200,6 +200,7 @@ class Inkling:
                 display_manager=self.display,
                 api_client=self.api_client,
                 brain=self.brain,
+                task_manager=self.task_manager,
                 config=heartbeat_config,
             )
 
@@ -295,6 +296,7 @@ class Inkling:
                     display=self.display,
                     personality=self.personality,
                     api_client=self.api_client,
+                    task_manager=self.task_manager,
                 )
                 await self._mode.run()
 
@@ -304,6 +306,7 @@ class Inkling:
                     display=self.display,
                     personality=self.personality,
                     api_client=self.api_client,
+                    task_manager=self.task_manager,
                     port=self.config.get("web", {}).get("port", 8080),
                 )
                 await self._mode.run()
