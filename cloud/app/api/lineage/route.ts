@@ -32,7 +32,7 @@ interface BirthCertificateRequest {
 // POST - Register birth certificate
 export async function POST(request: Request): Promise<Response> {
   try {
-    const body: BirthCertificateRequest = await request.json();
+    const body = await request.json() as BirthCertificateRequest;
 
     // Validate required fields
     if (

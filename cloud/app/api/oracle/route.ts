@@ -71,7 +71,7 @@ interface OracleRequest {
 export async function POST(request: Request): Promise<Response> {
   try {
     // Parse request body
-    const body: OracleRequest = await request.json();
+    const body = await request.json() as OracleRequest;
 
     // Validate required fields
     if (

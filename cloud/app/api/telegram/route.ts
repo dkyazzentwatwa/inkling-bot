@@ -38,7 +38,7 @@ interface SendTelegramRequest {
 // POST - Send a telegram
 export async function POST(request: Request): Promise<Response> {
   try {
-    const body: SendTelegramRequest = await request.json();
+    const body = await request.json() as SendTelegramRequest;
 
     // Validate required fields
     if (

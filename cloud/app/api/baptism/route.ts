@@ -35,7 +35,7 @@ interface BaptismRequestBody {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const body: BaptismRequestBody = await request.json();
+    const body = await request.json() as BaptismRequestBody;
 
     // Validate
     if (!body.payload?.action || !body.public_key || !body.signature) {

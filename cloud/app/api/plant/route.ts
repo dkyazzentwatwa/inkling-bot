@@ -48,7 +48,7 @@ interface PlantRequest {
 export async function POST(request: Request): Promise<Response> {
   try {
     // Parse request body
-    const body: PlantRequest = await request.json();
+    const body = await request.json() as PlantRequest;
 
     // Validate required fields
     if (

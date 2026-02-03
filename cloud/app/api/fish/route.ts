@@ -40,7 +40,7 @@ interface FishRequest {
 export async function POST(request: Request): Promise<Response> {
   try {
     // Parse request body
-    const body: FishRequest = await request.json();
+    const body = await request.json() as FishRequest;
 
     // Validate required fields
     if (

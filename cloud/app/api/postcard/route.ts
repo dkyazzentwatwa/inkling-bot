@@ -40,7 +40,7 @@ interface SendPostcardRequest {
 // POST - Send a postcard
 export async function POST(request: Request): Promise<Response> {
   try {
-    const body: SendPostcardRequest = await request.json();
+    const body = await request.json() as SendPostcardRequest;
 
     // Validate required fields
     if (
