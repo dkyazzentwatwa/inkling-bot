@@ -898,6 +898,752 @@ SETTINGS_TEMPLATE = """
 """
 
 
+# Tasks Kanban Board Template
+TASKS_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Tasks - {{name}}</title>
+    <style>
+        :root {
+            --bg: #f5f5f0;
+            --text: #1a1a1a;
+            --border: #333;
+            --muted: #666;
+            --accent: #4a90d9;
+            --success: #52d9a6;
+            --error: #ff6b9d;
+            --warning: #ffab7a;
+        }
+
+        /* Theme support */
+        [data-theme="pink"] { --bg: #ffe4e9; --text: #4a1a28; --border: #d4758f; --accent: #ff6b9d; }
+        [data-theme="mint"] { --bg: #e0f5f0; --text: #1a3a33; --border: #6eb5a3; --accent: #52d9a6; }
+        [data-theme="lavender"] { --bg: #f0e9ff; --text: #2a1a4a; --border: #9d85d4; --accent: #a78bfa; }
+        [data-theme="peach"] { --bg: #ffe9dc; --text: #4a2a1a; --border: #d49675; --accent: #ffab7a; }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: var(--bg);
+            color: var(--text);
+            padding: 16px;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .face {
+            font-size: 32px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .nav {
+            display: flex;
+            gap: 12px;
+        }
+
+        .nav a {
+            color: var(--text);
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .nav a:hover {
+            background: var(--accent);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            flex: 1;
+            min-width: 120px;
+            padding: 16px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        /* Quick Add */
+        .quick-add {
+            margin-bottom: 24px;
+            padding: 16px;
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+        }
+
+        .quick-add-form {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .quick-add input {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: inherit;
+        }
+
+        .quick-add select {
+            padding: 12px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: inherit;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            background: var(--accent);
+            color: white;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* Kanban Board */
+        .kanban {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+            margin-bottom: 80px;
+        }
+
+        .column {
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            min-height: 400px;
+        }
+
+        .column-header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .task-count {
+            font-size: 14px;
+            color: var(--muted);
+            font-weight: normal;
+        }
+
+        .tasks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .task-card {
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            background: var(--bg);
+            cursor: move;
+            transition: all 0.2s;
+        }
+
+        .task-card:hover {
+            transform: translateX(4px);
+            box-shadow: -4px 4px 0 var(--accent);
+        }
+
+        .task-card.dragging {
+            opacity: 0.5;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 8px;
+        }
+
+        .task-title {
+            font-weight: bold;
+            flex: 1;
+        }
+
+        .priority {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .priority-low { background: #e0e0e0; color: #666; }
+        .priority-medium { background: #fff3cd; color: #856404; }
+        .priority-high { background: #f8d7da; color: #721c24; }
+        .priority-urgent { background: #ff6b9d; color: white; animation: blink 1s infinite; }
+
+        @keyframes blink {
+            0%, 50%, 100% { opacity: 1; }
+            25%, 75% { opacity: 0.7; }
+        }
+
+        .task-description {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        .task-meta {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            font-size: 11px;
+        }
+
+        .tag {
+            padding: 2px 6px;
+            background: var(--accent);
+            color: white;
+            border-radius: 3px;
+        }
+
+        .due-date {
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .due-soon { background: var(--warning); color: white; }
+        .overdue { background: var(--error); color: white; animation: shake 0.5s infinite; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-2px); }
+            75% { transform: translateX(2px); }
+        }
+
+        .task-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .task-btn {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+
+        .task-btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .task-btn.complete {
+            background: var(--success);
+            color: white;
+        }
+
+        .task-btn.delete {
+            background: var(--error);
+            color: white;
+        }
+
+        /* Celebration Overlay */
+        .celebration {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.3s;
+        }
+
+        .celebration.show {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .celebration-content {
+            text-align: center;
+            color: white;
+            padding: 40px;
+            animation: scaleIn 0.5s;
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .celebration-emoji {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: bounce 0.6s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .celebration-message {
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        .celebration-xp {
+            font-size: 32px;
+            color: var(--success);
+            font-weight: bold;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--muted);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .kanban {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .quick-add-form {
+                flex-direction: column;
+            }
+
+            .quick-add input {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            <span class="face" id="face">(･_･)</span>
+            <span>Tasks</span>
+        </h1>
+        <div class="nav">
+            <a href="/">💬 Chat</a>
+            <a href="/settings">⚙️ Settings</a>
+        </div>
+    </div>
+
+    <div class="stats-bar" id="stats">
+        <div class="stat-card">
+            <div class="stat-number" id="stat-total">-</div>
+            <div class="stat-label">Total Tasks</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="stat-pending">-</div>
+            <div class="stat-label">To Do</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="stat-progress">-</div>
+            <div class="stat-label">In Progress</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="stat-completed">-</div>
+            <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="stat-overdue">-</div>
+            <div class="stat-label">Overdue</div>
+        </div>
+    </div>
+
+    <div class="quick-add">
+        <form class="quick-add-form" id="quick-add-form">
+            <input type="text" id="new-task-title" placeholder="What needs to be done?" required>
+            <select id="new-task-priority">
+                <option value="low">Low Priority</option>
+                <option value="medium" selected>Medium Priority</option>
+                <option value="high">High Priority</option>
+                <option value="urgent">🔥 Urgent</option>
+            </select>
+            <button type="submit" class="btn">➕ Add Task</button>
+        </form>
+    </div>
+
+    <div class="kanban">
+        <div class="column">
+            <div class="column-header">
+                📋 To Do
+                <span class="task-count" id="count-pending">0</span>
+            </div>
+            <div class="tasks-list" id="tasks-pending" data-status="pending">
+                <div class="loading">Loading tasks...</div>
+            </div>
+        </div>
+
+        <div class="column">
+            <div class="column-header">
+                ⏳ In Progress
+                <span class="task-count" id="count-progress">0</span>
+            </div>
+            <div class="tasks-list" id="tasks-in_progress" data-status="in_progress">
+                <div class="loading">Loading tasks...</div>
+            </div>
+        </div>
+
+        <div class="column">
+            <div class="column-header">
+                ✅ Completed
+                <span class="task-count" id="count-completed">0</span>
+            </div>
+            <div class="tasks-list" id="tasks-completed" data-status="completed">
+                <div class="loading">Loading tasks...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="celebration" id="celebration">
+        <div class="celebration-content">
+            <div class="celebration-emoji" id="celebration-emoji">🎉</div>
+            <div class="celebration-message" id="celebration-message">Great job!</div>
+            <div class="celebration-xp" id="celebration-xp">+15 XP</div>
+        </div>
+    </div>
+
+    <script>
+        // Load theme
+        const theme = localStorage.getItem('inklingTheme') || 'cream';
+        document.documentElement.setAttribute('data-theme', theme);
+
+        let tasks = [];
+        let draggedTask = null;
+
+        // Load tasks
+        async function loadTasks() {
+            try {
+                const res = await fetch('/api/tasks');
+                const data = await res.json();
+                tasks = data.tasks || [];
+                renderTasks();
+                updateStats();
+                updateFace();
+            } catch (err) {
+                console.error('Failed to load tasks:', err);
+            }
+        }
+
+        // Update stats
+        function updateStats() {
+            fetch('/api/tasks/stats')
+                .then(r => r.json())
+                .then(data => {
+                    const stats = data.stats;
+                    document.getElementById('stat-total').textContent = stats.total || 0;
+                    document.getElementById('stat-pending').textContent = stats.pending || 0;
+                    document.getElementById('stat-progress').textContent = stats.in_progress || 0;
+                    document.getElementById('stat-completed').textContent = stats.completed || 0;
+                    document.getElementById('stat-overdue').textContent = stats.overdue || 0;
+                })
+                .catch(err => console.error('Stats error:', err));
+        }
+
+        // Update face
+        function updateFace() {
+            fetch('/api/state')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('face').textContent = data.face || '(･_･)';
+                })
+                .catch(err => console.error('Face error:', err));
+        }
+
+        // Render tasks
+        function renderTasks() {
+            const pending = tasks.filter(t => t.status === 'pending');
+            const inProgress = tasks.filter(t => t.status === 'in_progress');
+            const completed = tasks.filter(t => t.status === 'completed');
+
+            renderColumn('pending', pending);
+            renderColumn('in_progress', inProgress);
+            renderColumn('completed', completed);
+
+            document.getElementById('count-pending').textContent = pending.length;
+            document.getElementById('count-progress').textContent = inProgress.length;
+            document.getElementById('count-completed').textContent = completed.length;
+        }
+
+        // Render column
+        function renderColumn(status, taskList) {
+            const container = document.getElementById('tasks-' + status);
+
+            if (taskList.length === 0) {
+                container.innerHTML = '<div class="loading" style="color: var(--muted);">No tasks</div>';
+                return;
+            }
+
+            container.innerHTML = taskList.map(task => `
+                <div class="task-card" draggable="true" data-id="${task.id}">
+                    <div class="task-header">
+                        <div class="task-title">${escapeHtml(task.title)}</div>
+                        <span class="priority priority-${task.priority}">${task.priority.toUpperCase()}</span>
+                    </div>
+                    ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ''}
+                    <div class="task-meta">
+                        ${task.tags.map(tag => `<span class="tag">#${tag}</span>`).join('')}
+                        ${task.is_overdue ? '<span class="due-date overdue">OVERDUE</span>' : ''}
+                        ${task.days_until_due !== null && task.days_until_due >= 0 && task.days_until_due <= 3 ? `<span class="due-date due-soon">${task.days_until_due}d left</span>` : ''}
+                    </div>
+                    <div class="task-actions">
+                        ${status !== 'completed' ? `<button class="task-btn complete" onclick="completeTask('${task.id}')">✓ Complete</button>` : ''}
+                        <button class="task-btn" onclick="editTask('${task.id}')">✏️ Edit</button>
+                        <button class="task-btn delete" onclick="deleteTask('${task.id}')">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+
+            // Add drag and drop
+            container.querySelectorAll('.task-card').forEach(card => {
+                card.addEventListener('dragstart', handleDragStart);
+                card.addEventListener('dragend', handleDragEnd);
+            });
+
+            // Make column droppable
+            container.addEventListener('dragover', handleDragOver);
+            container.addEventListener('drop', handleDrop);
+        }
+
+        // Drag and drop handlers
+        function handleDragStart(e) {
+            draggedTask = e.target.getAttribute('data-id');
+            e.target.classList.add('dragging');
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+        }
+
+        async function handleDrop(e) {
+            e.preventDefault();
+            const newStatus = e.currentTarget.getAttribute('data-status');
+
+            if (!draggedTask || !newStatus) return;
+
+            try {
+                const res = await fetch(`/api/tasks/${draggedTask}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                if (res.ok) {
+                    await loadTasks();
+                }
+            } catch (err) {
+                console.error('Failed to update task:', err);
+            }
+        }
+
+        // Add task
+        document.getElementById('quick-add-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const title = document.getElementById('new-task-title').value.trim();
+            const priority = document.getElementById('new-task-priority').value;
+
+            if (!title) return;
+
+            try {
+                const res = await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, priority })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    document.getElementById('new-task-title').value = '';
+                    await loadTasks();
+
+                    if (data.celebration) {
+                        showCelebration(data.celebration, data.xp_awarded || 0, '🎯');
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to create task:', err);
+            }
+        });
+
+        // Complete task
+        async function completeTask(taskId) {
+            try {
+                const res = await fetch(`/api/tasks/${taskId}/complete`, {
+                    method: 'POST'
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    await loadTasks();
+
+                    if (data.celebration) {
+                        showCelebration(data.celebration, data.xp_awarded || 0, '🎉');
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to complete task:', err);
+            }
+        }
+
+        // Delete task
+        async function deleteTask(taskId) {
+            if (!confirm('Delete this task?')) return;
+
+            try {
+                const res = await fetch(`/api/tasks/${taskId}`, {
+                    method: 'DELETE'
+                });
+
+                if (res.ok) {
+                    await loadTasks();
+                }
+            } catch (err) {
+                console.error('Failed to delete task:', err);
+            }
+        }
+
+        // Edit task (placeholder)
+        function editTask(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const newTitle = prompt('Edit task:', task.title);
+            if (!newTitle || newTitle === task.title) return;
+
+            fetch(`/api/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: newTitle })
+            })
+            .then(() => loadTasks())
+            .catch(err => console.error('Failed to edit task:', err));
+        }
+
+        // Show celebration
+        function showCelebration(message, xp, emoji) {
+            document.getElementById('celebration-message').textContent = message;
+            document.getElementById('celebration-xp').textContent = xp > 0 ? `+${xp} XP` : '';
+            document.getElementById('celebration-emoji').textContent = emoji;
+            document.getElementById('celebration').classList.add('show');
+
+            setTimeout(() => {
+                document.getElementById('celebration').classList.remove('show');
+            }, 3000);
+        }
+
+        // Helper
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initial load
+        loadTasks();
+        setInterval(updateFace, 5000);
+        setInterval(loadTasks, 30000); // Refresh every 30s
+    </script>
+</body>
+</html>
+"""
+
+
 class WebChatMode:
     """
     Web-based chat mode using Bottle.
@@ -956,6 +1702,13 @@ class WebChatMode:
                 SETTINGS_TEMPLATE,
                 name=self.personality.name,
                 traits=self.personality.traits.to_dict(),
+            )
+
+        @self._app.route("/tasks")
+        def tasks_page():
+            return template(
+                TASKS_TEMPLATE,
+                name=self.personality.name,
             )
 
         @self._app.route("/api/chat", method="POST")
