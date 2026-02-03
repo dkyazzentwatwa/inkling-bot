@@ -18,6 +18,7 @@ from core.display import DisplayManager
 from core.personality import Personality
 from core.api_client import APIClient, APIError, OfflineError
 from core.commands import COMMANDS, get_command, get_commands_by_category
+from core.tasks import TaskStore, TaskPriority, TaskStatus, parse_due_date, parse_priority
 
 
 # HTML template for the web UI
@@ -1245,6 +1246,7 @@ class WebChatMode:
         display: DisplayManager,
         personality: Personality,
         api_client: Optional[APIClient] = None,
+        task_store: Optional[TaskStore] = None,
         host: str = "0.0.0.0",
         port: int = 8080,
     ):
@@ -1252,6 +1254,7 @@ class WebChatMode:
         self.display = display
         self.personality = personality
         self.api_client = api_client
+        self.tasks = task_store
         self.host = host
         self.port = port
 
@@ -1551,17 +1554,20 @@ class WebChatMode:
             "personality": "Personality",
             "system": "System",
             "display": "Display",
+            "tasks": "Task Manager",
             "social": "Social (The Conservatory)",
             "session": "Session",
         }
 
-        for cat_key in ["info", "personality", "system", "display", "social", "session"]:
+        for cat_key in ["info", "personality", "tasks", "system", "display", "social", "session"]:
             if cat_key in categories:
                 response_lines.append(f"\n{category_titles.get(cat_key, cat_key.title())}:")
                 for cmd in categories[cat_key]:
                     usage = f"/{cmd.name}"
                     if cmd.name in ("face", "dream", "ask"):
                         usage += " <arg>"
+                    elif cmd.name == "task":
+                        usage += " add|done|del <args>"
                     response_lines.append(f"  {usage} - {cmd.description}")
 
         response_lines.append("\n\nJust type (no /) to chat with AI")
@@ -1940,6 +1946,296 @@ class WebChatMode:
 
         return self._handle_chat_sync(args)
 
+    # ========== Task Management Commands ==========
+
+    def _cmd_tasks(self) -> Dict[str, Any]:
+        """List all active tasks."""
+        if not self.tasks:
+            return {
+                "response": "Task manager not initialized.",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        tasks = self.tasks.list_tasks(limit=20)
+
+        if not tasks:
+            return {
+                "response": "No tasks on your list! Use /task add <title> to add one.",
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        lines = ["YOUR TASKS\n"]
+        for task in tasks:
+            line = f"  #{task.id} {task.title}"
+            if task.due_date:
+                if task.is_overdue:
+                    line += f" [OVERDUE]"
+                elif task.is_due_today:
+                    line += f" [TODAY]"
+                else:
+                    line += f" (due {task._format_due_date()})"
+            if task.priority in (TaskPriority.HIGH, TaskPriority.URGENT):
+                line += f" [{task.priority.value.upper()}]"
+            lines.append(line)
+
+        stats = self.tasks.get_stats()
+        lines.append(f"\n{stats['pending']} pending • {stats['overdue']} overdue • {stats['completed']} completed")
+
+        return {
+            "response": "\n".join(lines),
+            "face": self._get_face_str(),
+            "status": self.personality.get_status_line(),
+        }
+
+    def _cmd_task(self, args: str) -> Dict[str, Any]:
+        """Handle task subcommands (add, done, del)."""
+        if not self.tasks:
+            return {
+                "response": "Task manager not initialized.",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        if not args:
+            return {
+                "response": "TASK COMMANDS\n\n" +
+                           "/task add <title> [due:<date>] [p:<priority>]\n" +
+                           "  Example: /task add Buy groceries due:tomorrow p:high\n\n" +
+                           "/task done <id>\n" +
+                           "  Mark task as completed\n\n" +
+                           "/task del <id>\n" +
+                           "  Delete a task\n\n" +
+                           "Priorities: low, medium, high, urgent\n" +
+                           "Dates: today, tomorrow, monday, next week, 2024-01-15",
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        parts = args.split(maxsplit=1)
+        subcmd = parts[0].lower()
+        subargs = parts[1] if len(parts) > 1 else ""
+
+        if subcmd == "add":
+            return self._task_add(subargs)
+        elif subcmd == "done":
+            return self._task_done(subargs)
+        elif subcmd in ("del", "delete", "rm"):
+            return self._task_delete(subargs)
+        else:
+            return {
+                "response": f"Unknown task subcommand: {subcmd}\nUse: add, done, del",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+    def _task_add(self, args: str) -> Dict[str, Any]:
+        """Add a new task."""
+        if not args:
+            return {
+                "response": "Usage: /task add <title> [due:<date>] [p:<priority>]",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        # Parse arguments
+        title_parts = []
+        due_date = None
+        priority = TaskPriority.MEDIUM
+
+        for part in args.split():
+            if part.startswith("due:"):
+                due_str = part[4:]
+                due_date = parse_due_date(due_str)
+            elif part.startswith("p:") or part.startswith("priority:"):
+                p_str = part.split(":")[1]
+                priority = parse_priority(p_str)
+            else:
+                title_parts.append(part)
+
+        title = " ".join(title_parts).strip()
+        if not title:
+            return {
+                "response": "Please provide a task title.",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        task = self.tasks.add_task(
+            title=title,
+            priority=priority,
+            due_date=due_date,
+        )
+
+        response = f"Added task #{task.id}: {task.title}"
+        if task.due_date:
+            response += f"\nDue: {task._format_due_date()}"
+        if task.priority != TaskPriority.MEDIUM:
+            response += f"\nPriority: {task.priority.value}"
+        response += f"\nXP reward: +{task.xp_reward} on completion"
+
+        return {
+            "response": response,
+            "face": self._get_face_str(),
+            "status": self.personality.get_status_line(),
+        }
+
+    def _task_done(self, args: str) -> Dict[str, Any]:
+        """Mark a task as completed."""
+        if not args:
+            return {
+                "response": "Usage: /task done <id>",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        try:
+            task_id = int(args.strip().lstrip("#"))
+        except ValueError:
+            return {
+                "response": f"Invalid task ID: {args}",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        task = self.tasks.complete_task(task_id)
+        if not task:
+            return {
+                "response": f"Task #{task_id} not found.",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        # Award XP through personality
+        xp = self.personality.on_task_completed(task)
+
+        response = f"Completed: {task.title}"
+        if xp:
+            response += f"\n+{xp} XP earned!"
+
+        return {
+            "response": response,
+            "face": self._get_face_str(),
+            "status": self.personality.get_status_line(),
+        }
+
+    def _task_delete(self, args: str) -> Dict[str, Any]:
+        """Delete a task."""
+        if not args:
+            return {
+                "response": "Usage: /task del <id>",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        try:
+            task_id = int(args.strip().lstrip("#"))
+        except ValueError:
+            return {
+                "response": f"Invalid task ID: {args}",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        task = self.tasks.get_task(task_id)
+        if not task:
+            return {
+                "response": f"Task #{task_id} not found.",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        title = task.title
+        self.tasks.delete_task(task_id)
+
+        return {
+            "response": f"Deleted task: {title}",
+            "face": self._get_face_str(),
+            "status": self.personality.get_status_line(),
+        }
+
+    def _cmd_today(self) -> Dict[str, Any]:
+        """Show tasks due today."""
+        if not self.tasks:
+            return {
+                "response": "Task manager not initialized.",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        tasks = self.tasks.get_today_tasks()
+
+        if not tasks:
+            return {
+                "response": "No tasks due today! You're all caught up.",
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        lines = [f"TASKS DUE TODAY ({len(tasks)})\n"]
+        for task in tasks:
+            line = f"  #{task.id} {task.title}"
+            if task.priority in (TaskPriority.HIGH, TaskPriority.URGENT):
+                line += f" [{task.priority.value.upper()}]"
+            lines.append(line)
+
+        return {
+            "response": "\n".join(lines),
+            "face": self._get_face_str(),
+            "status": self.personality.get_status_line(),
+        }
+
+    def _cmd_overdue(self) -> Dict[str, Any]:
+        """Show overdue tasks."""
+        if not self.tasks:
+            return {
+                "response": "Task manager not initialized.",
+                "error": True,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        tasks = self.tasks.get_overdue_tasks()
+
+        if not tasks:
+            return {
+                "response": "No overdue tasks! Great job staying on top of things.",
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        lines = [f"OVERDUE TASKS ({len(tasks)})\n"]
+        for task in tasks:
+            line = f"  #{task.id} {task.title}"
+            line += f" (was due {task._format_due_date()})"
+            if task.priority in (TaskPriority.HIGH, TaskPriority.URGENT):
+                line += f" [{task.priority.value.upper()}]"
+            lines.append(line)
+
+        lines.append("\nUse /task done <id> to complete or /task del <id> to remove")
+
+        # Update mood - overdue tasks make companion concerned
+        self.personality.on_task_overdue(len(tasks))
+
+        return {
+            "response": "\n".join(lines),
+            "face": self._get_face_str(),
+            "status": self.personality.get_status_line(),
+        }
+
     def _handle_command_sync(self, command: str) -> Dict[str, Any]:
         """Handle slash commands (sync wrapper)."""
         parts = command.split(maxsplit=1)
@@ -1965,7 +2261,7 @@ class WebChatMode:
             return {"response": f"Command handler not implemented: {cmd_obj.name}", "error": True}
 
         # Call handler with args if needed
-        if cmd_obj.name in ("face", "dream", "ask"):
+        if cmd_obj.name in ("face", "dream", "ask", "task"):
             return handler(args)
         else:
             return handler()

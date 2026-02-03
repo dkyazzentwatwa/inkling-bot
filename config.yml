@@ -89,6 +89,28 @@ network:
   queue_max_size: 100
   retry_interval: 60  # seconds
 
+# Task Manager Configuration
+# Turns Inkling into a productivity companion
+tasks:
+  enabled: true
+  data_dir: "~/.inkling"  # Where to store tasks.db
+
+  # XP rewards for completing tasks (by priority)
+  xp_rewards:
+    low: 5
+    medium: 10
+    high: 20
+    urgent: 30
+
+  # Reminder settings
+  reminders:
+    enabled: true           # Send task reminders
+    hours_before: 24        # Remind X hours before due
+    check_interval: 1800    # How often to check (seconds)
+
+  # Morning briefing (during morning greetings)
+  morning_briefing: true    # Include task summary in morning greeting
+
 # Gossip Protocol (Phase 3)
 gossip:
   enabled: false

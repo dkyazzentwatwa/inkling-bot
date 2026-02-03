@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from .personality import Personality, Mood
+from .tasks import TaskStore, TaskPriority
 
 
 class BehaviorType(Enum):
@@ -80,6 +81,7 @@ class Heartbeat:
         api_client=None,
         memory_store=None,
         brain=None,
+        task_store: Optional[TaskStore] = None,
         config: Optional[HeartbeatConfig] = None,
     ):
         self.personality = personality
@@ -87,6 +89,7 @@ class Heartbeat:
         self.api_client = api_client
         self.memory = memory_store
         self.brain = brain
+        self.tasks = task_store
         self.config = config or HeartbeatConfig()
 
         self._running = False
@@ -188,6 +191,38 @@ class Heartbeat:
                 behavior_type=BehaviorType.SOCIAL,
                 handler=self._behavior_check_dreams,
                 probability=0.2,
+                cooldown_seconds=600,
+            ),
+        ])
+
+        # Task management behaviors
+        self._behaviors.extend([
+            ProactiveBehavior(
+                name="morning_task_briefing",
+                behavior_type=BehaviorType.TIME_BASED,
+                handler=self._behavior_morning_tasks,
+                probability=0.7,
+                cooldown_seconds=7200,  # Once every 2 hours max
+            ),
+            ProactiveBehavior(
+                name="task_reminder",
+                behavior_type=BehaviorType.MAINTENANCE,
+                handler=self._behavior_task_reminder,
+                probability=0.4,
+                cooldown_seconds=1800,  # Every 30 min check
+            ),
+            ProactiveBehavior(
+                name="overdue_task_alert",
+                behavior_type=BehaviorType.MAINTENANCE,
+                handler=self._behavior_overdue_alert,
+                probability=0.6,
+                cooldown_seconds=3600,  # Hourly check
+            ),
+            ProactiveBehavior(
+                name="bored_suggest_task",
+                behavior_type=BehaviorType.MOOD_DRIVEN,
+                handler=self._behavior_suggest_task,
+                probability=0.25,
                 cooldown_seconds=600,
             ),
         ])
@@ -319,6 +354,7 @@ class Heartbeat:
             "happy_share_thought": [Mood.HAPPY, Mood.EXCITED, Mood.GRATEFUL],
             "autonomous_exploration": [Mood.CURIOUS],
             "spontaneous_dream": [Mood.HAPPY, Mood.GRATEFUL, Mood.CURIOUS],
+            "bored_suggest_task": [Mood.BORED, Mood.CURIOUS],
         }
 
         allowed_moods = mood_behaviors.get(behavior.name, [])
@@ -506,6 +542,108 @@ class Heartbeat:
     async def force_tick(self) -> None:
         """Manually trigger a heartbeat tick."""
         await self._tick()
+
+    # ========== Task Management Behaviors ==========
+
+    async def _behavior_morning_tasks(self) -> Optional[str]:
+        """Morning task briefing (7-10 AM)."""
+        if not self.tasks:
+            return None
+
+        hour = datetime.now().hour
+        if not (7 <= hour < 10):
+            return None
+
+        # Get today's tasks
+        today = self.tasks.get_today_tasks()
+        overdue = self.tasks.get_overdue_tasks()
+
+        if not today and not overdue:
+            return "Good morning! Your task list is clear today."
+
+        # Build briefing
+        lines = []
+        if overdue:
+            lines.append(f"You have {len(overdue)} overdue task{'s' if len(overdue) != 1 else ''}!")
+        if today:
+            lines.append(f"{len(today)} task{'s' if len(today) != 1 else ''} due today:")
+            for task in today[:3]:
+                lines.append(f"  - {task.title}")
+            if len(today) > 3:
+                lines.append(f"  ... and {len(today) - 3} more")
+
+        # Update mood based on task load
+        if overdue:
+            self.personality.mood.set_mood(Mood.INTENSE, 0.5)
+        else:
+            self.personality.mood.set_mood(Mood.CURIOUS, 0.5)
+
+        return "\n".join(lines)
+
+    async def _behavior_task_reminder(self) -> Optional[str]:
+        """Remind about tasks that are due soon."""
+        if not self.tasks:
+            return None
+
+        # Get tasks needing reminders
+        pending = self.tasks.get_pending_reminders()
+        if not pending:
+            return None
+
+        # Pick one task to remind about
+        task = pending[0]
+        self.tasks.mark_reminder_sent(task.id)
+
+        # Format reminder based on urgency
+        if task.priority == TaskPriority.URGENT:
+            return f"URGENT: '{task.title}' is due soon!"
+        elif task.priority == TaskPriority.HIGH:
+            return f"Reminder: '{task.title}' is due within 24 hours."
+        else:
+            return f"Don't forget: '{task.title}' is coming up."
+
+    async def _behavior_overdue_alert(self) -> Optional[str]:
+        """Alert about overdue tasks."""
+        if not self.tasks:
+            return None
+
+        overdue = self.tasks.get_overdue_tasks()
+        if not overdue:
+            return None
+
+        # Update mood - overdue tasks make us concerned
+        self.personality.mood.set_mood(Mood.SAD, 0.4)
+
+        count = len(overdue)
+        if count == 1:
+            task = overdue[0]
+            return f"'{task.title}' is overdue. Can we work on it?"
+        else:
+            return f"You have {count} overdue tasks. Let's tackle them!"
+
+    async def _behavior_suggest_task(self) -> Optional[str]:
+        """When bored, suggest working on a task."""
+        if not self.tasks:
+            return None
+
+        # Get high priority tasks first, then any pending
+        tasks = self.tasks.get_high_priority_tasks()
+        if not tasks:
+            tasks = self.tasks.list_tasks(limit=5)
+
+        if not tasks:
+            return "No tasks on your list. Want to add something?"
+
+        # Suggest a random task from the list
+        task = random.choice(tasks[:5])
+
+        suggestions = [
+            f"How about working on '{task.title}'?",
+            f"Want to tackle '{task.title}'?",
+            f"I noticed '{task.title}' is pending...",
+            f"Ready to check off '{task.title}'?",
+        ]
+        return random.choice(suggestions)
 
     # ========== Autonomous AI Behaviors ==========
 

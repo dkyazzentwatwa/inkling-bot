@@ -77,6 +77,8 @@ main.py → Inkling class
     ├── DisplayManager (core/display.py) - E-ink abstraction (V3/V4/Mock)
     ├── Personality (core/personality.py) - Mood state machine
     ├── Brain (core/brain.py) - Multi-provider AI with fallback
+    ├── TaskStore (core/tasks.py) - Task management with XP integration
+    ├── Heartbeat (core/heartbeat.py) - Proactive behaviors & task reminders
     └── APIClient (core/api_client.py) - Cloud API + offline queue
 
 modes/
@@ -125,6 +127,40 @@ Supabase (PostgreSQL)
 - API endpoints: `/api/chat`, `/api/command`, `/api/settings`, `/api/state`
 - Settings saved to `config.local.yml` and applied immediately (no restart)
 
+### Task Manager
+
+The task manager transforms Inkling into a productivity companion:
+
+**Core Components**:
+- `core/tasks.py` - SQLite-based task storage with priority, due dates, recurrence
+- `core/task_tools.py` - MCP-compatible tools for AI-assisted task management
+
+**Task Commands** (Web/SSH):
+- `/tasks` - List all active tasks
+- `/task add <title> [due:<date>] [p:<priority>]` - Add task
+- `/task done <id>` - Complete task (awards XP)
+- `/task del <id>` - Delete task
+- `/today` - Show tasks due today
+- `/overdue` - Show overdue tasks
+
+**Personality Integration**:
+- Completing tasks awards XP (5-30 based on priority)
+- Task completions boost mood (excited for high priority, happy for normal)
+- Overdue tasks make companion concerned (sad/intense mood)
+- Achievements: "Getting Things Done" (first task), "Productive" (10 tasks), "Task Master" (50 tasks)
+
+**Heartbeat Behaviors** (in `core/heartbeat.py`):
+- Morning task briefing (7-10 AM)
+- Due-soon task reminders
+- Overdue task alerts
+- Bored mood suggests working on tasks
+
+**AI Tool Integration** (via MCP):
+The `TaskTools` class exposes task operations as MCP-compatible tools, allowing the AI to:
+- Add tasks when user mentions things to do
+- List/search tasks on request
+- Mark tasks complete when user reports progress
+
 ### Social Features
 
 - **Dreams**: Public posts to the "Night Pool" (signed, rate-limited)
@@ -142,6 +178,8 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 - `network.api_base`: Your Vercel deployment URL
 - `personality.*`: Base trait values (0.0-1.0)
 - `device.name`: Device name (editable via web UI settings page)
+- `tasks.enabled`: Enable/disable task manager (default: true)
+- `tasks.data_dir`: Where to store tasks.db (default: ~/.inkling)
 
 **Web UI Settings**: Users can edit personality traits and device name at `http://localhost:8080/settings`. Changes are:
 - Applied immediately to the running instance

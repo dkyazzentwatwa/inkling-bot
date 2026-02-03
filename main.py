@@ -32,6 +32,7 @@ from core.mcp_client import MCPClientManager
 from core.personality import Personality, PersonalityTraits
 from core.api_client import APIClient
 from core.heartbeat import Heartbeat, HeartbeatConfig
+from core.tasks import TaskStore
 from modes.ssh_chat import SSHChatMode
 from modes.web_chat import WebChatMode
 
@@ -130,6 +131,7 @@ class Inkling:
         self.api_client: Optional[APIClient] = None
         self.mcp_client: Optional[MCPClientManager] = None
         self.heartbeat: Optional[Heartbeat] = None
+        self.task_store: Optional[TaskStore] = None
 
         # Current mode
         self._mode = None
@@ -173,6 +175,18 @@ class Inkling:
         self.personality.on_mood_change(self._on_mood_change)
         self.personality.on_level_up(self._on_level_up)
 
+        # Task Manager
+        tasks_config = self.config.get("tasks", {})
+        if tasks_config.get("enabled", True):
+            print("  - Initializing task manager...")
+            data_dir = tasks_config.get("data_dir", "~/.inkling")
+            self.task_store = TaskStore(data_dir=data_dir)
+            self.task_store.initialize()
+            stats = self.task_store.get_stats()
+            print(f"    Tasks: {stats['pending']} pending, {stats['overdue']} overdue")
+        else:
+            print("  - Task manager disabled")
+
         # Heartbeat (proactive behaviors)
         heartbeat_config_data = self.config.get("heartbeat", {})
         heartbeat_enabled = heartbeat_config_data.get("enabled", True)
@@ -194,6 +208,7 @@ class Inkling:
                 display_manager=self.display,
                 api_client=self.api_client,
                 brain=self.brain,
+                task_store=self.task_store,
                 config=heartbeat_config,
             )
 
@@ -298,6 +313,7 @@ class Inkling:
                     display=self.display,
                     personality=self.personality,
                     api_client=self.api_client,
+                    task_store=self.task_store,
                     port=self.config.get("web", {}).get("port", 8080),
                 )
                 await self._mode.run()
@@ -398,6 +414,9 @@ class Inkling:
 
         if self.api_client:
             await self.api_client.close()
+
+        if self.task_store:
+            self.task_store.close()
 
         if self.display:
             self.display.sleep()

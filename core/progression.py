@@ -32,6 +32,10 @@ class XPSource(Enum):
     SEND_TELEGRAM = "send_telegram"  # +8 XP
     RECEIVE_TELEGRAM_REPLY = "receive_telegram_reply"  # +12 XP
 
+    # Task management
+    TASK_COMPLETED = "task_completed"  # +5-30 XP based on priority
+    TASK_STREAK = "task_streak"  # +10 XP for completing 3+ tasks/day
+
     # Daily bonus
     FIRST_OF_DAY = "first_of_day"  # +20 XP
 
@@ -92,6 +96,37 @@ ACHIEVEMENTS = {
         name="Legendary",
         description="Reached Level 25",
         xp_reward=500,
+    ),
+    # Task achievements
+    "first_task": Achievement(
+        id="first_task",
+        name="Getting Things Done",
+        description="Completed your first task",
+        xp_reward=25,
+    ),
+    "task_10": Achievement(
+        id="task_10",
+        name="Productive",
+        description="Completed 10 tasks",
+        xp_reward=100,
+    ),
+    "task_50": Achievement(
+        id="task_50",
+        name="Task Master",
+        description="Completed 50 tasks",
+        xp_reward=250,
+    ),
+    "task_streak_3": Achievement(
+        id="task_streak_3",
+        name="On a Roll",
+        description="Completed 3 tasks in one day",
+        xp_reward=50,
+    ),
+    "no_overdue": Achievement(
+        id="no_overdue",
+        name="Always On Time",
+        description="Completed 10 tasks without any overdue",
+        xp_reward=150,
     ),
 }
 
@@ -325,6 +360,7 @@ class XPTracker:
     achievements: Dict[str, Achievement] = field(default_factory=lambda: {
         k: Achievement(**vars(v)) for k, v in ACHIEVEMENTS.items()
     })
+    metadata: Dict = field(default_factory=dict)  # Custom tracking data (e.g., tasks_completed)
 
     # Streak tracking
     last_interaction_date: Optional[str] = None  # YYYY-MM-DD
@@ -530,6 +566,7 @@ class XPTracker:
                 }
                 for aid, a in self.achievements.items()
             },
+            "metadata": self.metadata,
             "last_interaction_date": self.last_interaction_date,
             "current_streak": self.current_streak,
         }
@@ -543,6 +580,7 @@ class XPTracker:
             prestige=data.get("prestige", 0),
             badges=data.get("badges", []),
             xp_history=data.get("xp_history", []),
+            metadata=data.get("metadata", {}),
             last_interaction_date=data.get("last_interaction_date"),
             current_streak=data.get("current_streak", 0),
         )

@@ -12,6 +12,10 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Callable
 
 from .progression import XPTracker, XPSource, ChatQuality
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .tasks import Task, TaskPriority
 
 
 class Mood(Enum):
@@ -397,6 +401,112 @@ class Personality:
             self._notify_mood_change(old_mood, self.mood.current)
 
         return xp_awarded if xp_awarded > 0 else None
+
+    def on_task_completed(self, task: "Task", tasks_today: int = 1) -> Optional[int]:
+        """
+        Called when a task is completed.
+
+        Args:
+            task: The completed task
+            tasks_today: Number of tasks completed today (for streak)
+
+        Returns:
+            XP awarded
+        """
+        from .tasks import TaskPriority
+
+        old_mood = self.mood.current
+        old_level = self.progression.level
+        xp_awarded = 0
+
+        # Award XP based on task XP reward (varies by priority)
+        awarded, amount = self.progression.award_xp(
+            XPSource.TASK_COMPLETED,
+            task.xp_reward,
+            metadata={"task_id": task.id, "priority": task.priority.value}
+        )
+        if awarded:
+            xp_awarded += amount
+
+        # Check for task streak bonus (3+ tasks in a day)
+        if tasks_today >= 3:
+            streak_awarded, streak_amount = self.progression.award_xp(
+                XPSource.TASK_STREAK,
+                10,
+                metadata={"tasks_today": tasks_today}
+            )
+            if streak_awarded:
+                xp_awarded += streak_amount
+            self.progression.unlock_achievement("task_streak_3")
+
+        # Unlock achievements based on total completions
+        total_completed = self.progression.metadata.get("tasks_completed", 0) + 1
+        self.progression.metadata["tasks_completed"] = total_completed
+
+        if total_completed == 1:
+            xp_awarded += self.progression.unlock_achievement("first_task")
+        elif total_completed >= 10:
+            xp_awarded += self.progression.unlock_achievement("task_10")
+        elif total_completed >= 50:
+            xp_awarded += self.progression.unlock_achievement("task_50")
+
+        # Update mood - completing tasks feels good!
+        if task.priority in (TaskPriority.HIGH, TaskPriority.URGENT):
+            self.mood.set_mood(Mood.EXCITED, 0.8)
+        else:
+            self.mood.set_mood(Mood.HAPPY, 0.6)
+
+        # Check for level up
+        if self.progression.level > old_level:
+            self._notify_level_up(old_level, self.progression.level)
+
+        if old_mood != self.mood.current:
+            self._notify_mood_change(old_mood, self.mood.current)
+
+        return xp_awarded if xp_awarded > 0 else None
+
+    def on_task_overdue(self, overdue_count: int) -> None:
+        """
+        Called when tasks become overdue.
+
+        Args:
+            overdue_count: Number of overdue tasks
+        """
+        old_mood = self.mood.current
+
+        # Overdue tasks make the companion concerned
+        if overdue_count >= 5:
+            self.mood.set_mood(Mood.SAD, 0.6)
+        elif overdue_count >= 2:
+            self.mood.set_mood(Mood.INTENSE, 0.5)
+        else:
+            self.mood.set_mood(Mood.CURIOUS, 0.4)
+
+        if old_mood != self.mood.current:
+            self._notify_mood_change(old_mood, self.mood.current)
+
+    def add_xp(self, amount: int, source: str = "task_completion") -> Optional[int]:
+        """
+        Add XP directly (used by task_tools).
+
+        Args:
+            amount: XP amount to add
+            source: Source description for logging
+
+        Returns:
+            Actual XP awarded (may differ due to rate limiting)
+        """
+        old_level = self.progression.level
+        awarded, actual = self.progression.award_xp(
+            XPSource.TASK_COMPLETED,
+            amount,
+            metadata={"source": source}
+        )
+
+        if awarded and self.progression.level > old_level:
+            self._notify_level_up(old_level, self.progression.level)
+
+        return actual if awarded else None
 
     @property
     def face(self) -> str:

@@ -50,6 +50,12 @@ COMMANDS: List[Command] = [
     Command("telegram", "Send encrypted telegram", "cmd_telegram", "social", requires_api=True),
     Command("queue", "Show offline queue status", "cmd_queue", "social", requires_api=True),
 
+    # Task management commands
+    Command("tasks", "List your tasks", "cmd_tasks", "tasks"),
+    Command("task", "Manage tasks (add/done/del)", "cmd_task", "tasks"),
+    Command("today", "Show tasks due today", "cmd_today", "tasks"),
+    Command("overdue", "Show overdue tasks", "cmd_overdue", "tasks"),
+
     # Session commands (SSH only)
     Command("ask", "Explicit chat command", "cmd_ask", "session", requires_brain=True),
     Command("clear", "Clear conversation history", "cmd_clear", "session", requires_brain=True),
