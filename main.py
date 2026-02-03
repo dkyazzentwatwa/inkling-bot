@@ -307,7 +307,7 @@ class Inkling:
                     personality=self.personality,
                     api_client=self.api_client,
                     task_manager=self.task_manager,
-                    port=self.config.get("web", {}).get("port", 8080),
+                    port=self.config.get("web", {}).get("port", 8081),
                 )
                 await self._mode.run()
 

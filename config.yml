@@ -80,6 +80,10 @@ heartbeat:
   quiet_hours_start: 23  # 11 PM
   quiet_hours_end: 7     # 7 AM
 
+# Web UI Configuration
+web:
+  port: 8081  # Web server port (default: 8081, avoid 8080 if nginx is running)
+
 # Network Configuration
 network:
   # Backend API
