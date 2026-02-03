@@ -16,9 +16,13 @@ from bottle import Bottle, request, response, static_file, template
 from core.brain import Brain, AllProvidersExhaustedError, QuotaExceededError
 from core.display import DisplayManager
 from core.personality import Personality
+from core.progression import XPSource
 from core.api_client import APIClient, APIError, OfflineError
 from core.commands import COMMANDS, get_command, get_commands_by_category
 from core.tasks import TaskManager, Task, TaskStatus, Priority
+from core.crypto import Identity
+from core.telegram import TelegramCrypto
+from core.postcard import PostcardCodec
 
 
 # HTML template for the web UI
@@ -312,6 +316,8 @@ HTML_TEMPLATE = """
                     <button onclick="runCommand('/faces')">Faces</button>
                     <button onclick="runCommand('/refresh')">Refresh</button>
                     <button onclick="runCommand('/clear')">Clear</button>
+                    <button onclick="location.href='/tasks'">Tasks</button>
+                    <button onclick="location.href='/social'">Social</button>
                     <button onclick="location.href='/settings'">Settings</button>
                 </div>
             </div>
@@ -657,7 +663,11 @@ SETTINGS_TEMPLATE = """
 <body>
     <header>
         <h1>⚙️ Settings</h1>
-        <button class="back-button" onclick="location.href='/'">← Back to Chat</button>
+        <div style="display: flex; gap: 0.5rem;">
+            <button class="back-button" onclick="location.href='/'">Chat</button>
+            <button class="back-button" onclick="location.href='/tasks'">Tasks</button>
+            <button class="back-button" onclick="location.href='/social'">Social</button>
+        </div>
     </header>
 
     <div class="settings-section">
@@ -1051,6 +1061,7 @@ SOCIAL_TEMPLATE = """
             <h1>🌙 The Conservatory</h1>
             <div class="nav-buttons">
                 <button onclick="location.href='/'">Chat</button>
+                <button onclick="location.href='/tasks'">Tasks</button>
                 <button onclick="location.href='/settings'">Settings</button>
             </div>
         </div>
@@ -1064,8 +1075,20 @@ SOCIAL_TEMPLATE = """
                     <div class="stat-label">Dreams Posted</div>
                 </div>
                 <div class="stat">
+                    <div class="stat-value" id="dreams-fished">-</div>
+                    <div class="stat-label">Dreams Fished</div>
+                </div>
+                <div class="stat">
                     <div class="stat-value" id="telegrams-sent">-</div>
                     <div class="stat-label">Telegrams Sent</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="telegrams-received">-</div>
+                    <div class="stat-label">Telegrams Received</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="postcards-sent">-</div>
+                    <div class="stat-label">Postcards Sent</div>
                 </div>
                 <div class="stat">
                     <div class="stat-value" id="queue-size">-</div>
@@ -1094,6 +1117,16 @@ SOCIAL_TEMPLATE = """
             </div>
         </div>
 
+        <!-- Send Telegram Section -->
+        <div class="section">
+            <h2>📤 Send Telegram</h2>
+            <p style="color: var(--muted); font-size: 0.875rem;">Send an encrypted message to another Inkling</p>
+            <input type="text" id="recipient-key" placeholder="Recipient's telegram key (hex)" style="width: 100%; padding: 0.75rem; font-family: inherit; border: 2px solid var(--border); background: var(--bg); color: var(--text); margin-bottom: 0.5rem;">
+            <textarea id="telegram-text" placeholder="Your message..." style="width: 100%; height: 100px; padding: 0.75rem; font-family: inherit; border: 2px solid var(--border); background: var(--bg); color: var(--text); resize: vertical;"></textarea>
+            <button onclick="sendTelegram()" style="margin-top: 0.5rem;">Send Telegram</button>
+            <div id="telegram-message" class="message"></div>
+        </div>
+
         <!-- Telegrams Section -->
         <div class="section">
             <h2>📮 Telegram Inbox</h2>
@@ -1101,6 +1134,43 @@ SOCIAL_TEMPLATE = """
             <div id="telegrams-container">
                 <div class="loading">Click "Check Messages" to see your inbox...</div>
             </div>
+        </div>
+
+        <!-- Postcards Section -->
+        <div class="section">
+            <h2>🖼️ Postcards</h2>
+            <p style="color: var(--muted); font-size: 0.875rem;">1-bit pixel art messages</p>
+            <div style="margin-bottom: 1rem;">
+                <input type="text" id="postcard-text" placeholder="Text for postcard (max 20 chars)" maxlength="20" style="width: 70%; padding: 0.75rem; font-family: inherit; border: 2px solid var(--border); background: var(--bg); color: var(--text); margin-right: 0.5rem;">
+                <button onclick="sendPostcard()">Send</button>
+            </div>
+            <button onclick="loadPostcards()" style="margin-bottom: 1rem;">Load Postcards</button>
+            <div id="postcards-container">
+                <div class="loading">Click "Load Postcards" to see your collection...</div>
+            </div>
+        </div>
+
+        <!-- Identity Section -->
+        <div class="section">
+            <h2>🔐 Identity</h2>
+            <div style="font-family: 'Courier New', monospace; font-size: 0.875rem; word-break: break-all;">
+                <div style="margin-bottom: 0.5rem;">
+                    <strong>Device ID:</strong> <span id="device-id">-</span>
+                </div>
+                <div style="margin-bottom: 0.5rem;">
+                    <strong>Public Key (Ed25519):</strong>
+                    <div style="background: var(--bg); border: 1px solid var(--border); padding: 0.5rem; margin-top: 0.25rem; font-size: 0.75rem;" id="public-key">-</div>
+                </div>
+                <div style="margin-bottom: 0.5rem;">
+                    <strong>Telegram Key (X25519):</strong>
+                    <div style="background: var(--bg); border: 1px solid var(--border); padding: 0.5rem; margin-top: 0.25rem; font-size: 0.75rem;" id="telegram-key">-</div>
+                </div>
+                <div style="margin-bottom: 0.5rem;">
+                    <strong>Hardware Hash:</strong> <span id="hardware-hash">-</span>
+                </div>
+            </div>
+            <button onclick="copyTelegramKey()" style="margin-top: 0.5rem;">Copy Telegram Key</button>
+            <div id="copy-message" class="message"></div>
         </div>
     </div>
 
@@ -1124,7 +1194,10 @@ SOCIAL_TEMPLATE = """
                 const data = await resp.json();
 
                 document.getElementById('dreams-posted').textContent = data.dreams_posted || 0;
+                document.getElementById('dreams-fished').textContent = data.dreams_fished || 0;
                 document.getElementById('telegrams-sent').textContent = data.telegrams_sent || 0;
+                document.getElementById('telegrams-received').textContent = data.telegrams_received || 0;
+                document.getElementById('postcards-sent').textContent = data.postcards_sent || 0;
                 document.getElementById('queue-size').textContent = data.queue_size || 0;
             } catch (e) {
                 console.error('Failed to load stats:', e);
@@ -1224,8 +1297,133 @@ SOCIAL_TEMPLATE = """
             return div.innerHTML;
         }
 
-        // Load stats on page load
+        // Send telegram
+        async function sendTelegram() {
+            const recipientKey = document.getElementById('recipient-key').value.trim();
+            const message = document.getElementById('telegram-text').value.trim();
+            const messageEl = document.getElementById('telegram-message');
+
+            if (!recipientKey || !message) {
+                messageEl.textContent = 'Please enter both recipient key and message';
+                messageEl.classList.add('show', 'error');
+                return;
+            }
+
+            messageEl.classList.remove('show', 'error');
+
+            try {
+                const resp = await fetch('/api/social/telegram/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({recipient_key: recipientKey, message: message})
+                });
+
+                const data = await resp.json();
+
+                if (resp.ok && data.success) {
+                    messageEl.textContent = '✓ Telegram sent!';
+                    messageEl.classList.add('show');
+                    document.getElementById('telegram-text').value = '';
+                    loadStats();
+                } else {
+                    messageEl.textContent = 'Error: ' + (data.error || 'Failed to send');
+                    messageEl.classList.add('show', 'error');
+                }
+            } catch (e) {
+                messageEl.textContent = 'Connection error: ' + e.message;
+                messageEl.classList.add('show', 'error');
+            }
+        }
+
+        // Send postcard
+        async function sendPostcard() {
+            const text = document.getElementById('postcard-text').value.trim();
+
+            if (!text) {
+                alert('Please enter some text');
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/social/postcard/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text: text, recipient_key: null})
+                });
+
+                const data = await resp.json();
+
+                if (resp.ok && data.success) {
+                    alert('Postcard sent!');
+                    document.getElementById('postcard-text').value = '';
+                    loadStats();
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to send'));
+                }
+            } catch (e) {
+                alert('Connection error: ' + e.message);
+            }
+        }
+
+        // Load postcards
+        async function loadPostcards() {
+            const container = document.getElementById('postcards-container');
+            container.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const resp = await fetch('/api/social/postcards?public=false');
+                const data = await resp.json();
+
+                if (resp.ok && data.postcards && data.postcards.length > 0) {
+                    container.innerHTML = data.postcards.map(p => `
+                        <div class="dream-box">
+                            <div class="dream-meta">From: ${p.from_device_id || 'Unknown'} | ${new Date(p.created_at).toLocaleString()}</div>
+                            <div class="dream-content">${escapeHtml(p.caption || 'No caption')}</div>
+                            <div class="dream-meta">Size: ${p.width}x${p.height}px</div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div class="loading">No postcards yet</div>';
+                }
+            } catch (e) {
+                container.innerHTML = '<div class="loading error">Failed to load postcards: ' + e.message + '</div>';
+            }
+        }
+
+        // Load identity
+        async function loadIdentity() {
+            try {
+                const resp = await fetch('/api/social/identity');
+                const data = await resp.json();
+
+                document.getElementById('device-id').textContent = data.device_id || '-';
+                document.getElementById('public-key').textContent = data.public_key || '-';
+                document.getElementById('telegram-key').textContent = data.telegram_key || '-';
+                document.getElementById('hardware-hash').textContent = data.hardware_hash || '-';
+            } catch (e) {
+                console.error('Failed to load identity:', e);
+            }
+        }
+
+        // Copy telegram key to clipboard
+        async function copyTelegramKey() {
+            const telegramKey = document.getElementById('telegram-key').textContent;
+            const messageEl = document.getElementById('copy-message');
+
+            try {
+                await navigator.clipboard.writeText(telegramKey);
+                messageEl.textContent = '✓ Copied to clipboard!';
+                messageEl.classList.add('show');
+                setTimeout(() => messageEl.classList.remove('show'), 3000);
+            } catch (e) {
+                messageEl.textContent = 'Failed to copy: ' + e.message;
+                messageEl.classList.add('show', 'error');
+            }
+        }
+
+        // Load stats and identity on page load
         loadStats();
+        loadIdentity();
     </script>
 </body>
 </html>
@@ -1645,6 +1843,7 @@ TASKS_TEMPLATE = """
         </h1>
         <div class="nav">
             <a href="/">💬 Chat</a>
+            <a href="/social">🌙 Social</a>
             <a href="/settings">⚙️ Settings</a>
         </div>
     </div>
@@ -1991,6 +2190,8 @@ class WebChatMode:
         personality: Personality,
         api_client: Optional[APIClient] = None,
         task_manager: Optional[TaskManager] = None,
+        identity: Optional[Identity] = None,
+        telegram_crypto: Optional[TelegramCrypto] = None,
         host: str = "0.0.0.0",
         port: int = 8081,
     ):
@@ -1999,6 +2200,8 @@ class WebChatMode:
         self.personality = personality
         self.api_client = api_client
         self.task_manager = task_manager
+        self.identity = identity
+        self.telegram_crypto = telegram_crypto
         self.host = host
         self.port = port
 
@@ -2041,6 +2244,14 @@ class WebChatMode:
         def tasks_page():
             return template(
                 TASKS_TEMPLATE,
+                name=self.personality.name,
+            )
+
+        @self._app.route("/social")
+        def social_page():
+            """Social features page."""
+            return template(
+                SOCIAL_TEMPLATE,
                 name=self.personality.name,
             )
 
@@ -2342,6 +2553,285 @@ class WebChatMode:
 
             return json.dumps({
                 "stats": stats
+            })
+
+        @self._app.route("/api/social/stats", method="GET")
+        def get_social_stats():
+            """Get social statistics."""
+            response.content_type = "application/json"
+
+            # Get queue size for offline status
+            queue_size = self.api_client.queue_size() if self.api_client else 0
+
+            # Get real stats from personality
+            stats = self.personality.social_stats.copy()
+            stats["queue_size"] = queue_size
+
+            return json.dumps(stats)
+
+        @self._app.route("/api/social/dream", method="POST")
+        def post_dream():
+            """Post a dream to the Night Pool."""
+            response.content_type = "application/json"
+            data = request.json or {}
+            content = data.get("content", "").strip()
+
+            if not content:
+                return json.dumps({"success": False, "error": "Dream content cannot be empty"})
+
+            if not self.api_client:
+                return json.dumps({"success": False, "error": "API client not available"})
+
+            try:
+                # Get current mood and face
+                mood = self.personality.mood.current.value
+                face = self._get_face_str()
+
+                # Post dream asynchronously
+                result = asyncio.run_coroutine_threadsafe(
+                    self.api_client.plant_dream(content, mood, face),
+                    self.loop
+                ).result(timeout=10.0)
+
+                if result:
+                    # Track stats and award XP
+                    xp_awarded = self.personality.on_social_event("dream_posted")
+
+                    return json.dumps({
+                        "success": True,
+                        "message": "Dream planted in the Night Pool",
+                        "xp_awarded": xp_awarded or 0
+                    })
+                else:
+                    return json.dumps({
+                        "success": False,
+                        "error": "Failed to post dream"
+                    })
+
+            except Exception as e:
+                print(f"Error posting dream: {e}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
+
+        @self._app.route("/api/social/fish", method="GET")
+        def fish_dream():
+            """Fish a random dream from the Night Pool."""
+            response.content_type = "application/json"
+
+            if not self.api_client:
+                return json.dumps({"error": "API client not available"})
+
+            try:
+                # Fish dream asynchronously
+                dream = asyncio.run_coroutine_threadsafe(
+                    self.api_client.fish_dream(),
+                    self.loop
+                ).result(timeout=10.0)
+
+                if dream:
+                    # Track stats and award XP
+                    xp_awarded = self.personality.on_social_event("fish_received", {"fish_count": 1})
+
+                    return json.dumps({
+                        "success": True,
+                        "dream": dream,
+                        "xp_awarded": xp_awarded or 0
+                    })
+                else:
+                    return json.dumps({
+                        "success": False,
+                        "message": "The Night Pool is empty"
+                    })
+
+            except Exception as e:
+                print(f"Error fishing dream: {e}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
+
+        @self._app.route("/api/social/telegrams", method="GET")
+        def get_telegrams():
+            """Get telegram inbox."""
+            response.content_type = "application/json"
+
+            if not self.api_client:
+                return json.dumps({"error": "API client not available"})
+
+            try:
+                # Get telegrams asynchronously
+                telegrams = asyncio.run_coroutine_threadsafe(
+                    self.api_client.get_telegrams(),
+                    self.loop
+                ).result(timeout=10.0)
+
+                return json.dumps({
+                    "success": True,
+                    "telegrams": telegrams or []
+                })
+
+            except Exception as e:
+                print(f"Error getting telegrams: {e}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
+
+        @self._app.route("/api/social/telegram/send", method="POST")
+        def send_telegram():
+            """Send an encrypted telegram."""
+            response.content_type = "application/json"
+            data = request.json or {}
+            recipient_key = data.get("recipient_key", "").strip()
+            message = data.get("message", "").strip()
+
+            if not recipient_key or not message:
+                return json.dumps({"success": False, "error": "Recipient and message required"})
+
+            if not self.api_client or not self.telegram_crypto:
+                return json.dumps({"success": False, "error": "Telegram system not available"})
+
+            try:
+                # Encrypt message
+                encrypted_content, nonce = self.telegram_crypto.encrypt(message, recipient_key)
+
+                # Send telegram asynchronously
+                result = asyncio.run_coroutine_threadsafe(
+                    self.api_client.send_telegram(
+                        to_public_key=recipient_key,
+                        encrypted_content=encrypted_content,
+                        content_nonce=nonce,
+                        sender_encryption_key=self.telegram_crypto.public_key_hex
+                    ),
+                    self.loop
+                ).result(timeout=10.0)
+
+                if result:
+                    # Track stats and award XP
+                    xp_awarded = self.personality.on_social_event("telegram_sent")
+
+                    return json.dumps({
+                        "success": True,
+                        "message": "Telegram sent",
+                        "xp_awarded": xp_awarded or 0
+                    })
+                else:
+                    return json.dumps({
+                        "success": False,
+                        "error": "Failed to send telegram"
+                    })
+
+            except Exception as e:
+                print(f"Error sending telegram: {e}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
+
+        @self._app.route("/api/social/postcards", method="GET")
+        def get_postcards():
+            """Get postcards (inbox or public)."""
+            response.content_type = "application/json"
+            public = request.params.get("public", "false").lower() == "true"
+
+            if not self.api_client:
+                return json.dumps({"error": "API client not available"})
+
+            try:
+                # Get postcards asynchronously
+                postcards = asyncio.run_coroutine_threadsafe(
+                    self.api_client.get_postcards(public=public),
+                    self.loop
+                ).result(timeout=10.0)
+
+                return json.dumps({
+                    "success": True,
+                    "postcards": postcards or []
+                })
+
+            except Exception as e:
+                print(f"Error getting postcards: {e}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
+
+        @self._app.route("/api/social/postcard/send", method="POST")
+        def send_postcard():
+            """Send a postcard (simple text-to-bitmap for now)."""
+            response.content_type = "application/json"
+            data = request.json or {}
+            text = data.get("text", "").strip()
+            recipient_key = data.get("recipient_key")  # None = public
+
+            if not text:
+                return json.dumps({"success": False, "error": "Text required"})
+
+            if not self.api_client:
+                return json.dumps({"success": False, "error": "API client not available"})
+
+            try:
+                from PIL import Image, ImageDraw, ImageFont
+
+                # Create simple text bitmap (50x30 for simplicity)
+                width, height = 100, 50
+                img = Image.new('1', (width, height), 1)  # White background
+                draw = ImageDraw.Draw(img)
+
+                # Draw text (use default font)
+                draw.text((5, 15), text[:20], fill=0)  # Black text, max 20 chars
+
+                # Encode
+                image_data, w, h = PostcardCodec.encode_image(img)
+
+                # Send postcard asynchronously
+                result = asyncio.run_coroutine_threadsafe(
+                    self.api_client.send_postcard(
+                        image_data=image_data,
+                        width=w,
+                        height=h,
+                        caption=text[:60],
+                        to_public_key=recipient_key
+                    ),
+                    self.loop
+                ).result(timeout=10.0)
+
+                if result:
+                    # Track stats
+                    self.personality.on_social_event("postcard_sent")
+
+                    return json.dumps({
+                        "success": True,
+                        "message": "Postcard sent"
+                    })
+                else:
+                    return json.dumps({
+                        "success": False,
+                        "error": "Failed to send postcard"
+                    })
+
+            except Exception as e:
+                print(f"Error sending postcard: {e}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
+
+        @self._app.route("/api/social/identity", method="GET")
+        def get_identity():
+            """Get device identity information."""
+            response.content_type = "application/json"
+
+            if not self.identity or not self.telegram_crypto:
+                return json.dumps({"error": "Identity not available"})
+
+            return json.dumps({
+                "public_key": self.identity.public_key_hex,
+                "telegram_key": self.telegram_crypto.public_key_hex,
+                "hardware_hash": self.identity.hardware_hash,
+                "device_id": self.identity.public_key_hex[:16]
             })
 
     def _task_to_dict(self, task: Task) -> Dict[str, Any]:

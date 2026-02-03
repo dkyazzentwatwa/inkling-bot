@@ -143,6 +143,16 @@ class Personality:
         # Progression system
         self.progression = XPTracker()
 
+        # Social stats tracking
+        self.social_stats = {
+            "dreams_posted": 0,
+            "dreams_fished": 0,
+            "telegrams_sent": 0,
+            "telegrams_received": 0,
+            "postcards_sent": 0,
+            "postcards_received": 0,
+        }
+
         # Event callbacks
         self._on_mood_change: List[Callable[[Mood, Mood], None]] = []
         self._on_level_up: List[Callable[[int, int], None]] = []
@@ -341,6 +351,7 @@ class Personality:
 
         # Award XP based on event type
         if event_type == "dream_posted":
+            self.social_stats["dreams_posted"] += 1
             self.mood.set_mood(Mood.GRATEFUL, 0.6)
             awarded, amount = self.progression.award_xp(
                 XPSource.POST_DREAM,
@@ -355,6 +366,7 @@ class Personality:
         elif event_type == "fish_received":
             # Award XP per fish
             fish_count = metadata.get("fish_count", 1) if metadata else 1
+            self.social_stats["dreams_fished"] += fish_count
             awarded, amount = self.progression.award_xp(
                 XPSource.RECEIVE_FISH,
                 3 * fish_count,
@@ -364,6 +376,7 @@ class Personality:
                 xp_awarded += amount
 
         elif event_type == "telegram_sent":
+            self.social_stats["telegrams_sent"] += 1
             awarded, amount = self.progression.award_xp(
                 XPSource.SEND_TELEGRAM,
                 8,
@@ -374,7 +387,11 @@ class Personality:
             # Check first telegram achievement
             self.progression.unlock_achievement("first_telegram")
 
+        elif event_type == "telegram_received":
+            self.social_stats["telegrams_received"] += 1
+
         elif event_type == "telegram_reply":
+            self.social_stats["telegrams_received"] += 1
             self.mood.set_mood(Mood.EXCITED, 0.8)
             awarded, amount = self.progression.award_xp(
                 XPSource.RECEIVE_TELEGRAM_REPLY,
@@ -383,6 +400,12 @@ class Personality:
             )
             if awarded:
                 xp_awarded += amount
+
+        elif event_type == "postcard_sent":
+            self.social_stats["postcards_sent"] += 1
+
+        elif event_type == "postcard_received":
+            self.social_stats["postcards_received"] += 1
 
         elif event_type == "dream_received":
             self.mood.set_mood(Mood.CURIOUS, 0.7)

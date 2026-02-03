@@ -266,12 +266,13 @@ class SSHChatMode:
             "session": "Session",
             "info": "Status & Info",
             "personality": "Personality",
+            "tasks": "Task Management",
             "system": "System",
             "display": "Display",
             "social": "Social (The Conservatory)",
         }
 
-        for cat_key in ["session", "info", "personality", "system", "display", "social"]:
+        for cat_key in ["session", "info", "personality", "tasks", "system", "display", "social"]:
             if cat_key in categories:
                 print(f"{Colors.BOLD}{category_titles.get(cat_key, cat_key.title())}:{Colors.RESET}")
                 for cmd in categories[cat_key]:

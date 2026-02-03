@@ -27,6 +27,7 @@ import yaml
 
 from core.brain import Brain
 from core.crypto import Identity
+from core.telegram import TelegramCrypto
 from core.display import DisplayManager
 from core.mcp_client import MCPClientManager
 from core.personality import Personality, PersonalityTraits
@@ -125,6 +126,7 @@ class Inkling:
 
         # Core components (initialized in setup)
         self.identity: Optional[Identity] = None
+        self.telegram_crypto: Optional[TelegramCrypto] = None
         self.display: Optional[DisplayManager] = None
         self.personality: Optional[Personality] = None
         self.brain: Optional[Brain] = None
@@ -146,6 +148,12 @@ class Inkling:
         self.identity.initialize()
         print(f"    Public key: {self.identity.public_key_hex[:16]}...")
         print(f"    Hardware hash: {self.identity.hardware_hash[:16]}...")
+
+        # Telegram encryption
+        print("  - Loading telegram encryption...")
+        self.telegram_crypto = TelegramCrypto()
+        self.telegram_crypto.initialize()
+        print(f"    Telegram key: {self.telegram_crypto.public_key_hex[:16]}...")
 
         # Personality (create first so display can reference it)
         print("  - Creating personality...")
@@ -307,6 +315,8 @@ class Inkling:
                     personality=self.personality,
                     api_client=self.api_client,
                     task_manager=self.task_manager,
+                    identity=self.identity,
+                    telegram_crypto=self.telegram_crypto,
                     port=self.config.get("web", {}).get("port", 8081),
                 )
                 await self._mode.run()
