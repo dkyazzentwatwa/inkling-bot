@@ -128,9 +128,12 @@ mcp:
     #   env:
     #     BRAVE_API_KEY: "your-api-key"
 
-    # Composio MCP (HTTP)
+    # Composio MCP Gateway (500+ app integrations)
+    # Provides access to Google Calendar, GitHub, Slack, etc.
+    # Get API key from: https://app.composio.dev/settings
+    # See COMPOSIO_INTEGRATION.md for setup guide
     # composio:
     #   transport: "http"
-    #   url: "https://backend.composio.dev/v3/mcp/YOUR_SERVER_ID/mcp?user_id=YOUR_USER_ID"
+    #   url: "https://backend.composio.dev/v3/mcp"
     #   headers:
     #     x-api-key: "${COMPOSIO_API_KEY}"
