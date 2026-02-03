@@ -106,34 +106,33 @@ mcp:
       command: "python"
       args: ["mcp_servers/tasks.py"]
 
-    # Example: File system access
-    # filesystem:
-    #   command: "npx"
-    #   args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/pi"]
-
-    # Example: Web fetching
-    # fetch:
-    #   command: "uvx"
-    #   args: ["mcp-server-fetch"]
-
-    # Example: Memory/notes
-    # memory:
-    #   command: "npx"
-    #   args: ["-y", "@modelcontextprotocol/server-memory"]
-
-    # Example: Brave search
-    # brave-search:
-    #   command: "npx"
-    #   args: ["-y", "@modelcontextprotocol/server-brave-search"]
-    #   env:
-    #     BRAVE_API_KEY: "your-api-key"
-
-    # Composio MCP Gateway (500+ app integrations)
-    # Provides access to Google Calendar, GitHub, Slack, etc.
-    # Get API key from: https://app.composio.dev/settings
-    # See COMPOSIO_INTEGRATION.md for setup guide
-    # composio:
-    #   transport: "http"
-    #   url: "https://backend.composio.dev/v3/mcp"
-    #   headers:
-    #     x-api-key: "${COMPOSIO_API_KEY}"
+# Example MCP servers you can enable:
+#
+# File system access:
+#   filesystem:
+#     command: "npx"
+#     args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/pi"]
+#
+# Web fetching:
+#   fetch:
+#     command: "uvx"
+#     args: ["mcp-server-fetch"]
+#
+# Memory/notes:
+#   memory:
+#     command: "npx"
+#     args: ["-y", "@modelcontextprotocol/server-memory"]
+#
+# Brave search:
+#   brave-search:
+#     command: "npx"
+#     args: ["-y", "@modelcontextprotocol/server-brave-search"]
+#     env:
+#       BRAVE_API_KEY: "your-api-key"
+#
+# Composio MCP Gateway (500+ app integrations):
+#   composio:
+#     transport: "http"
+#     url: "https://backend.composio.dev/v3/mcp"
+#     headers:
+#       x-api-key: "${COMPOSIO_API_KEY}"
