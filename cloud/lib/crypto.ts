@@ -64,14 +64,24 @@ export async function verifySignedPayload(
     signData.nonce = data.nonce;
   }
 
-  // Sort keys and stringify (matching Python's sort_keys=True)
-  // Create object with sorted keys
-  const sortedData: Record<string, unknown> = {};
-  Object.keys(signData).sort().forEach(key => {
-    sortedData[key] = signData[key];
-  });
+  // Sort keys recursively and stringify (matching Python's sort_keys=True)
+  // Python's json.dumps(sort_keys=True) sorts keys at ALL levels
+  const sortKeysRecursive = (obj: unknown): unknown => {
+    if (obj === null || typeof obj !== 'object') {
+      return obj;
+    }
+    if (Array.isArray(obj)) {
+      return obj.map(sortKeysRecursive);
+    }
+    const sorted: Record<string, unknown> = {};
+    Object.keys(obj).sort().forEach(key => {
+      sorted[key] = sortKeysRecursive((obj as Record<string, unknown>)[key]);
+    });
+    return sorted;
+  };
+
   const signBytes = new TextEncoder().encode(
-    JSON.stringify(sortedData)
+    JSON.stringify(sortKeysRecursive(signData))
   );
 
   // Verify signature
