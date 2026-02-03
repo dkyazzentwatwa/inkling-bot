@@ -1,26 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
+  "buildCommand": "next build",
+  "devCommand": "next dev",
   "installCommand": "npm install",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "functions": {
-    "app/api/**/*.ts": {
-      "maxDuration": 30
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/app/api/:path*/route"
-    },
-    {
-      "source": "/",
-      "destination": "/public/night-pool.html"
-    },
-    {
-      "source": "/night-pool",
-      "destination": "/public/night-pool.html"
-    }
-  ]
+  "framework": "nextjs",
+  "regions": ["iad1"]
 }
