@@ -426,7 +426,7 @@ class Personality:
 
             # Mood reaction based on priority
             if task_data and task_data.get("priority") == "urgent":
-                self.mood.increase_intensity(0.2)
+                self.mood.intensity = min(1.0, self.mood.intensity + 0.2)
                 celebration_message = "I feel the urgency! Let's tackle this 💪"
             elif task_data and "fun" in task_data.get("title", "").lower():
                 self.mood.set_mood(Mood.EXCITED, 0.7)

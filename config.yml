@@ -98,13 +98,13 @@ gossip:
 # MCP Servers (Model Context Protocol)
 # Gives Inkling access to external tools
 mcp:
-  enabled: false
+  enabled: true  # Enable for AI-driven task management
   servers:
     # Task Management (built-in)
-    # Uncomment to enable AI-driven task management
-    # tasks:
-    #   command: "python"
-    #   args: ["mcp_servers/tasks.py"]
+    # AI can create, list, complete, update, and delete tasks
+    tasks:
+      command: "python"
+      args: ["mcp_servers/tasks.py"]
 
     # Example: File system access
     # filesystem:
