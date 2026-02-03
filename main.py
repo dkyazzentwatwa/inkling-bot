@@ -32,6 +32,7 @@ from core.mcp_client import MCPClientManager
 from core.personality import Personality, PersonalityTraits
 from core.api_client import APIClient
 from core.heartbeat import Heartbeat, HeartbeatConfig
+from core.tasks import TaskManager
 from modes.ssh_chat import SSHChatMode
 from modes.web_chat import WebChatMode
 
@@ -130,6 +131,7 @@ class Inkling:
         self.api_client: Optional[APIClient] = None
         self.mcp_client: Optional[MCPClientManager] = None
         self.heartbeat: Optional[Heartbeat] = None
+        self.task_manager: Optional[TaskManager] = None
 
         # Current mode
         self._mode = None
@@ -172,6 +174,10 @@ class Inkling:
         # Register mood change callback to update display
         self.personality.on_mood_change(self._on_mood_change)
         self.personality.on_level_up(self._on_level_up)
+
+        # Task Manager
+        print("  - Initializing task manager...")
+        self.task_manager = TaskManager()
 
         # Heartbeat (proactive behaviors)
         heartbeat_config_data = self.config.get("heartbeat", {})

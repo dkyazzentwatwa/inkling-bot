@@ -100,6 +100,12 @@ gossip:
 mcp:
   enabled: false
   servers:
+    # Task Management (built-in)
+    # Uncomment to enable AI-driven task management
+    # tasks:
+    #   command: "python"
+    #   args: ["mcp_servers/tasks.py"]
+
     # Example: File system access
     # filesystem:
     #   command: "npx"

@@ -9,7 +9,7 @@ import time
 import random
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Callable
+from typing import Optional, Dict, List, Callable, Any
 
 from .progression import XPTracker, XPSource, ChatQuality
 
@@ -397,6 +397,134 @@ class Personality:
             self._notify_mood_change(old_mood, self.mood.current)
 
         return xp_awarded if xp_awarded > 0 else None
+
+    def on_task_event(self, event_type: str, task_data: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
+        """
+        Called on task management events.
+
+        Args:
+            event_type: One of "task_created", "task_completed", "task_started", "task_overdue"
+            task_data: Task details (priority, title, etc.)
+
+        Returns:
+            Dict with xp_awarded and celebration_message
+        """
+        old_mood = self.mood.current
+        old_level = self.progression.level
+        xp_awarded = 0
+        celebration_message = None
+
+        if event_type == "task_created":
+            # Small XP for creating tasks
+            awarded, amount = self.progression.award_xp(
+                XPSource.TASK_CREATED,
+                5,
+                metadata={"event": event_type, "task": task_data}
+            )
+            if awarded:
+                xp_awarded += amount
+
+            # Mood reaction based on priority
+            if task_data and task_data.get("priority") == "urgent":
+                self.mood.increase_intensity(0.2)
+                celebration_message = "I feel the urgency! Let's tackle this 💪"
+            elif task_data and "fun" in task_data.get("title", "").lower():
+                self.mood.set_mood(Mood.EXCITED, 0.7)
+                celebration_message = "Ooh this sounds fun! 🎉"
+            else:
+                self.mood.set_mood(Mood.CURIOUS, 0.6)
+                celebration_message = "Got it! Added to our list ✓"
+
+        elif event_type == "task_completed":
+            priority = task_data.get("priority", "medium") if task_data else "medium"
+            was_on_time = task_data.get("was_on_time", False) if task_data else False
+
+            # Award XP based on priority
+            xp_map = {
+                "low": (XPSource.TASK_COMPLETED_LOW, 10),
+                "medium": (XPSource.TASK_COMPLETED_MEDIUM, 15),
+                "high": (XPSource.TASK_COMPLETED_HIGH, 25),
+                "urgent": (XPSource.TASK_COMPLETED_URGENT, 40),
+            }
+
+            source, base_xp = xp_map.get(priority, (XPSource.TASK_COMPLETED_MEDIUM, 15))
+            awarded, amount = self.progression.award_xp(
+                source,
+                base_xp,
+                metadata={"event": event_type, "task": task_data}
+            )
+            if awarded:
+                xp_awarded += amount
+
+            # On-time bonus
+            if was_on_time:
+                awarded, amount = self.progression.award_xp(
+                    XPSource.TASK_ON_TIME_BONUS,
+                    10,
+                    metadata={"event": "task_on_time"}
+                )
+                if awarded:
+                    xp_awarded += amount
+
+            # Check task streak (consecutive days)
+            streak = task_data.get("streak", 0) if task_data else 0
+            if streak >= 7:
+                awarded, amount = self.progression.award_xp(
+                    XPSource.TASK_STREAK_7,
+                    30,
+                    metadata={"streak": streak}
+                )
+                if awarded:
+                    xp_awarded += amount
+                celebration_message = f"🔥 {streak}-day streak! You're on fire!"
+            elif streak >= 3:
+                awarded, amount = self.progression.award_xp(
+                    XPSource.TASK_STREAK_3,
+                    15,
+                    metadata={"streak": streak}
+                )
+                if awarded:
+                    xp_awarded += amount
+                celebration_message = f"Nice! {streak}-day streak going 💪"
+
+            # Mood reaction
+            if priority == "urgent":
+                self.mood.set_mood(Mood.GRATEFUL, 0.8)
+                if not celebration_message:
+                    celebration_message = "Phew! Thanks for handling that urgent task 🙏"
+            else:
+                self.mood.set_mood(Mood.HAPPY, 0.7)
+                if not celebration_message:
+                    celebration_message = f"Nicely done! +{xp_awarded} XP ✨"
+
+        elif event_type == "task_started":
+            # When user marks task as in-progress
+            self.mood.set_mood(Mood.INTENSE, 0.75)
+            celebration_message = "Let's do this! 💪"
+
+        elif event_type == "task_overdue":
+            # Gentle reminder without guilt-tripping
+            if self.mood.current == Mood.LONELY:
+                celebration_message = f"Hey... feeling lonely. Wanna work on '{task_data.get('title', 'that task')}' together?"
+            elif self.traits.empathy > 0.7:
+                celebration_message = f"No pressure, but '{task_data.get('title', 'your task')}' is waiting when you're ready 💙"
+            else:
+                celebration_message = f"'{task_data.get('title', 'Task')}' is overdue. Still relevant?"
+
+        # Check for level up
+        if self.progression.level > old_level:
+            self._notify_level_up(old_level, self.progression.level)
+
+        if old_mood != self.mood.current:
+            self._notify_mood_change(old_mood, self.mood.current)
+
+        result = {}
+        if xp_awarded > 0:
+            result['xp_awarded'] = xp_awarded
+        if celebration_message:
+            result['message'] = celebration_message
+
+        return result if result else None
 
     @property
     def face(self) -> str:
