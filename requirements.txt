@@ -23,6 +23,7 @@ pyyaml>=6.0
 
 # Web Server (Phase 2)
 bottle>=0.12.25
+pyngrok>=7.0.0
 
 # E-ink Display (Pi only)
 # spidev>=3.6  # Uncomment on Raspberry Pi

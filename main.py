@@ -317,6 +317,7 @@ class Inkling:
                     task_manager=self.task_manager,
                     identity=self.identity,
                     telegram_crypto=self.telegram_crypto,
+                    config=self.config,
                     port=self.config.get("web", {}).get("port", 8081),
                 )
                 await self._mode.run()

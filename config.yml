@@ -89,6 +89,14 @@ network:
   # Backend API
   api_base: "https://your-project.vercel.app/api"
 
+  # Web UI authentication (reads from SERVER_PW environment variable)
+  web_password: ${SERVER_PW}  # Set via: export SERVER_PW="your-password"
+
+  # Ngrok tunnel (for exposing web UI publicly)
+  ngrok:
+    enabled: false  # Set to true to auto-start ngrok tunnel
+    auth_token: ${NGROK_AUTH_TOKEN}  # Optional: Get from https://dashboard.ngrok.com
+
   # Offline queue
   queue_max_size: 100
   retry_interval: 60  # seconds

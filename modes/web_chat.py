@@ -8,10 +8,13 @@ Runs a Bottle server on http://inkling.local:8081
 import asyncio
 import json
 import threading
+import hashlib
+import hmac
+import secrets
 from typing import Optional, Dict, Any
 from queue import Queue
 
-from bottle import Bottle, request, response, static_file, template
+from bottle import Bottle, request, response, static_file, template, redirect
 
 from core.brain import Brain, AllProvidersExhaustedError, QuotaExceededError
 from core.display import DisplayManager
@@ -141,23 +144,39 @@ HTML_TEMPLATE = """
             z-index: 100;
             background: var(--bg);
         }
-        .name { font-size: 1.25rem; }
-        .status {
-            font-size: 0.875rem;
-            color: var(--muted);
+        header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 0;
         }
-        .face-display {
-            text-align: center;
-            font-size: 3rem;
-            padding: 2rem;
+        .face {
+            font-size: 32px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif;
-            line-height: 1.2;
-            letter-spacing: 0.05em;
-            position: sticky;
-            top: 60px;
-            z-index: 99;
-            background: var(--bg);
-            border-bottom: 2px solid var(--border);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .nav {
+            display: flex;
+            gap: 12px;
+        }
+        .nav a {
+            color: var(--text);
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+        .nav a:hover {
+            background: var(--accent);
+            color: white;
+            transform: translateY(-2px);
         }
         .messages {
             flex: 1;
@@ -269,11 +288,16 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <header>
-        <span class="name">{{name}}</span>
-        <span class="status" id="status">{{status}}</span>
+        <h1>
+            <span class="face" id="face">{{face}}</span>
+            <span>Chat</span>
+        </h1>
+        <div class="nav">
+            <a href="/tasks">📋 Tasks</a>
+            <a href="/social">🌙 Social</a>
+            <a href="/settings">⚙️ Settings</a>
+        </div>
     </header>
-
-    <div class="face-display" id="face">{{face}}</div>
 
     <div class="messages" id="messages"></div>
 
@@ -316,9 +340,6 @@ HTML_TEMPLATE = """
                     <button onclick="runCommand('/faces')">Faces</button>
                     <button onclick="runCommand('/refresh')">Refresh</button>
                     <button onclick="runCommand('/clear')">Clear</button>
-                    <button onclick="location.href='/tasks'">Tasks</button>
-                    <button onclick="location.href='/social'">Social</button>
-                    <button onclick="location.href='/settings'">Settings</button>
                 </div>
             </div>
         </div>
@@ -929,28 +950,60 @@ SOCIAL_TEMPLATE = """
             background: var(--bg);
             color: var(--text);
             margin: 0;
-            padding: 1rem;
+            padding: 0;
             line-height: 1.6;
+        }
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 2px solid var(--border);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .face {
+            font-size: 32px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .nav-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        .nav-buttons a, .nav-buttons button {
+            color: var(--text);
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+            background: var(--bg);
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .nav-buttons a:hover, .nav-buttons button:hover {
+            background: var(--accent);
+            color: white;
+            transform: translateY(-2px);
         }
         .container {
             max-width: 800px;
             margin: 0 auto;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid var(--border);
-        }
-        h1 {
-            margin: 0;
-            font-size: 1.5rem;
-        }
-        .nav-buttons {
-            display: flex;
-            gap: 0.5rem;
+            padding: 1rem;
         }
         button {
             padding: 0.75rem 1.5rem;
@@ -1057,14 +1110,17 @@ SOCIAL_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🌙 The Conservatory</h1>
-            <div class="nav-buttons">
-                <button onclick="location.href='/'">Chat</button>
-                <button onclick="location.href='/tasks'">Tasks</button>
-                <button onclick="location.href='/settings'">Settings</button>
-            </div>
+    <div class="header">
+        <h1>
+            <span class="face">🌙</span>
+            <span>Social</span>
+        </h1>
+        <div class="nav-buttons">
+            <a href="/">💬 Chat</a>
+            <a href="/tasks">📋 Tasks</a>
+            <a href="/settings">⚙️ Settings</a>
         </div>
+    </div>
 
         <!-- Stats Section -->
         <div class="section">
@@ -1471,11 +1527,15 @@ TASKS_TEMPLATE = """
 
         /* Header */
         .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            padding: 1rem;
             margin-bottom: 24px;
-            padding-bottom: 16px;
             border-bottom: 2px solid var(--border);
         }
 
@@ -1642,17 +1702,13 @@ TASKS_TEMPLATE = """
             border-radius: 8px;
             padding: 12px;
             background: var(--bg);
-            cursor: move;
+            cursor: default;
             transition: all 0.2s;
         }
 
         .task-card:hover {
             transform: translateX(4px);
             box-shadow: -4px 4px 0 var(--accent);
-        }
-
-        .task-card.dragging {
-            opacity: 0.5;
         }
 
         .task-header {
@@ -1930,7 +1986,6 @@ TASKS_TEMPLATE = """
         document.documentElement.setAttribute('data-theme', theme);
 
         let tasks = [];
-        let draggedTask = null;
 
         // Load tasks
         async function loadTasks() {
@@ -1996,7 +2051,7 @@ TASKS_TEMPLATE = """
             }
 
             container.innerHTML = taskList.map(task => `
-                <div class="task-card" draggable="true" data-id="${task.id}">
+                <div class="task-card" data-id="${task.id}">
                     <div class="task-header">
                         <div class="task-title">${escapeHtml(task.title)}</div>
                         <span class="priority priority-${task.priority}">${task.priority.toUpperCase()}</span>
@@ -2008,46 +2063,25 @@ TASKS_TEMPLATE = """
                         ${task.days_until_due !== null && task.days_until_due >= 0 && task.days_until_due <= 3 ? `<span class="due-date due-soon">${task.days_until_due}d left</span>` : ''}
                     </div>
                     <div class="task-actions">
-                        ${status !== 'completed' ? `<button class="task-btn complete" onclick="completeTask('${task.id}')">✓ Complete</button>` : ''}
+                        <select class="task-status-select" onchange="changeStatus('${task.id}', this.value)" style="padding: 4px 8px; font-family: inherit; font-size: 12px; border: 2px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; border-radius: 4px;">
+                            <option value="">Move to...</option>
+                            ${status !== 'pending' ? '<option value="pending">To Do</option>' : ''}
+                            ${status !== 'in_progress' ? '<option value="in_progress">In Progress</option>' : ''}
+                            ${status !== 'completed' ? '<option value="completed">Complete</option>' : ''}
+                        </select>
                         <button class="task-btn" onclick="editTask('${task.id}')">✏️ Edit</button>
                         <button class="task-btn delete" onclick="deleteTask('${task.id}')">🗑️</button>
                     </div>
                 </div>
             `).join('');
-
-            // Add drag and drop
-            container.querySelectorAll('.task-card').forEach(card => {
-                card.addEventListener('dragstart', handleDragStart);
-                card.addEventListener('dragend', handleDragEnd);
-            });
-
-            // Make column droppable
-            container.addEventListener('dragover', handleDragOver);
-            container.addEventListener('drop', handleDrop);
         }
 
-        // Drag and drop handlers
-        function handleDragStart(e) {
-            draggedTask = e.target.getAttribute('data-id');
-            e.target.classList.add('dragging');
-        }
-
-        function handleDragEnd(e) {
-            e.target.classList.remove('dragging');
-        }
-
-        function handleDragOver(e) {
-            e.preventDefault();
-        }
-
-        async function handleDrop(e) {
-            e.preventDefault();
-            const newStatus = e.currentTarget.getAttribute('data-status');
-
-            if (!draggedTask || !newStatus) return;
+        // Change task status
+        async function changeStatus(taskId, newStatus) {
+            if (!newStatus) return;
 
             try {
-                const res = await fetch(`/api/tasks/${draggedTask}`, {
+                const res = await fetch(`/api/tasks/${taskId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: newStatus })
@@ -2055,9 +2089,12 @@ TASKS_TEMPLATE = """
 
                 if (res.ok) {
                     await loadTasks();
+                } else {
+                    alert('Failed to update task status');
                 }
             } catch (err) {
                 console.error('Failed to update task:', err);
+                alert('Error updating task');
             }
         }
 
@@ -2175,6 +2212,114 @@ TASKS_TEMPLATE = """
 </html>
 """
 
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Inkling</title>
+    <style>
+        :root {
+            --bg: #f5f5f0;
+            --text: #1a1a1a;
+            --border: #333;
+            --accent: #4a90d9;
+            --error: #ff6b9d;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+            padding: 2rem;
+            border: 2px solid var(--border);
+            background: var(--bg);
+        }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+        .subtitle {
+            text-align: center;
+            color: var(--text);
+            opacity: 0.7;
+            margin-bottom: 2rem;
+            font-size: 0.875rem;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+        input[type="password"] {
+            width: 100%;
+            padding: 0.75rem;
+            font-family: inherit;
+            font-size: 1rem;
+            border: 2px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+        }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            font-family: inherit;
+            font-size: 1rem;
+            background: var(--text);
+            color: var(--bg);
+            border: none;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover {
+            opacity: 0.8;
+        }
+        .error {
+            color: var(--error);
+            margin-top: 1rem;
+            text-align: center;
+            font-size: 0.875rem;
+        }
+        .face {
+            text-align: center;
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="face">(･_･)</div>
+        <h1>Inkling</h1>
+        <div class="subtitle">Enter password to continue</div>
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" autofocus required>
+            </div>
+            <button type="submit">Login</button>
+            % if error:
+            <div class="error">{{error}}</div>
+            % end
+        </form>
+    </div>
+</body>
+</html>
+"""
+
 
 class WebChatMode:
     """
@@ -2192,6 +2337,7 @@ class WebChatMode:
         task_manager: Optional[TaskManager] = None,
         identity: Optional[Identity] = None,
         telegram_crypto: Optional[TelegramCrypto] = None,
+        config: Optional[Dict] = None,
         host: str = "0.0.0.0",
         port: int = 8081,
     ):
@@ -2204,6 +2350,13 @@ class WebChatMode:
         self.telegram_crypto = telegram_crypto
         self.host = host
         self.port = port
+
+        # Authentication setup
+        self._config = config or {}
+        self._web_password = self._config.get("network", {}).get("web_password", "")
+        self._auth_enabled = bool(self._web_password)
+        # Generate a secret key for signing cookies (persistent per session)
+        self._secret_key = secrets.token_hex(32)
 
         self._app = Bottle()
         self._running = False
@@ -2220,11 +2373,83 @@ class WebChatMode:
 
         self._setup_routes()
 
+    def _create_auth_token(self) -> str:
+        """Create a signed authentication token."""
+        # Simple HMAC-based token
+        message = f"authenticated:{secrets.token_hex(16)}"
+        signature = hmac.new(
+            self._secret_key.encode(),
+            message.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        return f"{message}|{signature}"
+
+    def _verify_auth_token(self, token: str) -> bool:
+        """Verify an authentication token."""
+        if not token:
+            return False
+        try:
+            message, signature = token.rsplit("|", 1)
+            expected_signature = hmac.new(
+                self._secret_key.encode(),
+                message.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            return hmac.compare_digest(signature, expected_signature)
+        except Exception:
+            return False
+
+    def _check_auth(self) -> bool:
+        """Check if the user is authenticated."""
+        if not self._auth_enabled:
+            return True  # Auth disabled, allow access
+
+        token = request.get_cookie("auth_token")
+        return self._verify_auth_token(token)
+
+    def _require_auth(self):
+        """Decorator/check that requires authentication."""
+        if not self._check_auth():
+            return redirect("/login")
+        return None
+
     def _setup_routes(self) -> None:
         """Set up Bottle routes."""
 
+        @self._app.route("/login")
+        def login_page():
+            """Show login page."""
+            if self._check_auth():
+                return redirect("/")
+            return template(LOGIN_TEMPLATE, error=None)
+
+        @self._app.route("/login", method="POST")
+        def login_post():
+            """Handle login form submission."""
+            password = request.forms.get("password", "")
+
+            if password == self._web_password:
+                # Correct password
+                response.set_cookie("auth_token", self._create_auth_token(),
+                                   max_age=86400 * 30,  # 30 days
+                                   httponly=True,
+                                   secure=False)  # Set to True if using HTTPS
+                return redirect("/")
+            else:
+                # Wrong password
+                return template(LOGIN_TEMPLATE, error="Invalid password")
+
+        @self._app.route("/logout")
+        def logout():
+            """Log out and clear session."""
+            response.delete_cookie("auth_token")
+            return redirect("/login")
+
         @self._app.route("/")
         def index():
+            auth_check = self._require_auth()
+            if auth_check:
+                return auth_check
             return template(
                 HTML_TEMPLATE,
                 name=self.personality.name,
@@ -2234,6 +2459,9 @@ class WebChatMode:
 
         @self._app.route("/settings")
         def settings_page():
+            auth_check = self._require_auth()
+            if auth_check:
+                return auth_check
             return template(
                 SETTINGS_TEMPLATE,
                 name=self.personality.name,
@@ -2242,6 +2470,9 @@ class WebChatMode:
 
         @self._app.route("/tasks")
         def tasks_page():
+            auth_check = self._require_auth()
+            if auth_check:
+                return auth_check
             return template(
                 TASKS_TEMPLATE,
                 name=self.personality.name,
@@ -2250,6 +2481,9 @@ class WebChatMode:
         @self._app.route("/social")
         def social_page():
             """Social features page."""
+            auth_check = self._require_auth()
+            if auth_check:
+                return auth_check
             return template(
                 SOCIAL_TEMPLATE,
                 name=self.personality.name,
@@ -2563,8 +2797,21 @@ class WebChatMode:
             # Get queue size for offline status
             queue_size = self.api_client.queue_size() if self.api_client else 0
 
-            # Get real stats from personality
-            stats = self.personality.social_stats.copy()
+            # Get real stats from personality (with fallback for existing instances)
+            if hasattr(self.personality, 'social_stats'):
+                stats = self.personality.social_stats.copy()
+            else:
+                # Initialize if not present (for backwards compatibility)
+                self.personality.social_stats = {
+                    "dreams_posted": 0,
+                    "dreams_fished": 0,
+                    "telegrams_sent": 0,
+                    "telegrams_received": 0,
+                    "postcards_sent": 0,
+                    "postcards_received": 0,
+                }
+                stats = self.personality.social_stats.copy()
+
             stats["queue_size"] = queue_size
 
             return json.dumps(stats)
@@ -3366,14 +3613,42 @@ class WebChatMode:
         self._running = True
         self._loop = asyncio.get_event_loop()
 
+        # Start ngrok tunnel if enabled
+        ngrok_tunnel = None
+        ngrok_url = None
+        if self._config.get("network", {}).get("ngrok", {}).get("enabled", False):
+            try:
+                from pyngrok import ngrok, conf
+
+                # Set auth token if provided
+                auth_token = self._config.get("network", {}).get("ngrok", {}).get("auth_token")
+                if auth_token:
+                    conf.get_default().auth_token = auth_token
+
+                # Start tunnel
+                ngrok_tunnel = ngrok.connect(self.port, "http")
+                ngrok_url = ngrok_tunnel.public_url
+                print(f"🌐 Ngrok tunnel: {ngrok_url}")
+                if self._auth_enabled:
+                    print(f"🔐 Password protection enabled (SERVER_PW)")
+            except ImportError:
+                print("⚠️  pyngrok not installed. Run: pip install pyngrok")
+            except Exception as e:
+                print(f"⚠️  Failed to start ngrok: {e}")
+
         # Show startup message
+        display_text = f"Web UI at {ngrok_url or f'http://{self.host}:{self.port}'}"
         await self.display.update(
             face="excited",
-            text=f"Web UI at http://{self.host}:{self.port}",
+            text=display_text,
             mood_text="Excited",
         )
 
         print(f"\nWeb UI available at http://{self.host}:{self.port}")
+        if ngrok_url:
+            print(f"Public URL: {ngrok_url}")
+        if self._auth_enabled:
+            print("🔐 Authentication required")
         print("Press Ctrl+C to stop")
 
         # Run Bottle in a thread
@@ -3388,9 +3663,19 @@ class WebChatMode:
         server_thread.start()
 
         # Keep the async loop running
-        while self._running:
-            await asyncio.sleep(1)
-            self.personality.update()
+        try:
+            while self._running:
+                await asyncio.sleep(1)
+                self.personality.update()
+        finally:
+            # Disconnect ngrok tunnel on exit
+            if ngrok_tunnel:
+                try:
+                    from pyngrok import ngrok
+                    ngrok.disconnect(ngrok_tunnel.public_url)
+                    print("Ngrok tunnel closed")
+                except Exception:
+                    pass
 
     def stop(self) -> None:
         """Stop the web server."""

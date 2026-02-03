@@ -345,6 +345,17 @@ class Personality:
         Returns:
             XP awarded (if any)
         """
+        # Ensure social_stats exists (backwards compatibility)
+        if not hasattr(self, 'social_stats'):
+            self.social_stats = {
+                "dreams_posted": 0,
+                "dreams_fished": 0,
+                "telegrams_sent": 0,
+                "telegrams_received": 0,
+                "postcards_sent": 0,
+                "postcards_received": 0,
+            }
+
         old_mood = self.mood.current
         old_level = self.progression.level
         xp_awarded = 0
