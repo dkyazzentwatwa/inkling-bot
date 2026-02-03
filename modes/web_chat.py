@@ -2795,7 +2795,7 @@ class WebChatMode:
             response.content_type = "application/json"
 
             # Get queue size for offline status
-            queue_size = self.api_client.queue_size() if self.api_client else 0
+            queue_size = self.api_client.queue_size if self.api_client else 0
 
             # Get real stats from personality (with fallback for existing instances)
             if hasattr(self.personality, 'social_stats'):
@@ -2837,7 +2837,7 @@ class WebChatMode:
                 # Post dream asynchronously
                 result = asyncio.run_coroutine_threadsafe(
                     self.api_client.plant_dream(content, mood, face),
-                    self.loop
+                    self._loop
                 ).result(timeout=10.0)
 
                 if result:
@@ -2874,7 +2874,7 @@ class WebChatMode:
                 # Fish dream asynchronously
                 dream = asyncio.run_coroutine_threadsafe(
                     self.api_client.fish_dream(),
-                    self.loop
+                    self._loop
                 ).result(timeout=10.0)
 
                 if dream:
@@ -2911,7 +2911,7 @@ class WebChatMode:
                 # Get telegrams asynchronously
                 telegrams = asyncio.run_coroutine_threadsafe(
                     self.api_client.get_telegrams(),
-                    self.loop
+                    self._loop
                 ).result(timeout=10.0)
 
                 return json.dumps({
@@ -2952,7 +2952,7 @@ class WebChatMode:
                         content_nonce=nonce,
                         sender_encryption_key=self.telegram_crypto.public_key_hex
                     ),
-                    self.loop
+                    self._loop
                 ).result(timeout=10.0)
 
                 if result:
@@ -2990,7 +2990,7 @@ class WebChatMode:
                 # Get postcards asynchronously
                 postcards = asyncio.run_coroutine_threadsafe(
                     self.api_client.get_postcards(public=public),
-                    self.loop
+                    self._loop
                 ).result(timeout=10.0)
 
                 return json.dumps({
@@ -3042,7 +3042,7 @@ class WebChatMode:
                         caption=text[:60],
                         to_public_key=recipient_key
                     ),
-                    self.loop
+                    self._loop
                 ).result(timeout=10.0)
 
                 if result:
