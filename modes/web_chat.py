@@ -733,6 +733,59 @@ SETTINGS_TEMPLATE = """
             <input type="range" class="slider" id="independence" min="0" max="100" value="{{int(traits['independence'] * 100)}}" oninput="updateSlider('independence')">
         </div>
 
+        <h2>🤖 AI Configuration <span style="font-size: 0.75rem; color: var(--muted); font-weight: normal;">(Requires Restart)</span></h2>
+
+        <div class="input-group">
+            <label for="ai-primary">Primary AI Provider</label>
+            <select id="ai-primary" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
+                <option value="anthropic">Anthropic (Claude)</option>
+                <option value="openai">OpenAI (GPT)</option>
+                <option value="gemini">Google (Gemini)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label for="anthropic-model">Anthropic Model</label>
+            <select id="anthropic-model" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
+                <option value="claude-3-haiku-20240307">Claude 3 Haiku (Fast & Cheap)</option>
+                <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Balanced)</option>
+                <option value="claude-3-opus-20240229">Claude 3 Opus (Most Capable)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label for="openai-model">OpenAI Model</label>
+            <select id="openai-model" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
+                <option value="gpt-4o-mini">GPT-4o Mini (Fast & Cheap)</option>
+                <option value="gpt-4o">GPT-4o (Balanced)</option>
+                <option value="o1-mini">o1 Mini (Reasoning)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label for="gemini-model">Gemini Model</label>
+            <select id="gemini-model" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
+                <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (Fast)</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Capable)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label for="max-tokens">Max Tokens per Response</label>
+            <input type="number" id="max-tokens" min="50" max="1000" step="50" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
+            <p style="font-size: 0.875rem; color: var(--muted); margin-top: 0.25rem;">Lower = cheaper, faster. Higher = more detailed responses.</p>
+        </div>
+
+        <div class="input-group">
+            <label for="daily-tokens">Daily Token Budget</label>
+            <input type="number" id="daily-tokens" min="1000" max="50000" step="1000" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
+            <p style="font-size: 0.875rem; color: var(--muted); margin-top: 0.25rem;">Maximum tokens per day (~$0.03 per 10,000 with Haiku)</p>
+        </div>
+
+        <p style="padding: 0.75rem; border: 2px solid var(--accent); background: var(--bg); font-size: 0.875rem; color: var(--muted); margin-top: 1rem;">
+            ⚠️ <strong>Restart required:</strong> Changes to AI settings will take effect after restarting the application.
+        </p>
+
         <button class="save-button" id="save-btn" onclick="saveSettings()">💾 Save Settings</button>
 
         <div class="message" id="message"></div>
@@ -750,6 +803,21 @@ SETTINGS_TEMPLATE = """
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('inklingTheme', theme);
         });
+
+        // Load current AI settings on page load
+        fetch('/api/settings')
+            .then(resp => resp.json())
+            .then(data => {
+                if (data.ai) {
+                    document.getElementById('ai-primary').value = data.ai.primary || 'anthropic';
+                    document.getElementById('anthropic-model').value = data.ai.anthropic?.model || 'claude-3-haiku-20240307';
+                    document.getElementById('openai-model').value = data.ai.openai?.model || 'gpt-4o-mini';
+                    document.getElementById('gemini-model').value = data.ai.gemini?.model || 'gemini-2.0-flash-exp';
+                    document.getElementById('max-tokens').value = data.ai.budget?.max_tokens || 150;
+                    document.getElementById('daily-tokens').value = data.ai.budget?.daily_tokens || 10000;
+                }
+            })
+            .catch(err => console.error('Failed to load AI settings:', err));
 
         function updateSlider(name) {
             const slider = document.getElementById(name);
@@ -773,6 +841,22 @@ SETTINGS_TEMPLATE = """
                     playfulness: parseFloat(document.getElementById('playfulness').value) / 100,
                     empathy: parseFloat(document.getElementById('empathy').value) / 100,
                     independence: parseFloat(document.getElementById('independence').value) / 100,
+                },
+                ai: {
+                    primary: document.getElementById('ai-primary').value,
+                    anthropic: {
+                        model: document.getElementById('anthropic-model').value,
+                    },
+                    openai: {
+                        model: document.getElementById('openai-model').value,
+                    },
+                    gemini: {
+                        model: document.getElementById('gemini-model').value,
+                    },
+                    budget: {
+                        daily_tokens: parseInt(document.getElementById('daily-tokens').value),
+                        per_request_max: parseInt(document.getElementById('max-tokens').value),
+                    }
                 }
             };
 
@@ -794,7 +878,7 @@ SETTINGS_TEMPLATE = """
                 const data = await resp.json();
 
                 if (resp.ok && data.success) {
-                    messageEl.textContent = '✓ Settings saved! Changes applied immediately.';
+                    messageEl.textContent = '✓ Settings saved! Personality changes applied. Restart to apply AI changes.';
                     messageEl.classList.add('show');
                 } else {
                     messageEl.textContent = 'Error: ' + (data.error || 'Failed to save settings');
@@ -913,9 +997,29 @@ class WebChatMode:
         @self._app.route("/api/settings", method="GET")
         def get_settings():
             response.content_type = "application/json"
+
+            # Get AI config from Brain
+            ai_config = {
+                "primary": self.brain.config.get("primary", "anthropic"),
+                "anthropic": {
+                    "model": self.brain.config.get("anthropic", {}).get("model", "claude-3-haiku-20240307"),
+                },
+                "openai": {
+                    "model": self.brain.config.get("openai", {}).get("model", "gpt-4o-mini"),
+                },
+                "gemini": {
+                    "model": self.brain.config.get("gemini", {}).get("model", "gemini-2.0-flash-exp"),
+                },
+                "budget": {
+                    "daily_tokens": self.brain.budget.daily_limit,
+                    "max_tokens": self.brain.config.get("budget", {}).get("per_request_max", 150),
+                }
+            }
+
             return json.dumps({
                 "name": self.personality.name,
                 "traits": self.personality.traits.to_dict(),
+                "ai": ai_config,
             })
 
         @self._app.route("/api/settings", method="POST")
@@ -940,6 +1044,9 @@ class WebChatMode:
                             # Clamp value to 0.0-1.0
                             value = max(0.0, min(1.0, float(value)))
                             setattr(self.personality.traits, trait, value)
+
+                # AI settings are saved to config but not applied until restart
+                # (no validation needed - Brain will reinitialize on restart)
 
                 # Save to config.local.yml
                 self._save_config_file(data)
@@ -979,6 +1086,30 @@ class WebChatMode:
             if "personality" not in config:
                 config["personality"] = {}
             config["personality"].update(new_settings["traits"])
+
+        # Update AI configuration
+        if "ai" in new_settings:
+            if "ai" not in config:
+                config["ai"] = {}
+
+            ai_settings = new_settings["ai"]
+
+            # Update primary provider
+            if "primary" in ai_settings:
+                config["ai"]["primary"] = ai_settings["primary"]
+
+            # Update provider-specific settings
+            for provider in ["anthropic", "openai", "gemini"]:
+                if provider in ai_settings:
+                    if provider not in config["ai"]:
+                        config["ai"][provider] = {}
+                    config["ai"][provider].update(ai_settings[provider])
+
+            # Update budget settings
+            if "budget" in ai_settings:
+                if "budget" not in config["ai"]:
+                    config["ai"]["budget"] = {}
+                config["ai"]["budget"].update(ai_settings["budget"])
 
         # Write back to file
         with open(config_file, 'w') as f:

@@ -173,5 +173,129 @@ python main.py --mode web
 
 ---
 
+## Version: AI Configuration in Web UI (2026-02-02)
+
+### New Features
+
+#### 🤖 AI Settings in Web UI
+- Extended settings page to include AI configuration
+- All major AI settings now editable through browser interface
+- Clear "Requires Restart" warnings for settings that need restart
+
+#### ⚙️ Configurable AI Settings
+- **Primary Provider Selection**: Choose between Anthropic, OpenAI, and Gemini
+- **Model Selection**: Dropdown for each provider's available models
+  - Anthropic: Claude 3 Haiku, Sonnet 3.5, Opus
+  - OpenAI: GPT-4o Mini, GPT-4o, o1 Mini
+  - Gemini: 2.0 Flash, 1.5 Pro
+- **Token Budget Controls**:
+  - Max tokens per response (50-1000)
+  - Daily token budget (1000-50000)
+
+### Improvements
+
+#### Settings Page Enhancement
+- Organized into clear sections: Appearance, Device & Personality, AI Configuration
+- Inline help text for token budget settings
+- Visual warning badge for restart-required settings
+- Success message distinguishes instant vs restart-required changes
+
+#### API Extensions
+- `GET /api/settings` now returns AI configuration
+- `POST /api/settings` accepts and saves AI settings to config.local.yml
+- Proper YAML merging preserves existing configuration
+
+### Files Changed
+
+#### Modified Files
+1. `modes/web_chat.py` (+145 lines)
+   - Extended SETTINGS_TEMPLATE with AI configuration section
+   - Updated GET /api/settings endpoint to return AI config
+   - Updated POST /api/settings to accept AI config
+   - Extended _save_config_file to handle AI settings
+   - Updated JavaScript to load/save AI settings
+
+### What's Editable
+
+#### Immediate Apply (No Restart)
+- ✅ Device name
+- ✅ Personality traits (6 sliders)
+- ✅ Color theme (localStorage)
+
+#### Requires Restart
+- ⚠️ Primary AI provider
+- ⚠️ Anthropic model
+- ⚠️ OpenAI model
+- ⚠️ Gemini model
+- ⚠️ Max tokens per response
+- ⚠️ Daily token budget
+
+### Configuration Structure
+
+Settings are saved to `config.local.yml`:
+
+```yaml
+device:
+  name: "MyInkling"
+
+personality:
+  curiosity: 0.8
+  cheerfulness: 0.7
+  verbosity: 0.6
+  playfulness: 0.75
+  empathy: 0.85
+  independence: 0.7
+
+ai:
+  primary: openai
+  anthropic:
+    model: claude-3-5-sonnet-20241022
+  openai:
+    model: gpt-4o
+  gemini:
+    model: gemini-1.5-pro
+  budget:
+    daily_tokens: 20000
+    per_request_max: 300
+```
+
+### Testing
+
+#### Automated Tests
+- ✅ Component initialization with AI config
+- ✅ Config save logic for AI settings
+- ✅ Config load logic from Brain
+- ✅ Template element verification
+
+### Usage
+
+1. Start web mode: `python main.py --mode web`
+2. Navigate to http://localhost:8080/settings
+3. Change AI settings as desired
+4. Click "Save Settings"
+5. See confirmation: "Personality changes applied. Restart to apply AI changes."
+6. Restart app when ready for AI changes to take effect
+
+### Breaking Changes
+
+None. All changes are backward compatible.
+
+### Future Enhancements
+
+Not implemented (could be added later):
+- Heartbeat configuration (autonomous behaviors)
+- Display settings (refresh intervals)
+- Network settings (API base URL) - security consideration
+- Hot-swapping AI providers without restart (complex)
+
+### Notes
+
+- **Design Decision**: AI settings require restart to prevent mid-conversation AI provider switches
+- **User Safety**: Clear warnings prevent confusion about when changes apply
+- **Flexibility**: Users can now adjust AI costs/quality without editing YAML files
+- **Backward Compatible**: Existing config files and workflows unchanged
+
+---
+
 **Release Date**: February 2, 2026
 **Commit**: `719fdb3`
