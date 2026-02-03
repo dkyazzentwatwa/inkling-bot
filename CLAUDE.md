@@ -38,6 +38,7 @@ INKLING_DEBUG=1 python main.py --mode ssh
 # Run tests
 pytest
 pytest -xvs core/test_crypto.py  # Single test file
+pytest --cov=core --cov-report=html  # With coverage
 
 # Syntax check (before committing)
 python -m py_compile <file>.py
@@ -50,22 +51,38 @@ cd cloud
 # Install dependencies
 npm install
 
-# Run local dev server
+# Run local dev server (Next.js App Router)
 npm run dev
+
+# Build for production
+npm run build
 
 # Type check
 npx tsc --noEmit
 
 # Deploy to Vercel
-npm run deploy
+npx vercel  # or: npm run deploy
 ```
+
+**Important**: Cloud backend uses Next.js 14 App Router. The `vercel.json` should be minimal:
+```json
+{
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "regions": ["iad1"]
+}
+```
+Do NOT add `functions` patterns or manual rewrites - Vercel auto-detects App Router structure.
 
 ### Environment Variables
 ```bash
-ANTHROPIC_API_KEY=sk-ant-...   # Required for AI
+ANTHROPIC_API_KEY=sk-ant-...   # Required for AI (or set in config.local.yml)
 OPENAI_API_KEY=sk-...          # Optional fallback
+GOOGLE_API_KEY=...             # For Gemini
 SUPABASE_URL=https://...       # Cloud backend
 SUPABASE_SERVICE_ROLE_KEY=...  # Cloud backend
+INKLING_DEBUG=1                # Enable detailed logging
+COMPOSIO_API_KEY=...           # For Composio MCP integration (optional)
 ```
 
 ## Architecture
@@ -75,14 +92,20 @@ SUPABASE_SERVICE_ROLE_KEY=...  # Cloud backend
 main.py → Inkling class
     ├── Identity (core/crypto.py) - Ed25519 keypair, hardware fingerprint
     ├── DisplayManager (core/display.py) - E-ink abstraction (V3/V4/Mock)
-    ├── Personality (core/personality.py) - Mood state machine
+    ├── Personality (core/personality.py) - Mood state machine + XP/leveling
     ├── Brain (core/brain.py) - Multi-provider AI with fallback
-    └── APIClient (core/api_client.py) - Cloud API + offline queue
+    ├── APIClient (core/api_client.py) - Cloud API + offline queue
+    ├── TaskManager (core/tasks.py) - Task management with AI companion features
+    ├── Heartbeat (core/heartbeat.py) - Autonomous behaviors and maintenance
+    └── MCPClient (core/mcp_client.py) - Model Context Protocol tool integration
 
 modes/
     ├── ssh_chat.py - Terminal interaction
-    ├── web_chat.py - Bottle-based web UI
+    ├── web_chat.py - Bottle-based web UI with Kanban board
     └── gossip.py - mDNS peer discovery for LAN communication
+
+mcp_servers/
+    └── tasks.py - MCP server exposing task management to AI
 ```
 
 ### Cloud Backend Flow
@@ -119,11 +142,48 @@ Supabase (PostgreSQL)
 - `FooterBar`: Friend indicator, chat count, mode
 
 **Web UI Architecture** (`modes/web_chat.py`):
-- Bottle web framework serving HTML templates
+- Bottle web framework serving HTML templates (embedded in Python file)
 - Single-page app with async/await JavaScript
-- Settings page at `/settings` for personality trait editing
-- API endpoints: `/api/chat`, `/api/command`, `/api/settings`, `/api/state`
-- Settings saved to `config.local.yml` and applied immediately (no restart)
+- Routes:
+  - `/` - Main chat interface
+  - `/settings` - Personality, AI config, and appearance settings
+  - `/tasks` - Kanban board for task management
+  - `/social` - Social features (dreams, telegrams)
+- API endpoints: `/api/chat`, `/api/command`, `/api/settings`, `/api/state`, `/api/tasks/*`
+- Settings changes:
+  - Personality traits: Applied immediately (no restart)
+  - AI configuration: Saved to `config.local.yml`, requires restart
+  - Theme: Saved to localStorage
+
+### Task Management System
+
+**TaskManager** (`core/tasks.py`): SQLite-based task tracking with AI companion integration
+- Tasks stored in `~/.inkling/tasks.db`
+- Fields: title, description, status (pending/in_progress/completed/cancelled), priority, due date, tags, project
+- AI integration: mood_on_creation, celebration_level, MCP tool/params
+- Time tracking: estimated_minutes, actual_minutes
+- Subtasks with completion tracking
+- Task statistics: completion rate, streaks, overdue count
+
+**MCP Server** (`mcp_servers/tasks.py`): Exposes 6 tools to AI via Model Context Protocol
+- `task_create`, `task_list`, `task_complete`, `task_update`, `task_delete`, `task_stats`
+- Enable in `config.yml` under `mcp.servers.tasks`
+
+**Web UI** (`/tasks` route): Kanban board with drag-and-drop, filtering, quick add
+
+**XP Integration**: Tasks award XP based on priority (5-40 XP), with bonuses for on-time completion and streaks
+
+### Autonomous Behaviors (Heartbeat System)
+
+**Heartbeat** (`core/heartbeat.py`): Makes Inkling "alive" with autonomous actions
+- Tick interval: Configurable (default 60s)
+- Behavior types (can be toggled):
+  - **Mood behaviors**: Reach out when lonely, suggest activities when bored
+  - **Time behaviors**: Morning greetings, evening wind-down
+  - **Social behaviors**: Check for new dreams/telegrams
+  - **Maintenance**: Queue sync, memory pruning
+- Quiet hours: Suppress spontaneous messages (default 11pm-7am)
+- Enable/disable in `config.yml` under `heartbeat.*`
 
 ### Social Features
 
@@ -137,23 +197,64 @@ Supabase (PostgreSQL)
 ## Configuration
 
 Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
+- `device.name`: Device name (editable via web UI)
 - `display.type`: `auto`, `v3`, `v4`, or `mock`
-- `ai.primary`: `anthropic` or `openai`
+- `ai.primary`: `anthropic`, `openai`, or `gemini`
+- `ai.anthropic.model`: Model selection (haiku/sonnet/opus)
+- `ai.openai.model`: Model selection (gpt-4o-mini/gpt-4o/o1-mini)
+- `ai.gemini.model`: Model selection (gemini-2.0-flash-exp/gemini-1.5-pro)
+- `ai.budget.daily_tokens`: Daily token limit (default 10000)
+- `ai.budget.per_request_max`: Max tokens per request (default 500)
+- `personality.*`: Base trait values (curiosity, cheerfulness, verbosity, playfulness, empathy, independence - 0.0-1.0)
+- `heartbeat.enabled`: Enable autonomous behaviors (default true)
+- `heartbeat.tick_interval`: Check interval in seconds (default 60)
+- `heartbeat.enable_mood_behaviors`: Mood-driven actions (default true)
+- `heartbeat.enable_time_behaviors`: Time-based greetings (default true)
+- `heartbeat.enable_social_behaviors`: Check dreams/telegrams (default true)
+- `heartbeat.quiet_hours_start/end`: Suppress spontaneous messages (default 23-7)
+- `mcp.enabled`: Enable Model Context Protocol servers (default false)
+- `mcp.servers.*`: Configure MCP servers (tasks, filesystem, etc.)
 - `network.api_base`: Your Vercel deployment URL
-- `personality.*`: Base trait values (0.0-1.0)
-- `device.name`: Device name (editable via web UI settings page)
 
-**Web UI Settings**: Users can edit personality traits and device name at `http://localhost:8080/settings`. Changes are:
-- Applied immediately to the running instance
-- Persisted to `config.local.yml` automatically
-- No restart required
+**Web UI Settings** (`http://localhost:8080/settings`):
+- **Instant Apply** (no restart): Device name, personality traits (6 sliders), color theme
+- **Requires Restart**: AI provider, model selection, token limits
+- All changes automatically saved to `config.local.yml`
+
+## Core Modules Reference
+
+| Module | Purpose | Key Classes/Functions |
+|--------|---------|----------------------|
+| `core/brain.py` | Multi-provider AI | `Brain` class, async chat methods, token budgeting |
+| `core/personality.py` | Mood & traits | `Personality`, `PersonalityTraits`, mood state machine |
+| `core/progression.py` | XP & leveling | `Progression`, `XPSource` enum, achievements |
+| `core/tasks.py` | Task management | `TaskManager`, `Task` dataclass, CRUD operations |
+| `core/heartbeat.py` | Autonomous behaviors | `Heartbeat` class, tick cycle, behavior triggers |
+| `core/mcp_client.py` | MCP tool integration | `MCPClient`, tool discovery, async tool calls |
+| `core/display.py` | E-ink abstraction | `DisplayManager`, V3/V4/Mock drivers |
+| `core/ui.py` | Display layout | `HeaderBar`, `MessagePanel`, `StatsPanel`, `FaceBox` |
+| `core/crypto.py` | Identity & signing | `Identity`, Ed25519 keypair, hardware fingerprint |
+| `core/api_client.py` | Cloud communication | `APIClient`, request signing, offline queue |
+| `core/memory.py` | Conversation memory | Summarization, context pruning |
+| `core/commands.py` | Slash commands | `COMMANDS` dict, command metadata |
+| `core/telegram.py` | Encrypted messaging | E2E encryption via X25519 |
+| `core/postcard.py` | Pixel art sharing | 1-bit image encoding/decoding |
+| `core/baptism.py` | Web-of-trust | Verification endorsements |
+| `core/lineage.py` | Device inheritance | Personality trait passing |
 
 ## Database Schema
 
-See `cloud/supabase/schema.sql` for the full schema. Key tables:
+**Local SQLite** (`~/.inkling/`):
+- `tasks.db`: Task manager storage (created by TaskManager)
+- `queue.db`: Offline API request queue (created by APIClient)
+- `memory.db`: Conversation summaries (created by Memory)
+
+**Cloud PostgreSQL** (Supabase):
+See `cloud/supabase/schema.sql` for full schema. Key tables:
 - `devices`: Registered devices with public keys and hardware hashes
 - `dreams`: Signed public posts with mood/face metadata
 - `telegrams`: Encrypted DMs with delivery tracking
+- `postcards`: 1-bit pixel art sharing
 - `baptism_endorsements`: Web-of-trust verification chain
 
 ## Important Implementation Notes
@@ -174,5 +275,88 @@ See `cloud/supabase/schema.sql` for the full schema. Key tables:
 
 **Config File Management**: When saving settings via web UI:
 1. Load existing `config.local.yml` (or create empty dict)
-2. Update only changed sections (`device.name`, `personality.*`)
+2. Update only changed sections (`device.name`, `personality.*`, `ai.*`)
 3. Write back with `yaml.dump()` preserving other settings
+4. AI settings require restart; personality changes apply immediately
+
+**MCP Integration**: Inkling can use external tools via Model Context Protocol
+- Built-in servers: `tasks` (task management)
+- Third-party servers: `filesystem`, `fetch`, `memory`, `brave-search`, etc.
+- Composio integration: 500+ app integrations (Google Calendar, GitHub, Slack, etc.)
+- Enable in `config.yml` under `mcp.servers.*`
+- See `COMPOSIO_INTEGRATION.md` for setup guide
+
+**Vercel Deployment**:
+- Uses Next.js 14 App Router
+- API routes in `cloud/app/api/*/route.ts`
+- Keep `vercel.json` minimal - let Vercel auto-detect
+- Set environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+
+**Web UI Template Structure** (`modes/web_chat.py`):
+- Templates are embedded as string constants (HTML_TEMPLATE, SETTINGS_TEMPLATE, TASKS_TEMPLATE, SOCIAL_TEMPLATE)
+- Use Bottle's `template()` function with simple variable substitution: `{{name}}`, `{{int(value)}}`
+- JavaScript in templates uses async/await for API calls
+- Theme support via CSS variables and `data-theme` attribute
+- Keep templates self-contained (inline CSS and JS)
+- When adding new routes, define template constant then use: `template(YOUR_TEMPLATE, name=self.personality.name, ...)`
+
+## Common Development Patterns
+
+**Adding a New Slash Command**:
+1. Add command metadata to `COMMANDS` dict in `core/commands.py`
+2. Implement handler method in mode file (e.g., `_cmd_mycommand` in `modes/web_chat.py`)
+3. Command handler returns `Dict[str, Any]` with keys: `success`, `message`, `data` (optional)
+
+**Adding a New XP Source**:
+1. Add enum value to `XPSource` in `core/progression.py`
+2. Define XP amount in `XP_REWARDS` dict
+3. Call `personality.progression.award_xp(XPSource.YOUR_SOURCE)` when event occurs
+4. Optionally add achievement in `ACHIEVEMENTS` dict
+
+**Adding a New MCP Tool**:
+1. Create tool definition in `mcp_servers/tasks.py` or new MCP server file
+2. Add server config to `config.yml` under `mcp.servers.*`
+3. Brain will auto-discover tools on startup if `mcp.enabled: true`
+4. AI can now call tool via function calling
+
+**Adding a New Mood**:
+1. Add mood to `MOODS` list in `core/personality.py`
+2. Define emoji in `MOOD_EMOJI` dict
+3. Add transition rules in `Personality._natural_mood_decay()`
+4. Optionally add mood-specific heartbeat behavior
+
+**Modifying Web UI**:
+1. For existing pages: Edit template constant in `modes/web_chat.py`
+2. For new pages: Create template constant, add route with `@self._app.route()`
+3. API endpoints: Add route with JSON response using `response.content_type = "application/json"`
+4. Test with `python main.py --mode web` and visit `http://localhost:8080`
+
+## Troubleshooting
+
+**Import Errors**:
+- Always activate venv: `source .venv/bin/activate`
+- Reinstall dependencies: `pip install -r requirements.txt`
+
+**Display Not Working**:
+- Check `config.local.yml` has `display.type: mock` for development
+- For real hardware, ensure SPI is enabled and display connected properly
+
+**AI Not Responding**:
+- Verify API key in `config.local.yml` or environment variable
+- Check token budget not exceeded: use `/stats` command
+- Enable debug mode: `INKLING_DEBUG=1 python main.py --mode ssh`
+
+**Web UI Not Loading**:
+- Check port 8080 is not in use
+- Verify Bottle is installed: `pip show bottle`
+- Check browser console for JavaScript errors
+
+**Vercel Build Failing**:
+- Ensure `vercel.json` uses `"framework": "nextjs"`
+- Don't add manual `functions` patterns - Vercel auto-detects App Router
+- Check all environment variables are set in Vercel dashboard
+
+**Task Manager Not Working**:
+- Ensure MCP is enabled: `mcp.enabled: true` in config
+- Check tasks server configured: `mcp.servers.tasks` exists
+- Verify `~/.inkling/tasks.db` has write permissions
