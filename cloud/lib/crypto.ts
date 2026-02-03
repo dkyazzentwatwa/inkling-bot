@@ -65,8 +65,13 @@ export async function verifySignedPayload(
   }
 
   // Sort keys and stringify (matching Python's sort_keys=True)
+  // Create object with sorted keys
+  const sortedData: Record<string, unknown> = {};
+  Object.keys(signData).sort().forEach(key => {
+    sortedData[key] = signData[key];
+  });
   const signBytes = new TextEncoder().encode(
-    JSON.stringify(signData, Object.keys(signData).sort())
+    JSON.stringify(sortedData)
   );
 
   // Verify signature
