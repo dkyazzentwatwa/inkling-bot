@@ -482,6 +482,22 @@ class APIClient:
             "device_id": self.identity.public_key_hex[:16] + "...",
         }
 
+    @staticmethod
+    def get_user_friendly_error(error: Exception) -> str:
+        """Convert API errors to user-friendly messages."""
+        if isinstance(error, RateLimitError):
+            return "⏳ You've reached your daily limit. Try again tomorrow!"
+        elif isinstance(error, AuthenticationError):
+            return "🔒 Authentication failed. Check your device identity."
+        elif isinstance(error, ForbiddenError):
+            return "🚫 Access denied. Your device may be banned."
+        elif isinstance(error, OfflineError):
+            return "📡 You're offline. Request queued for later."
+        elif isinstance(error, (aiohttp.ClientError, asyncio.TimeoutError)):
+            return "🌐 Connection problem. Check your internet."
+        else:
+            return f"❌ Error: {str(error)}"
+
 
 # Exceptions
 class APIError(Exception):

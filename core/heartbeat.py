@@ -354,13 +354,15 @@ class Heartbeat:
             return None
 
         try:
-            # This would fetch recent dreams
-            # dreams = await self.api_client.get_dreams(limit=1)
-            # if dreams:
-            #     self.personality.on_social_event("dream_received")
-            #     return f"I saw something interesting in the Night Pool..."
+            dream = await self.api_client.fish_dream()
+            if dream:
+                self.personality.on_social_event("dream_received")
+                content_preview = dream.get("content", "")[:50]
+                device_name = dream.get("device_name", "someone")
+                return f"📖 {device_name} dreamed: \"{content_preview}...\""
             return None
-        except Exception:
+        except Exception as e:
+            print(f"[Heartbeat] Browse dreams error: {e}")
             return None
 
     async def _behavior_bored_suggest(self) -> Optional[str]:
@@ -424,13 +426,14 @@ class Heartbeat:
             return None
 
         try:
-            # This would check for new telegrams
-            # telegrams = await self.api_client.get_telegrams()
-            # if telegrams:
-            #     self.personality.on_social_event("telegram_received")
-            #     return "You have a new telegram!"
+            telegrams = await self.api_client.get_telegrams()
+            if telegrams:
+                self.personality.on_social_event("telegram_received")
+                count = len(telegrams)
+                return f"📮 You have {count} new telegram{'s' if count != 1 else ''}!"
             return None
-        except Exception:
+        except Exception as e:
+            print(f"[Heartbeat] Check telegrams error: {e}")
             return None
 
     async def _behavior_check_dreams(self) -> Optional[str]:
@@ -439,12 +442,14 @@ class Heartbeat:
             return None
 
         try:
-            # This would fetch new dreams
-            # new_dreams = await self.api_client.get_dreams(since=last_check)
-            # if new_dreams:
-            #     return f"New dreams in the Night Pool!"
+            # Fetch a random dream to see what's new
+            dream = await self.api_client.fish_dream()
+            if dream:
+                self.personality.on_social_event("dream_received")
+                return f"🌙 New activity in the Night Pool!"
             return None
-        except Exception:
+        except Exception as e:
+            print(f"[Heartbeat] Check dreams error: {e}")
             return None
 
     # ========== Maintenance Behaviors ==========

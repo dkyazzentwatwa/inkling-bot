@@ -46,6 +46,8 @@ COMMANDS: List[Command] = [
     # Social commands
     Command("dream", "Post a dream to the Night Pool", "cmd_dream", "social", requires_api=True),
     Command("fish", "Fetch random dream from pool", "cmd_fish", "social", requires_api=True),
+    Command("telegrams", "Check telegram inbox", "cmd_telegrams", "social", requires_api=True),
+    Command("telegram", "Send encrypted telegram", "cmd_telegram", "social", requires_api=True),
     Command("queue", "Show offline queue status", "cmd_queue", "social", requires_api=True),
 
     # Session commands (SSH only)

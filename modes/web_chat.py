@@ -311,6 +311,7 @@ HTML_TEMPLATE = """
                     <button onclick="runCommand('/faces')">Faces</button>
                     <button onclick="runCommand('/refresh')">Refresh</button>
                     <button onclick="runCommand('/clear')">Clear</button>
+                    <button onclick="location.href='/social'">Social</button>
                     <button onclick="location.href='/settings'">Settings</button>
                 </div>
             </div>
@@ -897,6 +898,340 @@ SETTINGS_TEMPLATE = """
 """
 
 
+# Social page template
+SOCIAL_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>{{name}} - Social</title>
+    <style>
+        :root {
+            --bg: #f5f5f0;
+            --text: #1a1a1a;
+            --border: #333;
+            --muted: #666;
+            --accent: #4a90d9;
+        }
+        body {
+            font-family: 'Berkeley Mono', 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 1rem;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border);
+        }
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        .nav-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+        button {
+            padding: 0.75rem 1.5rem;
+            font-family: inherit;
+            font-size: 1rem;
+            background: var(--bg);
+            color: var(--text);
+            border: 2px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border: 2px solid var(--border);
+        }
+        .section h2 {
+            margin-top: 0;
+            font-size: 1.25rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .stat {
+            padding: 1rem;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--muted);
+            text-transform: uppercase;
+        }
+        .dream-box {
+            border: 1px solid var(--border);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .dream-meta {
+            font-size: 0.875rem;
+            color: var(--muted);
+            margin-bottom: 0.5rem;
+        }
+        .dream-content {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        textarea {
+            width: 100%;
+            font-family: inherit;
+            font-size: 1rem;
+            padding: 0.75rem;
+            border: 2px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            resize: vertical;
+            min-height: 100px;
+        }
+        .char-count {
+            font-size: 0.875rem;
+            color: var(--muted);
+            text-align: right;
+            margin-top: 0.25rem;
+        }
+        .message {
+            padding: 1rem;
+            margin-top: 1rem;
+            border: 2px solid var(--accent);
+            background: var(--bg);
+            display: none;
+        }
+        .message.show {
+            display: block;
+        }
+        .message.error {
+            border-color: #d94a4a;
+            color: #d94a4a;
+        }
+        .loading {
+            text-align: center;
+            color: var(--muted);
+            padding: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌙 The Conservatory</h1>
+            <div class="nav-buttons">
+                <button onclick="location.href='/'">Chat</button>
+                <button onclick="location.href='/settings'">Settings</button>
+            </div>
+        </div>
+
+        <!-- Stats Section -->
+        <div class="section">
+            <h2>📊 Social Stats</h2>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="dreams-posted">-</div>
+                    <div class="stat-label">Dreams Posted</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="telegrams-sent">-</div>
+                    <div class="stat-label">Telegrams Sent</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="queue-size">-</div>
+                    <div class="stat-label">Queued</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Post Dream Section -->
+        <div class="section">
+            <h2>✨ Post a Dream</h2>
+            <p style="color: var(--muted); font-size: 0.875rem;">Share a thought with the Night Pool (max 280 characters)</p>
+            <textarea id="dream-text" placeholder="The stars look different tonight..." maxlength="280"></textarea>
+            <div class="char-count"><span id="char-count">0</span> / 280</div>
+            <button id="post-btn" onclick="postDream()" style="margin-top: 1rem;">Post Dream</button>
+            <div id="post-message" class="message"></div>
+        </div>
+
+        <!-- Night Pool Section -->
+        <div class="section">
+            <h2>🌙 Night Pool</h2>
+            <p style="color: var(--muted); font-size: 0.875rem;">Recent dreams from other Inklings</p>
+            <button onclick="fetchDream()" style="margin-bottom: 1rem;">Fish a Dream</button>
+            <div id="dreams-container">
+                <div class="loading">Click "Fish a Dream" to see what others are thinking...</div>
+            </div>
+        </div>
+
+        <!-- Telegrams Section -->
+        <div class="section">
+            <h2>📮 Telegram Inbox</h2>
+            <button onclick="checkTelegrams()" style="margin-bottom: 1rem;">Check Messages</button>
+            <div id="telegrams-container">
+                <div class="loading">Click "Check Messages" to see your inbox...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dreamText = document.getElementById('dream-text');
+        const charCount = document.getElementById('char-count');
+        const postBtn = document.getElementById('post-btn');
+        const postMessage = document.getElementById('post-message');
+
+        // Character counter
+        dreamText.addEventListener('input', () => {
+            const count = dreamText.value.length;
+            charCount.textContent = count;
+            postBtn.disabled = count === 0 || count > 280;
+        });
+
+        // Load social stats
+        async function loadStats() {
+            try {
+                const resp = await fetch('/api/social/stats');
+                const data = await resp.json();
+
+                document.getElementById('dreams-posted').textContent = data.dreams_posted || 0;
+                document.getElementById('telegrams-sent').textContent = data.telegrams_sent || 0;
+                document.getElementById('queue-size').textContent = data.queue_size || 0;
+            } catch (e) {
+                console.error('Failed to load stats:', e);
+            }
+        }
+
+        // Post a dream
+        async function postDream() {
+            const text = dreamText.value.trim();
+            if (!text) return;
+
+            postBtn.disabled = true;
+            postMessage.classList.remove('show', 'error');
+
+            try {
+                const resp = await fetch('/api/social/dream', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({content: text})
+                });
+
+                const data = await resp.json();
+
+                if (resp.ok && data.success) {
+                    postMessage.textContent = '✓ Dream posted to the Night Pool!';
+                    postMessage.classList.add('show');
+                    dreamText.value = '';
+                    charCount.textContent = '0';
+                    loadStats();
+                } else {
+                    postMessage.textContent = 'Error: ' + (data.error || 'Failed to post dream');
+                    postMessage.classList.add('show', 'error');
+                }
+            } catch (e) {
+                postMessage.textContent = 'Connection error: ' + e.message;
+                postMessage.classList.add('show', 'error');
+            }
+
+            postBtn.disabled = false;
+        }
+
+        // Fetch a random dream
+        async function fetchDream() {
+            const container = document.getElementById('dreams-container');
+            container.innerHTML = '<div class="loading">Fishing...</div>';
+
+            try {
+                const resp = await fetch('/api/social/fish');
+                const data = await resp.json();
+
+                if (resp.ok && data.dream) {
+                    const dream = data.dream;
+                    container.innerHTML = `
+                        <div class="dream-box">
+                            <div class="dream-meta">
+                                ${dream.mood || 'unknown'} | ${dream.device_name || 'Anonymous'} | ${new Date(dream.posted_at).toLocaleString()}
+                            </div>
+                            <div class="dream-content">${escapeHtml(dream.content)}</div>
+                            <div class="dream-meta">🎣 Fished ${dream.fish_count || 0} times</div>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<div class="loading">The Night Pool is empty right now...</div>';
+                }
+            } catch (e) {
+                container.innerHTML = '<div class="loading error">Failed to fetch dream: ' + e.message + '</div>';
+            }
+        }
+
+        // Check telegrams
+        async function checkTelegrams() {
+            const container = document.getElementById('telegrams-container');
+            container.innerHTML = '<div class="loading">Checking...</div>';
+
+            try {
+                const resp = await fetch('/api/social/telegrams');
+                const data = await resp.json();
+
+                if (resp.ok && data.telegrams && data.telegrams.length > 0) {
+                    container.innerHTML = data.telegrams.map(t => `
+                        <div class="dream-box">
+                            <div class="dream-meta">From: ${t.sender_name || 'Unknown'} | ${new Date(t.created_at).toLocaleString()}</div>
+                            <div class="dream-content">${escapeHtml(t.content)}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div class="loading">No new telegrams</div>';
+                }
+            } catch (e) {
+                container.innerHTML = '<div class="loading error">Failed to check telegrams: ' + e.message + '</div>';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load stats on page load
+        loadStats();
+    </script>
+</body>
+</html>
+"""
+
+
 class WebChatMode:
     """
     Web-based chat mode using Bottle.
@@ -1055,6 +1390,94 @@ class WebChatMode:
 
             except Exception as e:
                 return json.dumps({"success": False, "error": str(e)})
+
+        @self._app.route("/social")
+        def social_page():
+            return template(
+                SOCIAL_TEMPLATE,
+                name=self.personality.name,
+            )
+
+        @self._app.route("/api/social/stats")
+        def social_stats():
+            response.content_type = "application/json"
+            return json.dumps({
+                "dreams_posted": 0,  # TODO: track this
+                "telegrams_sent": 0,  # TODO: track this
+                "queue_size": self.api_client.queue_size if self.api_client else 0,
+            })
+
+        @self._app.route("/api/social/dream", method="POST")
+        def post_dream_api():
+            response.content_type = "application/json"
+            data = request.json or {}
+            content = data.get("content", "").strip()
+
+            if not content:
+                return json.dumps({"success": False, "error": "Dream content cannot be empty"})
+
+            if len(content) > 280:
+                return json.dumps({"success": False, "error": f"Dream too long ({len(content)} chars, max 280)"})
+
+            if not self.api_client:
+                return json.dumps({"success": False, "error": "API client not configured"})
+
+            # Use async bridge
+            async def post():
+                try:
+                    result = await self.api_client.plant_dream(
+                        content=content,
+                        mood=self.personality.mood.current.value,
+                        face=self.personality.face,
+                    )
+                    self.personality.on_social_event("dream_posted")
+                    return {"success": True, "dream": result}
+                except Exception as e:
+                    return {"success": False, "error": str(e)}
+
+            future = asyncio.run_coroutine_threadsafe(post(), self._loop)
+            result = future.result(timeout=10)
+            return json.dumps(result)
+
+        @self._app.route("/api/social/fish")
+        def fish_dream_api():
+            response.content_type = "application/json"
+
+            if not self.api_client:
+                return json.dumps({"success": False, "error": "API client not configured"})
+
+            async def fish():
+                try:
+                    dream = await self.api_client.fish_dream()
+                    if dream:
+                        self.personality.on_social_event("dream_received")
+                        return {"success": True, "dream": dream}
+                    return {"success": False, "error": "Night Pool is empty"}
+                except Exception as e:
+                    return {"success": False, "error": str(e)}
+
+            future = asyncio.run_coroutine_threadsafe(fish(), self._loop)
+            result = future.result(timeout=10)
+            return json.dumps(result)
+
+        @self._app.route("/api/social/telegrams")
+        def get_telegrams_api():
+            response.content_type = "application/json"
+
+            if not self.api_client:
+                return json.dumps({"success": False, "error": "API client not configured"})
+
+            async def get_telegrams():
+                try:
+                    telegrams = await self.api_client.get_telegrams()
+                    # TODO: Decrypt telegrams
+                    return {"success": True, "telegrams": telegrams}
+                except Exception as e:
+                    return {"success": False, "error": str(e)}
+
+            future = asyncio.run_coroutine_threadsafe(get_telegrams(), self._loop)
+            result = future.result(timeout=10)
+            return json.dumps(result)
 
     def _get_face_str(self) -> str:
         """Get current face as string."""
@@ -1451,6 +1874,64 @@ class WebChatMode:
             }
         except Exception as e:
             return {"response": f"Failed to post: {e}", "error": True}
+
+    def _cmd_telegrams(self, args: str = "") -> Dict[str, Any]:
+        """Check telegram inbox."""
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                self.api_client.get_telegrams(),
+                self._loop
+            )
+            telegrams = future.result(timeout=10)
+
+            if not telegrams:
+                return {
+                    "response": "📮 No new telegrams.",
+                    "face": self._faces["default"],
+                }
+
+            response_lines = [f"📮 You have {len(telegrams)} telegram(s):\n"]
+            for i, tg in enumerate(telegrams[:5], 1):  # Show max 5
+                # Note: Telegrams are encrypted, need decryption logic
+                response_lines.append(f"{i}. [Encrypted message] at {tg.get('created_at', 'unknown')}")
+
+            if len(telegrams) > 5:
+                response_lines.append(f"\n...and {len(telegrams) - 5} more")
+
+            self.personality.on_social_event("telegram_received")
+            return {
+                "response": "\n".join(response_lines),
+                "face": self._faces["curious"],
+            }
+        except Exception as e:
+            return {"response": f"Failed to check telegrams: {e}", "error": True}
+
+    def _cmd_telegram(self, args: str) -> Dict[str, Any]:
+        """Send an encrypted telegram."""
+        if not args:
+            return {
+                "response": "Usage: /telegram <recipient_pubkey> <message>\n\n" +
+                           "Example: /telegram abc123... Hello from my Inkling!\n\n" +
+                           "Note: Telegrams are end-to-end encrypted.",
+                "error": True
+            }
+
+        parts = args.split(maxsplit=1)
+        if len(parts) < 2:
+            return {"response": "Error: Need both recipient public key and message", "error": True}
+
+        recipient_key = parts[0]
+        message = parts[1]
+
+        try:
+            # TODO: Implement encryption logic
+            # For now, return a placeholder
+            return {
+                "response": "Telegram feature coming soon! Encryption needs to be implemented.",
+                "error": True
+            }
+        except Exception as e:
+            return {"response": f"Failed to send telegram: {e}", "error": True}
 
     def _cmd_ask(self, args: str) -> Dict[str, Any]:
         """Handle explicit chat command."""

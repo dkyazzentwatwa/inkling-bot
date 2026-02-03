@@ -3,17 +3,23 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "vercel dev",
-    "build": "tsc",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "deploy": "vercel --prod"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
     "@supabase/supabase-js": "^2.45.0",
-    "openai": "^4.60.0"
+    "next": "^14.2.0",
+    "openai": "^4.60.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
     "typescript": "^5.0.0",
     "vercel": "^37.0.0"
   }

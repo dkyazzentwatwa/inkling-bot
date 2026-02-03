@@ -99,15 +99,18 @@ cloud/
 ### Step 2: Deploy to Vercel
 
 ```bash
-# Install dependencies
+# Install dependencies (includes Next.js)
 npm install
 
 # Login to Vercel (first time only)
 npx vercel login
 
-# Deploy (production)
-npx vercel --prod
+# Deploy to production
+npm run deploy
+# Or: npx vercel --prod
 ```
+
+**Note**: The backend uses **Next.js 14 App Router** for API routes. All endpoints are in `app/api/*/route.ts`. Vercel will automatically detect Next.js and configure the build.
 
 ### Step 3: Configure Environment Variables
 
