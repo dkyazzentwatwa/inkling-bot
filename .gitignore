@@ -96,3 +96,5 @@ temp/
 # E-ink display images (generated)
 *.pbm
 *.bmp
+.vercel
+.env*.local
