@@ -36,6 +36,77 @@ HTML_TEMPLATE = """
             --muted: #666;
             --accent: #4a90d9;
         }
+        /* Pastel Color Themes */
+        [data-theme="cream"] {
+            --bg: #f5f5f0;
+            --text: #1a1a1a;
+            --border: #333;
+            --muted: #666;
+            --accent: #4a90d9;
+        }
+        [data-theme="pink"] {
+            --bg: #ffe4e9;
+            --text: #4a1a28;
+            --border: #d4758f;
+            --muted: #8f5066;
+            --accent: #ff6b9d;
+        }
+        [data-theme="mint"] {
+            --bg: #e0f5f0;
+            --text: #1a3a33;
+            --border: #6eb5a3;
+            --muted: #4d8073;
+            --accent: #52d9a6;
+        }
+        [data-theme="lavender"] {
+            --bg: #f0e9ff;
+            --text: #2a1a4a;
+            --border: #9d85d4;
+            --muted: #6b5a8f;
+            --accent: #a78bfa;
+        }
+        [data-theme="peach"] {
+            --bg: #ffe9dc;
+            --text: #4a2a1a;
+            --border: #d49675;
+            --muted: #8f6650;
+            --accent: #ffab7a;
+        }
+        [data-theme="sky"] {
+            --bg: #e0f0ff;
+            --text: #1a2e4a;
+            --border: #6ba3d4;
+            --muted: #4d708f;
+            --accent: #5eb3ff;
+        }
+        [data-theme="butter"] {
+            --bg: #fff9e0;
+            --text: #4a3f1a;
+            --border: #d4c175;
+            --muted: #8f8350;
+            --accent: #ffd952;
+        }
+        [data-theme="rose"] {
+            --bg: #fff0f3;
+            --text: #4a1a2a;
+            --border: #d47590;
+            --muted: #8f5068;
+            --accent: #ff9eb8;
+        }
+        [data-theme="sage"] {
+            --bg: #eff5e9;
+            --text: #2a331a;
+            --border: #8fb575;
+            --muted: #607a4d;
+            --accent: #9bc978;
+        }
+        [data-theme="periwinkle"] {
+            --bg: #e9f0ff;
+            --text: #1a2a4a;
+            --border: #758fd4;
+            --muted: #50638f;
+            --accent: #8ba3ff;
+        }
         @media (prefers-color-scheme: dark) {
             :root {
                 --bg: #1a1a1a;
@@ -252,6 +323,10 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
+        // Apply saved theme
+        const savedTheme = localStorage.getItem('inklingTheme') || 'cream';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+
         const messagesEl = document.getElementById('messages');
         const inputEl = document.getElementById('input');
         const sendBtn = document.getElementById('send');
@@ -375,6 +450,77 @@ SETTINGS_TEMPLATE = """
             --border: #333;
             --muted: #666;
             --accent: #4a90d9;
+        }
+        /* Pastel Color Themes */
+        [data-theme="cream"] {
+            --bg: #f5f5f0;
+            --text: #1a1a1a;
+            --border: #333;
+            --muted: #666;
+            --accent: #4a90d9;
+        }
+        [data-theme="pink"] {
+            --bg: #ffe4e9;
+            --text: #4a1a28;
+            --border: #d4758f;
+            --muted: #8f5066;
+            --accent: #ff6b9d;
+        }
+        [data-theme="mint"] {
+            --bg: #e0f5f0;
+            --text: #1a3a33;
+            --border: #6eb5a3;
+            --muted: #4d8073;
+            --accent: #52d9a6;
+        }
+        [data-theme="lavender"] {
+            --bg: #f0e9ff;
+            --text: #2a1a4a;
+            --border: #9d85d4;
+            --muted: #6b5a8f;
+            --accent: #a78bfa;
+        }
+        [data-theme="peach"] {
+            --bg: #ffe9dc;
+            --text: #4a2a1a;
+            --border: #d49675;
+            --muted: #8f6650;
+            --accent: #ffab7a;
+        }
+        [data-theme="sky"] {
+            --bg: #e0f0ff;
+            --text: #1a2e4a;
+            --border: #6ba3d4;
+            --muted: #4d708f;
+            --accent: #5eb3ff;
+        }
+        [data-theme="butter"] {
+            --bg: #fff9e0;
+            --text: #4a3f1a;
+            --border: #d4c175;
+            --muted: #8f8350;
+            --accent: #ffd952;
+        }
+        [data-theme="rose"] {
+            --bg: #fff0f3;
+            --text: #4a1a2a;
+            --border: #d47590;
+            --muted: #8f5068;
+            --accent: #ff9eb8;
+        }
+        [data-theme="sage"] {
+            --bg: #eff5e9;
+            --text: #2a331a;
+            --border: #8fb575;
+            --muted: #607a4d;
+            --accent: #9bc978;
+        }
+        [data-theme="periwinkle"] {
+            --bg: #e9f0ff;
+            --text: #1a2a4a;
+            --border: #758fd4;
+            --muted: #50638f;
+            --accent: #8ba3ff;
         }
         @media (prefers-color-scheme: dark) {
             :root {
@@ -514,6 +660,24 @@ SETTINGS_TEMPLATE = """
     </header>
 
     <div class="settings-section">
+        <h2>🎨 Appearance</h2>
+
+        <div class="input-group">
+            <label for="theme">Color Theme</label>
+            <select id="theme" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
+                <option value="cream">Cream (Default)</option>
+                <option value="pink">Soft Pink</option>
+                <option value="mint">Mint Green</option>
+                <option value="lavender">Lavender</option>
+                <option value="peach">Peach</option>
+                <option value="sky">Sky Blue</option>
+                <option value="butter">Butter Yellow</option>
+                <option value="rose">Rose</option>
+                <option value="sage">Sage</option>
+                <option value="periwinkle">Periwinkle</option>
+            </select>
+        </div>
+
         <h2>👤 Device & Personality</h2>
 
         <div class="input-group">
@@ -575,6 +739,18 @@ SETTINGS_TEMPLATE = """
     </div>
 
     <script>
+        // Load and apply saved theme
+        const savedTheme = localStorage.getItem('inklingTheme') || 'cream';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.getElementById('theme').value = savedTheme;
+
+        // Theme change handler
+        document.getElementById('theme').addEventListener('change', function() {
+            const theme = this.value;
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('inklingTheme', theme);
+        });
+
         function updateSlider(name) {
             const slider = document.getElementById(name);
             const display = document.getElementById(name + '-val');
