@@ -32,6 +32,7 @@ from core.mcp_client import MCPClientManager
 from core.personality import Personality, PersonalityTraits
 from core.api_client import APIClient
 from core.heartbeat import Heartbeat, HeartbeatConfig
+from core.tasks import TaskManager
 from modes.ssh_chat import SSHChatMode
 from modes.web_chat import WebChatMode
 
@@ -130,6 +131,7 @@ class Inkling:
         self.api_client: Optional[APIClient] = None
         self.mcp_client: Optional[MCPClientManager] = None
         self.heartbeat: Optional[Heartbeat] = None
+        self.task_manager: Optional[TaskManager] = None
 
         # Current mode
         self._mode = None
@@ -173,6 +175,10 @@ class Inkling:
         self.personality.on_mood_change(self._on_mood_change)
         self.personality.on_level_up(self._on_level_up)
 
+        # Task Manager
+        print("  - Initializing task manager...")
+        self.task_manager = TaskManager()
+
         # Heartbeat (proactive behaviors)
         heartbeat_config_data = self.config.get("heartbeat", {})
         heartbeat_enabled = heartbeat_config_data.get("enabled", True)
@@ -194,6 +200,7 @@ class Inkling:
                 display_manager=self.display,
                 api_client=self.api_client,
                 brain=self.brain,
+                task_manager=self.task_manager,
                 config=heartbeat_config,
             )
 
@@ -289,6 +296,7 @@ class Inkling:
                     display=self.display,
                     personality=self.personality,
                     api_client=self.api_client,
+                    task_manager=self.task_manager,
                 )
                 await self._mode.run()
 
@@ -298,6 +306,7 @@ class Inkling:
                     display=self.display,
                     personality=self.personality,
                     api_client=self.api_client,
+                    task_manager=self.task_manager,
                     port=self.config.get("web", {}).get("port", 8080),
                 )
                 await self._mode.run()

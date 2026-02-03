@@ -35,6 +35,16 @@ class XPSource(Enum):
     # Daily bonus
     FIRST_OF_DAY = "first_of_day"  # +20 XP
 
+    # Task management
+    TASK_CREATED = "task_created"  # +5 XP
+    TASK_COMPLETED_LOW = "task_completed_low"  # +10 XP
+    TASK_COMPLETED_MEDIUM = "task_completed_medium"  # +15 XP
+    TASK_COMPLETED_HIGH = "task_completed_high"  # +25 XP
+    TASK_COMPLETED_URGENT = "task_completed_urgent"  # +40 XP
+    TASK_ON_TIME_BONUS = "task_on_time_bonus"  # +10 XP
+    TASK_STREAK_3 = "task_streak_3"  # +15 XP
+    TASK_STREAK_7 = "task_streak_7"  # +30 XP
+
 
 @dataclass
 class Achievement:
