@@ -72,7 +72,7 @@ Then refresh the Files page.
 
 ---
 
-### 5. ✅ HTTP 406 Composio Error (Fixed Earlier)
+### 5. ✅ HTTP 406 Composio Error (Fixed)
 
 **Problem:** Composio MCP server rejected requests with HTTP 406.
 
@@ -82,6 +82,36 @@ Then refresh the Files page.
 ```
 
 **Files:** `core/mcp_client.py` (lines 277, 312)
+
+---
+
+### 6. ✅ SSE Response Parsing Error (Fixed)
+
+**Problem:** Composio returned responses with `text/event-stream` content-type, but client expected JSON:
+```
+message='Attempt to decode JSON with unexpected mimetype: text/event-stream'
+```
+
+**Root Cause:** aiohttp's `resp.json()` refuses to parse responses if content-type isn't `application/json`.
+
+**Fix:** Updated HTTP MCP client to handle both JSON and Server-Sent Events (SSE) responses:
+1. Check response content-type header
+2. If `text/event-stream`, parse as SSE format
+3. If `application/json`, parse as JSON
+4. Added `_parse_sse_response()` method to extract JSON from SSE format
+
+**SSE Format:**
+```
+data: {"jsonrpc":"2.0","id":1,"result":{...}}
+
+data: {"jsonrpc":"2.0","id":2,"result":{...}}
+```
+
+Parser extracts JSON from the last `data:` line.
+
+**Files:** `core/mcp_client.py` (lines 295-316, 342-363)
+
+**Tests:** All SSE parsing tests pass ✓
 
 ---
 

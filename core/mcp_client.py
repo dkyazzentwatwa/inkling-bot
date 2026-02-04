@@ -297,7 +297,18 @@ class MCPClientManager:
             if session_id:
                 srv.session_id = session_id
 
-            data = await resp.json()
+            # Handle both JSON and Server-Sent Events (SSE) responses
+            content_type = resp.headers.get("content-type", "").lower()
+
+            if "text/event-stream" in content_type:
+                # Parse SSE format
+                text = await resp.text()
+                data = self._parse_sse_response(text)
+            else:
+                # Parse as JSON (forcing it even if content-type is wrong)
+                text = await resp.text()
+                data = json.loads(text)
+
             if "error" in data:
                 raise RuntimeError(data["error"])
             return data.get("result", {})
@@ -327,6 +338,32 @@ class MCPClientManager:
             if resp.status >= 400:
                 text = await resp.text()
                 raise RuntimeError(f"HTTP {resp.status} from {server}: {text}")
+
+    def _parse_sse_response(self, sse_text: str) -> Dict[str, Any]:
+        """
+        Parse Server-Sent Events (SSE) response format.
+
+        SSE format:
+        data: {"jsonrpc":"2.0","id":1,"result":{...}}
+
+        Returns the JSON object from the last 'data:' line.
+        """
+        lines = sse_text.strip().split('\n')
+
+        # Find all data lines
+        for line in reversed(lines):  # Start from end to get latest data
+            line = line.strip()
+            if line.startswith('data:'):
+                # Extract JSON after "data: "
+                json_str = line[5:].strip()  # Remove "data:" prefix
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError:
+                    continue
+
+        # If no valid data found, raise error
+        raise RuntimeError(f"No valid JSON data found in SSE response: {sse_text[:100]}...")
+
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """
         Call a tool by name.
