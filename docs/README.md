@@ -9,6 +9,7 @@ Welcome to the Inkling documentation! This directory contains comprehensive guid
 Getting started, feature guides, and how-tos for users:
 - **[Setup Guide](guides/SETUP.md)** - Hardware assembly and software installation
 - **[Usage Guide](guides/USAGE.md)** - Complete feature walkthrough
+- **[Updating & Auto-Boot](guides/UPDATING_AND_AUTOBOOT.md)** - Safe updates and automatic startup
 - **[Web UI Guide](guides/WEB_UI.md)** - Browser interface documentation
 - **[Web Commands](guides/WEB_COMMANDS.md)** - Web-specific commands
 - **[Autonomous Mode](guides/AUTONOMOUS_MODE.md)** - Heartbeat system and autonomous behaviors
