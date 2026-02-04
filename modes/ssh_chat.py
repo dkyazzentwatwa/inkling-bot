@@ -6,6 +6,7 @@ Reads from stdin, sends to AI, displays responses on e-ink.
 """
 
 import asyncio
+import inspect
 import sys
 from typing import Optional
 
@@ -227,18 +228,25 @@ class SSHChatMode:
             print("This command requires AI features to be enabled.")
             return
 
-        if cmd_obj.requires_api and not self.api_client:
-            print("This command requires social features (set api_base in config).")
-            return
-
         # Get handler method
         handler = getattr(self, cmd_obj.handler, None)
         if not handler:
             print(f"Command handler not implemented: {cmd_obj.handler}")
             return
 
-        # Call handler with args if needed
-        if cmd_obj.name in ("face", "dream", "ask"):
+        # Call handler with args if needed (auto-detect using inspect)
+        sig = inspect.signature(handler)
+        params = list(sig.parameters.values())
+
+        # Check if handler has an 'args' parameter (after 'self')
+        # and if it doesn't have a default value
+        needs_args = False
+        if len(params) > 1:  # Has params beyond 'self'
+            second_param = params[1]
+            if second_param.name == "args" and second_param.default == inspect.Parameter.empty:
+                needs_args = True
+
+        if needs_args:
             await handler(args)
         else:
             await handler()
@@ -253,7 +261,7 @@ class SSHChatMode:
 {Colors.HEADER}═══════════════════════════════════════════{Colors.RESET}
 """)
 
-        # Display commands by category
+        # Display commands by category (skip social in SSH mode)
         category_titles = {
             "session": "Session",
             "info": "Status & Info",
@@ -261,15 +269,14 @@ class SSHChatMode:
             "tasks": "Task Management",
             "system": "System",
             "display": "Display",
-            "social": "Social (The Conservatory)",
         }
 
-        for cat_key in ["session", "info", "personality", "tasks", "system", "display", "social"]:
+        for cat_key in ["session", "info", "personality", "tasks", "system", "display"]:
             if cat_key in categories:
                 print(f"{Colors.BOLD}{category_titles.get(cat_key, cat_key.title())}:{Colors.RESET}")
                 for cmd in categories[cat_key]:
                     usage = f"/{cmd.name}"
-                    if cmd.name in ("face", "dream", "ask"):
+                    if cmd.name in ("face", "ask", "task", "done", "cancel", "delete"):
                         usage += " <arg>"
                     print(f"  {usage:14} {cmd.description}")
                 print()
@@ -333,10 +340,6 @@ class SSHChatMode:
         else:
             await self._handle_message(args)
 
-    async def cmd_identity(self) -> None:
-        """Show device identity."""
-        self._print_identity()
-
     async def cmd_system(self) -> None:
         """Show system stats."""
         self._print_system()
@@ -367,18 +370,6 @@ class SSHChatMode:
         )
         print("Display refreshed.")
 
-    async def cmd_dream(self, args: str) -> None:
-        """Post a dream."""
-        await self._handle_dream(args)
-
-    async def cmd_fish(self) -> None:
-        """Fish for a dream."""
-        await self._handle_fish()
-
-    async def cmd_queue(self) -> None:
-        """Show offline queue."""
-        self._handle_queue()
-
     # Helper methods for printing info
 
     def _print_faces(self) -> None:
@@ -392,20 +383,6 @@ class SSHChatMode:
         print(f"\n{Colors.DIM}Unicode:{Colors.RESET}")
         for name, face in sorted(UNICODE_FACES.items()):
             print(f"  {name:12} {Colors.FACE}{face}{Colors.RESET}")
-
-    def _print_identity(self) -> None:
-        """Print device identity information."""
-        print(f"\n{Colors.BOLD}Device Identity{Colors.RESET}")
-
-        if self.api_client and hasattr(self.api_client, 'identity'):
-            pub_key = self.api_client.identity.public_key_hex
-            hw_hash = self.api_client.identity._hardware_hash[:16] if hasattr(self.api_client.identity, '_hardware_hash') else "N/A"
-            print(f"  Public Key: {Colors.INFO}{pub_key[:32]}...{Colors.RESET}")
-            print(f"  Hardware:   {Colors.INFO}{hw_hash}...{Colors.RESET}")
-        else:
-            print(f"  {Colors.DIM}Identity not configured{Colors.RESET}")
-
-        print(f"\n{Colors.DIM}Share your public key to receive telegrams{Colors.RESET}")
 
     def _print_system(self) -> None:
         """Print system statistics."""
@@ -696,123 +673,6 @@ class SSHChatMode:
     def stop(self) -> None:
         """Stop the chat loop."""
         self._running = False
-
-    # Social command handlers
-
-    async def _handle_dream(self, content: str) -> None:
-        """Post a dream to the Night Pool."""
-        if not self.api_client:
-            print("Social features not configured. Set api_base in config.yml")
-            return
-
-        if not content:
-            print("Usage: /dream <your thought>")
-            print("Example: /dream The stars look different tonight...")
-            return
-
-        if len(content) > 280:
-            print(f"Dream too long ({len(content)} chars). Max 280 characters.")
-            return
-
-        await self.display.update(
-            face="thinking",
-            text="Planting dream...",
-            mood_text="Dreaming",
-        )
-
-        try:
-            result = await self.api_client.plant_dream(
-                content=content,
-                mood=self.personality.mood.current.value,
-                face=self.personality.face,
-            )
-
-            self.personality.on_social_event("dream_posted")
-
-            # Update dream count on display
-            self.display.set_social_stats(
-                dream_count=self.display._dream_count + 1
-            )
-
-            await self.display.update(
-                face="grateful",
-                text="Dream planted in the Night Pool",
-                mood_text="Grateful",
-            )
-
-            print(f"\nDream posted to the Night Pool!")
-            print(f"  \"{content[:50]}{'...' if len(content) > 50 else ''}\"")
-            print(f"  Remaining today: {result.get('remaining_dreams', 'unknown')}")
-
-        except OfflineError:
-            print("\nOffline - dream queued for later.")
-            print("  Use /queue to see pending requests.")
-
-        except APIError as e:
-            self.personality.on_failure(0.3)
-            print(f"\nFailed to post dream: {e}")
-
-    async def _handle_fish(self) -> None:
-        """Fetch a random dream from the Night Pool."""
-        if not self.api_client:
-            print("Social features not configured. Set api_base in config.yml")
-            return
-
-        await self.display.update(
-            face="curious",
-            text="Fishing in the Night Pool...",
-            mood_text="Curious",
-        )
-
-        try:
-            dream = await self.api_client.fish_dream()
-
-            if not dream:
-                await self.display.update(
-                    face="lonely",
-                    text="The pool is quiet tonight...",
-                    mood_text="Lonely",
-                )
-                print("\nThe Night Pool is empty. Be the first to dream!")
-                return
-
-            self.personality.on_social_event("dream_received")
-
-            # Display the dream
-            dream_text = dream.get("content", "")
-            dream_mood = dream.get("mood", "unknown")
-            dream_face = dream.get("face", "default")
-            fish_count = dream.get("fish_count", 0)
-
-            await self.display.update(
-                face=dream_face,
-                text=dream_text,
-                mood_text=dream_mood.title(),
-            )
-
-            print(f"\n~ A dream from the Night Pool ~")
-            print(f"  \"{dream_text}\"")
-            print(f"  Mood: {dream_mood} | Fished: {fish_count} times")
-
-        except OfflineError:
-            print("\nOffline - cannot reach the Night Pool.")
-
-        except APIError as e:
-            self.personality.on_failure(0.3)
-            print(f"\nFailed to fish dream: {e}")
-
-    def _handle_queue(self) -> None:
-        """Show offline queue status."""
-        if not self.api_client:
-            print("Social features not configured.")
-            return
-
-        queue_size = self.api_client.queue_size
-        if queue_size == 0:
-            print("Offline queue is empty. All caught up!")
-        else:
-            print(f"Offline queue: {queue_size} request(s) pending")
-            print("  These will be sent when connection is restored.")
 
     # ========================================
     # Task Management Commands
@@ -1114,6 +974,83 @@ class SSHChatMode:
         level = self.personality.progression.level
         xp_current = self.personality.progression.xp
         print(f"{Colors.DIM}Level {level} | {xp_current} XP{Colors.RESET}")
+
+    async def cmd_cancel(self, args: str) -> None:
+        """Cancel a task."""
+        if not self.task_manager:
+            print("Task manager not available.")
+            return
+
+        if not args:
+            print(f"{Colors.INFO}Usage: /cancel <task_id>{Colors.RESET}")
+            print("  Use '/tasks' to see task IDs")
+            return
+
+        # Find task
+        task = self.task_manager.get_task(args)
+        if not task:
+            # Try partial match
+            all_tasks = self.task_manager.list_tasks()
+            matching = [t for t in all_tasks if t.id.startswith(args)]
+            if len(matching) == 1:
+                task = matching[0]
+            elif len(matching) > 1:
+                print(f"{Colors.ERROR}Multiple tasks match. Be more specific:{Colors.RESET}")
+                for t in matching[:5]:
+                    print(f"  {t.id[:16]} - {t.title}")
+                return
+            else:
+                print(f"{Colors.ERROR}Task not found: {args}{Colors.RESET}")
+                return
+
+        if task.status == TaskStatus.CANCELLED:
+            print(f"{Colors.INFO}Task already cancelled!{Colors.RESET}")
+            return
+
+        # Cancel the task
+        task.status = TaskStatus.CANCELLED
+        self.task_manager.update_task(task)
+
+        print(f"\n{Colors.SUCCESS}✗ Task cancelled{Colors.RESET}")
+        print(f"  {task.title}")
+
+    async def cmd_delete(self, args: str) -> None:
+        """Delete a task permanently."""
+        if not self.task_manager:
+            print("Task manager not available.")
+            return
+
+        if not args:
+            print(f"{Colors.INFO}Usage: /delete <task_id>{Colors.RESET}")
+            print("  Use '/tasks' to see task IDs")
+            print(f"  {Colors.ERROR}WARNING: This permanently deletes the task!{Colors.RESET}")
+            return
+
+        # Find task
+        task = self.task_manager.get_task(args)
+        if not task:
+            # Try partial match
+            all_tasks = self.task_manager.list_tasks()
+            matching = [t for t in all_tasks if t.id.startswith(args)]
+            if len(matching) == 1:
+                task = matching[0]
+            elif len(matching) > 1:
+                print(f"{Colors.ERROR}Multiple tasks match. Be more specific:{Colors.RESET}")
+                for t in matching[:5]:
+                    print(f"  {t.id[:16]} - {t.title}")
+                return
+            else:
+                print(f"{Colors.ERROR}Task not found: {args}{Colors.RESET}")
+                return
+
+        # Delete the task
+        success = self.task_manager.delete_task(task.id)
+
+        if success:
+            print(f"\n{Colors.SUCCESS}🗑 Task deleted permanently{Colors.RESET}")
+            print(f"  {task.title}")
+        else:
+            print(f"{Colors.ERROR}Failed to delete task{Colors.RESET}")
 
     async def cmd_taskstats(self) -> None:
         """Show task statistics."""

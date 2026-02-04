@@ -322,10 +322,10 @@ HTML_TEMPLATE = """
             </div>
 
             <div class="command-group">
-                <h4>Social</h4>
+                <h4>Tasks</h4>
                 <div class="command-buttons">
-                    <button onclick="runCommand('/fish')">Fish</button>
-                    <button onclick="runCommand('/queue')">Queue</button>
+                    <button onclick="runCommand('/tasks')">List Tasks</button>
+                    <button onclick="runCommand('/taskstats')">Stats</button>
                 </div>
             </div>
 
@@ -334,7 +334,6 @@ HTML_TEMPLATE = """
                 <div class="command-buttons">
                     <button onclick="runCommand('/system')">System</button>
                     <button onclick="runCommand('/config')">Config</button>
-                    <button onclick="runCommand('/identity')">Identity</button>
                     <button onclick="runCommand('/faces')">Faces</button>
                     <button onclick="runCommand('/refresh')">Refresh</button>
                     <button onclick="runCommand('/clear')">Clear</button>
@@ -2908,18 +2907,18 @@ class WebChatMode:
         category_titles = {
             "info": "Status & Info",
             "personality": "Personality",
+            "tasks": "Task Management",
             "system": "System",
             "display": "Display",
-            "social": "Social (The Conservatory)",
             "session": "Session",
         }
 
-        for cat_key in ["info", "personality", "system", "display", "social", "session"]:
+        for cat_key in ["info", "personality", "tasks", "system", "display", "session"]:
             if cat_key in categories:
                 response_lines.append(f"\n{category_titles.get(cat_key, cat_key.title())}:")
                 for cmd in categories[cat_key]:
                     usage = f"/{cmd.name}"
-                    if cmd.name in ("face", "dream", "ask"):
+                    if cmd.name in ("face", "ask", "task", "done", "cancel", "delete"):
                         usage += " <arg>"
                     response_lines.append(f"  {usage} - {cmd.description}")
 
@@ -3068,24 +3067,6 @@ class WebChatMode:
             "status": self.personality.get_status_line(),
         }
 
-    def _cmd_identity(self) -> Dict[str, Any]:
-        """Show device identity."""
-        if self.api_client and hasattr(self.api_client, 'identity'):
-            pub_key = self.api_client.identity.public_key_hex
-            hw_hash = self.api_client.identity._hardware_hash[:16] if hasattr(self.api_client.identity, '_hardware_hash') else "N/A"
-            response = "DEVICE IDENTITY\n\n"
-            response += f"Public Key: {pub_key[:32]}...\n"
-            response += f"Hardware:   {hw_hash}...\n\n"
-            response += "Share your public key to receive telegrams"
-        else:
-            response = "Identity not configured"
-
-        return {
-            "response": response,
-            "face": self._get_face_str(),
-            "status": self.personality.get_status_line(),
-        }
-
     def _cmd_history(self) -> Dict[str, Any]:
         """Show recent messages."""
         if not self.brain._messages:
@@ -3167,72 +3148,6 @@ class WebChatMode:
             "face": self._get_face_str(),
             "status": self.personality.get_status_line(),
         }
-
-    def _cmd_queue(self) -> Dict[str, Any]:
-        """Show offline queue status."""
-        queue_size = self.api_client.queue_size
-        if queue_size == 0:
-            response = "Offline queue is empty. All caught up!"
-        else:
-            response = f"Offline queue: {queue_size} request(s) pending\n\nThese will be sent when connection is restored."
-
-        return {
-            "response": response,
-            "face": self._get_face_str(),
-            "status": self.personality.get_status_line(),
-        }
-
-    def _cmd_fish(self) -> Dict[str, Any]:
-        """Fetch a random dream."""
-        try:
-            future = asyncio.run_coroutine_threadsafe(
-                self.api_client.fish_dream(),
-                self._loop
-            )
-            dream = future.result(timeout=10)
-
-            if dream:
-                self.personality.on_social_event("dream_received")
-                return {
-                    "response": f'"{dream.get("content", "")}"\n\nMood: {dream.get("mood", "?")} | Fished: {dream.get("fish_count", 0)}x',
-                    "face": self._faces.get(dream.get("face", "default"), "(^_^)"),
-                    "status": "dream received",
-                }
-            else:
-                return {
-                    "response": "The Night Pool is quiet tonight...",
-                    "face": self._get_face_str(),
-                    "status": self.personality.get_status_line(),
-                }
-        except Exception as e:
-            return {"response": f"Failed to fish: {e}", "error": True}
-
-    def _cmd_dream(self, args: str) -> Dict[str, Any]:
-        """Post a dream to the Night Pool."""
-        if not args:
-            return {"response": "Usage: /dream <your thought>\n\nExample: /dream The stars look different tonight...", "error": True}
-
-        if len(args) > 280:
-            return {"response": f"Dream too long ({len(args)} chars). Max 280 characters.", "error": True}
-
-        try:
-            future = asyncio.run_coroutine_threadsafe(
-                self.api_client.plant_dream(
-                    content=args,
-                    mood=self.personality.mood.current.value,
-                    face=self.personality.face,
-                ),
-                self._loop
-            )
-            result = future.result(timeout=10)
-            self.personality.on_social_event("dream_posted")
-            return {
-                "response": f"Dream planted! {result.get('remaining_dreams', '?')} left today.",
-                "face": self._faces["grateful"],
-                "status": "dream posted",
-            }
-        except Exception as e:
-            return {"response": f"Failed to post: {e}", "error": True}
 
     def _cmd_ask(self, args: str) -> Dict[str, Any]:
         """Handle explicit chat command."""

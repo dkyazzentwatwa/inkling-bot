@@ -36,24 +36,18 @@ COMMANDS: List[Command] = [
     # System commands
     Command("system", "Show system stats", "cmd_system", "system"),
     Command("config", "Show AI configuration", "cmd_config", "system", requires_brain=True),
-    Command("identity", "Show device public key", "cmd_identity", "system", requires_api=True),
 
     # Display commands
     Command("face", "Test a face expression", "cmd_face", "display"),
     Command("faces", "List all available faces", "cmd_faces", "display"),
     Command("refresh", "Force display refresh", "cmd_refresh", "display"),
 
-    # Social commands
-    Command("dream", "Post a dream to the Night Pool", "cmd_dream", "social", requires_api=True),
-    Command("fish", "Fetch random dream from pool", "cmd_fish", "social", requires_api=True),
-    Command("telegrams", "Check telegram inbox", "cmd_telegrams", "social", requires_api=True),
-    Command("telegram", "Send encrypted telegram", "cmd_telegram", "social", requires_api=True),
-    Command("queue", "Show offline queue status", "cmd_queue", "social", requires_api=True),
-
     # Task management commands
     Command("tasks", "List all tasks", "cmd_tasks", "tasks"),
     Command("task", "Show or create a task", "cmd_task", "tasks"),
     Command("done", "Mark task as complete", "cmd_done", "tasks"),
+    Command("cancel", "Cancel a task", "cmd_cancel", "tasks"),
+    Command("delete", "Delete a task", "cmd_delete", "tasks"),
     Command("taskstats", "Show task statistics", "cmd_taskstats", "tasks"),
 
     # Session commands (SSH only)
