@@ -617,7 +617,9 @@ class Personality:
             f"Only use tools when the user explicitly asks for something that requires them - "
             f"simple greetings and chat don't need tools. "
             f"When you get tool results with JSON data, format them in a friendly, readable way - "
-            f"don't just show raw JSON."
+            f"don't just show raw JSON. "
+            f"IMPORTANT: After using a tool, ALWAYS provide a text response to the user - "
+            f"never leave your response empty. Call each tool only once unless you need updated information."
         )
 
     def get_status_line(self) -> str:

@@ -593,6 +593,10 @@ class Brain:
                     # Analyze chat quality for XP
                     result.chat_quality = self._analyze_chat_quality(user_message)
 
+                    # Safety check: Ensure we have actual content
+                    if not result.content or not result.content.strip():
+                        result.content = "I processed that, but I'm not sure what to say. Can you try asking differently?"
+
                     # Record usage and add to history
                     self.budget.record_usage(result.tokens_used)
                     self._messages.append(Message(role="assistant", content=result.content))

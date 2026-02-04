@@ -99,6 +99,13 @@ mcp:
       command: "python"
       args: ["mcp_servers/tasks.py"]
 
+    # Filesystem Access (built-in, Python)
+    # AI can list, read, write, and search files
+    # Uncomment to enable (restricted to /home/pi for security)
+    # filesystem:
+    #   command: "python"
+    #   args: ["mcp_servers/filesystem.py", "/home/pi"]
+
     # Composio MCP Gateway (500+ app integrations)
     # Provides access to Google Calendar, Gmail, GitHub, Slack, Notion, etc.
     # Get API key from: https://app.composio.dev/settings
