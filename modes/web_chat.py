@@ -7,6 +7,7 @@ Runs a Bottle server on http://inkling.local:8081
 
 import asyncio
 import json
+import os
 import threading
 import hashlib
 import hmac
@@ -20,12 +21,9 @@ from core.brain import Brain, AllProvidersExhaustedError, QuotaExceededError
 from core.display import DisplayManager
 from core.personality import Personality
 from core.progression import XPSource
-from core.api_client import APIClient, APIError, OfflineError
 from core.commands import COMMANDS, get_command, get_commands_by_category
 from core.tasks import TaskManager, Task, TaskStatus, Priority
 from core.crypto import Identity
-from core.telegram import TelegramCrypto
-from core.postcard import PostcardCodec
 
 
 # HTML template for the web UI
@@ -294,7 +292,7 @@ HTML_TEMPLATE = """
         </h1>
         <div class="nav">
             <a href="/tasks">📋 Tasks</a>
-            <a href="/social">🌙 Social</a>
+            <a href="/files">📁 Files</a>
             <a href="/settings">⚙️ Settings</a>
         </div>
     </header>
@@ -687,6 +685,7 @@ SETTINGS_TEMPLATE = """
         <div style="display: flex; gap: 0.5rem;">
             <button class="back-button" onclick="location.href='/'">Chat</button>
             <button class="back-button" onclick="location.href='/tasks'">Tasks</button>
+            <button class="back-button" onclick="location.href='/files'">Files</button>
             <button class="back-button" onclick="location.href='/social'">Social</button>
         </div>
     </header>
@@ -923,563 +922,6 @@ SETTINGS_TEMPLATE = """
 
             saveBtn.disabled = false;
         }
-    </script>
-</body>
-</html>
-"""
-
-
-# Tasks Kanban Board Template
-SOCIAL_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>{{name}} - Social</title>
-    <style>
-        :root {
-            --bg: #f5f5f0;
-            --text: #1a1a1a;
-            --border: #333;
-            --muted: #666;
-            --accent: #4a90d9;
-        }
-        body {
-            font-family: 'Berkeley Mono', 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
-            background: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 0;
-            line-height: 1.6;
-        }
-        .header {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: var(--bg);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem;
-            border-bottom: 2px solid var(--border);
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .face {
-            font-size: 32px;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        .nav-buttons {
-            display: flex;
-            gap: 12px;
-        }
-        .nav-buttons a, .nav-buttons button {
-            color: var(--text);
-            text-decoration: none;
-            padding: 8px 16px;
-            border: 2px solid var(--border);
-            border-radius: 4px;
-            transition: all 0.2s;
-            font-size: 0.875rem;
-            background: var(--bg);
-            cursor: pointer;
-            font-family: inherit;
-        }
-        .nav-buttons a:hover, .nav-buttons button:hover {
-            background: var(--accent);
-            color: white;
-            transform: translateY(-2px);
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 1rem;
-        }
-        button {
-            padding: 0.75rem 1.5rem;
-            font-family: inherit;
-            font-size: 1rem;
-            background: var(--bg);
-            color: var(--text);
-            border: 2px solid var(--border);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        button:hover {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-        }
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .section {
-            margin-bottom: 2rem;
-            padding: 1.5rem;
-            border: 2px solid var(--border);
-        }
-        .section h2 {
-            margin-top: 0;
-            font-size: 1.25rem;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 0.5rem;
-        }
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-        .stat {
-            padding: 1rem;
-            border: 1px solid var(--border);
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 2rem;
-            font-weight: bold;
-            color: var(--accent);
-        }
-        .stat-label {
-            font-size: 0.875rem;
-            color: var(--muted);
-            text-transform: uppercase;
-        }
-        .dream-box {
-            border: 1px solid var(--border);
-            padding: 1rem;
-            margin-bottom: 1rem;
-        }
-        .dream-meta {
-            font-size: 0.875rem;
-            color: var(--muted);
-            margin-bottom: 0.5rem;
-        }
-        .dream-content {
-            font-size: 1rem;
-            margin-bottom: 0.5rem;
-        }
-        textarea {
-            width: 100%;
-            font-family: inherit;
-            font-size: 1rem;
-            padding: 0.75rem;
-            border: 2px solid var(--border);
-            background: var(--bg);
-            color: var(--text);
-            resize: vertical;
-            min-height: 100px;
-        }
-        .char-count {
-            font-size: 0.875rem;
-            color: var(--muted);
-            text-align: right;
-            margin-top: 0.25rem;
-        }
-        .message {
-            padding: 1rem;
-            margin-top: 1rem;
-            border: 2px solid var(--accent);
-            background: var(--bg);
-            display: none;
-        }
-        .message.show {
-            display: block;
-        }
-        .message.error {
-            border-color: #d94a4a;
-            color: #d94a4a;
-        }
-        .loading {
-            text-align: center;
-            color: var(--muted);
-            padding: 2rem;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-    <div class="header">
-        <h1>
-            <span class="face">🌙</span>
-            <span>Social</span>
-        </h1>
-        <div class="nav-buttons">
-            <a href="/">💬 Chat</a>
-            <a href="/tasks">📋 Tasks</a>
-            <a href="/settings">⚙️ Settings</a>
-        </div>
-    </div>
-
-        <!-- Stats Section -->
-        <div class="section">
-            <h2>📊 Social Stats</h2>
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-value" id="dreams-posted">-</div>
-                    <div class="stat-label">Dreams Posted</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="dreams-fished">-</div>
-                    <div class="stat-label">Dreams Fished</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="telegrams-sent">-</div>
-                    <div class="stat-label">Telegrams Sent</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="telegrams-received">-</div>
-                    <div class="stat-label">Telegrams Received</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="postcards-sent">-</div>
-                    <div class="stat-label">Postcards Sent</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="queue-size">-</div>
-                    <div class="stat-label">Queued</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Post Dream Section -->
-        <div class="section">
-            <h2>✨ Post a Dream</h2>
-            <p style="color: var(--muted); font-size: 0.875rem;">Share a thought with the Night Pool (max 280 characters)</p>
-            <textarea id="dream-text" placeholder="The stars look different tonight..." maxlength="280"></textarea>
-            <div class="char-count"><span id="char-count">0</span> / 280</div>
-            <button id="post-btn" onclick="postDream()" style="margin-top: 1rem;">Post Dream</button>
-            <div id="post-message" class="message"></div>
-        </div>
-
-        <!-- Night Pool Section -->
-        <div class="section">
-            <h2>🌙 Night Pool</h2>
-            <p style="color: var(--muted); font-size: 0.875rem;">Recent dreams from other Inklings</p>
-            <button onclick="fetchDream()" style="margin-bottom: 1rem;">Fish a Dream</button>
-            <div id="dreams-container">
-                <div class="loading">Click "Fish a Dream" to see what others are thinking...</div>
-            </div>
-        </div>
-
-        <!-- Send Telegram Section -->
-        <div class="section">
-            <h2>📤 Send Telegram</h2>
-            <p style="color: var(--muted); font-size: 0.875rem;">Send an encrypted message to another Inkling</p>
-            <input type="text" id="recipient-key" placeholder="Recipient's telegram key (hex)" style="width: 100%; padding: 0.75rem; font-family: inherit; border: 2px solid var(--border); background: var(--bg); color: var(--text); margin-bottom: 0.5rem;">
-            <textarea id="telegram-text" placeholder="Your message..." style="width: 100%; height: 100px; padding: 0.75rem; font-family: inherit; border: 2px solid var(--border); background: var(--bg); color: var(--text); resize: vertical;"></textarea>
-            <button onclick="sendTelegram()" style="margin-top: 0.5rem;">Send Telegram</button>
-            <div id="telegram-message" class="message"></div>
-        </div>
-
-        <!-- Telegrams Section -->
-        <div class="section">
-            <h2>📮 Telegram Inbox</h2>
-            <button onclick="checkTelegrams()" style="margin-bottom: 1rem;">Check Messages</button>
-            <div id="telegrams-container">
-                <div class="loading">Click "Check Messages" to see your inbox...</div>
-            </div>
-        </div>
-
-        <!-- Postcards Section -->
-        <div class="section">
-            <h2>🖼️ Postcards</h2>
-            <p style="color: var(--muted); font-size: 0.875rem;">1-bit pixel art messages</p>
-            <div style="margin-bottom: 1rem;">
-                <input type="text" id="postcard-text" placeholder="Text for postcard (max 20 chars)" maxlength="20" style="width: 70%; padding: 0.75rem; font-family: inherit; border: 2px solid var(--border); background: var(--bg); color: var(--text); margin-right: 0.5rem;">
-                <button onclick="sendPostcard()">Send</button>
-            </div>
-            <button onclick="loadPostcards()" style="margin-bottom: 1rem;">Load Postcards</button>
-            <div id="postcards-container">
-                <div class="loading">Click "Load Postcards" to see your collection...</div>
-            </div>
-        </div>
-
-        <!-- Identity Section -->
-        <div class="section">
-            <h2>🔐 Identity</h2>
-            <div style="font-family: 'Courier New', monospace; font-size: 0.875rem; word-break: break-all;">
-                <div style="margin-bottom: 0.5rem;">
-                    <strong>Device ID:</strong> <span id="device-id">-</span>
-                </div>
-                <div style="margin-bottom: 0.5rem;">
-                    <strong>Public Key (Ed25519):</strong>
-                    <div style="background: var(--bg); border: 1px solid var(--border); padding: 0.5rem; margin-top: 0.25rem; font-size: 0.75rem;" id="public-key">-</div>
-                </div>
-                <div style="margin-bottom: 0.5rem;">
-                    <strong>Telegram Key (X25519):</strong>
-                    <div style="background: var(--bg); border: 1px solid var(--border); padding: 0.5rem; margin-top: 0.25rem; font-size: 0.75rem;" id="telegram-key">-</div>
-                </div>
-                <div style="margin-bottom: 0.5rem;">
-                    <strong>Hardware Hash:</strong> <span id="hardware-hash">-</span>
-                </div>
-            </div>
-            <button onclick="copyTelegramKey()" style="margin-top: 0.5rem;">Copy Telegram Key</button>
-            <div id="copy-message" class="message"></div>
-        </div>
-    </div>
-
-    <script>
-        const dreamText = document.getElementById('dream-text');
-        const charCount = document.getElementById('char-count');
-        const postBtn = document.getElementById('post-btn');
-        const postMessage = document.getElementById('post-message');
-
-        // Character counter
-        dreamText.addEventListener('input', () => {
-            const count = dreamText.value.length;
-            charCount.textContent = count;
-            postBtn.disabled = count === 0 || count > 280;
-        });
-
-        // Load social stats
-        async function loadStats() {
-            try {
-                const resp = await fetch('/api/social/stats');
-                const data = await resp.json();
-
-                document.getElementById('dreams-posted').textContent = data.dreams_posted || 0;
-                document.getElementById('dreams-fished').textContent = data.dreams_fished || 0;
-                document.getElementById('telegrams-sent').textContent = data.telegrams_sent || 0;
-                document.getElementById('telegrams-received').textContent = data.telegrams_received || 0;
-                document.getElementById('postcards-sent').textContent = data.postcards_sent || 0;
-                document.getElementById('queue-size').textContent = data.queue_size || 0;
-            } catch (e) {
-                console.error('Failed to load stats:', e);
-            }
-        }
-
-        // Post a dream
-        async function postDream() {
-            const text = dreamText.value.trim();
-            if (!text) return;
-
-            postBtn.disabled = true;
-            postMessage.classList.remove('show', 'error');
-
-            try {
-                const resp = await fetch('/api/social/dream', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({content: text})
-                });
-
-                const data = await resp.json();
-
-                if (resp.ok && data.success) {
-                    postMessage.textContent = '✓ Dream posted to the Night Pool!';
-                    postMessage.classList.add('show');
-                    dreamText.value = '';
-                    charCount.textContent = '0';
-                    loadStats();
-                } else {
-                    postMessage.textContent = 'Error: ' + (data.error || 'Failed to post dream');
-                    postMessage.classList.add('show', 'error');
-                }
-            } catch (e) {
-                postMessage.textContent = 'Connection error: ' + e.message;
-                postMessage.classList.add('show', 'error');
-            }
-
-            postBtn.disabled = false;
-        }
-
-        // Fetch a random dream
-        async function fetchDream() {
-            const container = document.getElementById('dreams-container');
-            container.innerHTML = '<div class="loading">Fishing...</div>';
-
-            try {
-                const resp = await fetch('/api/social/fish');
-                const data = await resp.json();
-
-                if (resp.ok && data.dream) {
-                    const dream = data.dream;
-                    container.innerHTML = `
-                        <div class="dream-box">
-                            <div class="dream-meta">
-                                ${dream.mood || 'unknown'} | ${dream.device_name || 'Anonymous'} | ${new Date(dream.posted_at).toLocaleString()}
-                            </div>
-                            <div class="dream-content">${escapeHtml(dream.content)}</div>
-                            <div class="dream-meta">🎣 Fished ${dream.fish_count || 0} times</div>
-                        </div>
-                    `;
-                } else {
-                    container.innerHTML = '<div class="loading">The Night Pool is empty right now...</div>';
-                }
-            } catch (e) {
-                container.innerHTML = '<div class="loading error">Failed to fetch dream: ' + e.message + '</div>';
-            }
-        }
-
-        // Check telegrams
-        async function checkTelegrams() {
-            const container = document.getElementById('telegrams-container');
-            container.innerHTML = '<div class="loading">Checking...</div>';
-
-            try {
-                const resp = await fetch('/api/social/telegrams');
-                const data = await resp.json();
-
-                if (resp.ok && data.telegrams && data.telegrams.length > 0) {
-                    container.innerHTML = data.telegrams.map(t => `
-                        <div class="dream-box">
-                            <div class="dream-meta">From: ${t.sender_name || 'Unknown'} | ${new Date(t.created_at).toLocaleString()}</div>
-                            <div class="dream-content">${escapeHtml(t.content)}</div>
-                        </div>
-                    `).join('');
-                } else {
-                    container.innerHTML = '<div class="loading">No new telegrams</div>';
-                }
-            } catch (e) {
-                container.innerHTML = '<div class="loading error">Failed to check telegrams: ' + e.message + '</div>';
-            }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Send telegram
-        async function sendTelegram() {
-            const recipientKey = document.getElementById('recipient-key').value.trim();
-            const message = document.getElementById('telegram-text').value.trim();
-            const messageEl = document.getElementById('telegram-message');
-
-            if (!recipientKey || !message) {
-                messageEl.textContent = 'Please enter both recipient key and message';
-                messageEl.classList.add('show', 'error');
-                return;
-            }
-
-            messageEl.classList.remove('show', 'error');
-
-            try {
-                const resp = await fetch('/api/social/telegram/send', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({recipient_key: recipientKey, message: message})
-                });
-
-                const data = await resp.json();
-
-                if (resp.ok && data.success) {
-                    messageEl.textContent = '✓ Telegram sent!';
-                    messageEl.classList.add('show');
-                    document.getElementById('telegram-text').value = '';
-                    loadStats();
-                } else {
-                    messageEl.textContent = 'Error: ' + (data.error || 'Failed to send');
-                    messageEl.classList.add('show', 'error');
-                }
-            } catch (e) {
-                messageEl.textContent = 'Connection error: ' + e.message;
-                messageEl.classList.add('show', 'error');
-            }
-        }
-
-        // Send postcard
-        async function sendPostcard() {
-            const text = document.getElementById('postcard-text').value.trim();
-
-            if (!text) {
-                alert('Please enter some text');
-                return;
-            }
-
-            try {
-                const resp = await fetch('/api/social/postcard/send', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({text: text, recipient_key: null})
-                });
-
-                const data = await resp.json();
-
-                if (resp.ok && data.success) {
-                    alert('Postcard sent!');
-                    document.getElementById('postcard-text').value = '';
-                    loadStats();
-                } else {
-                    alert('Error: ' + (data.error || 'Failed to send'));
-                }
-            } catch (e) {
-                alert('Connection error: ' + e.message);
-            }
-        }
-
-        // Load postcards
-        async function loadPostcards() {
-            const container = document.getElementById('postcards-container');
-            container.innerHTML = '<div class="loading">Loading...</div>';
-
-            try {
-                const resp = await fetch('/api/social/postcards?public=false');
-                const data = await resp.json();
-
-                if (resp.ok && data.postcards && data.postcards.length > 0) {
-                    container.innerHTML = data.postcards.map(p => `
-                        <div class="dream-box">
-                            <div class="dream-meta">From: ${p.from_device_id || 'Unknown'} | ${new Date(p.created_at).toLocaleString()}</div>
-                            <div class="dream-content">${escapeHtml(p.caption || 'No caption')}</div>
-                            <div class="dream-meta">Size: ${p.width}x${p.height}px</div>
-                        </div>
-                    `).join('');
-                } else {
-                    container.innerHTML = '<div class="loading">No postcards yet</div>';
-                }
-            } catch (e) {
-                container.innerHTML = '<div class="loading error">Failed to load postcards: ' + e.message + '</div>';
-            }
-        }
-
-        // Load identity
-        async function loadIdentity() {
-            try {
-                const resp = await fetch('/api/social/identity');
-                const data = await resp.json();
-
-                document.getElementById('device-id').textContent = data.device_id || '-';
-                document.getElementById('public-key').textContent = data.public_key || '-';
-                document.getElementById('telegram-key').textContent = data.telegram_key || '-';
-                document.getElementById('hardware-hash').textContent = data.hardware_hash || '-';
-            } catch (e) {
-                console.error('Failed to load identity:', e);
-            }
-        }
-
-        // Copy telegram key to clipboard
-        async function copyTelegramKey() {
-            const telegramKey = document.getElementById('telegram-key').textContent;
-            const messageEl = document.getElementById('copy-message');
-
-            try {
-                await navigator.clipboard.writeText(telegramKey);
-                messageEl.textContent = '✓ Copied to clipboard!';
-                messageEl.classList.add('show');
-                setTimeout(() => messageEl.classList.remove('show'), 3000);
-            } catch (e) {
-                messageEl.textContent = 'Failed to copy: ' + e.message;
-                messageEl.classList.add('show', 'error');
-            }
-        }
-
-        // Load stats and identity on page load
-        loadStats();
-        loadIdentity();
     </script>
 </body>
 </html>
@@ -1899,7 +1341,7 @@ TASKS_TEMPLATE = """
         </h1>
         <div class="nav">
             <a href="/">💬 Chat</a>
-            <a href="/social">🌙 Social</a>
+            <a href="/files">📁 Files</a>
             <a href="/settings">⚙️ Settings</a>
         </div>
     </div>
@@ -2321,6 +1763,439 @@ LOGIN_TEMPLATE = """
 """
 
 
+FILES_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Files - {{name}}</title>
+    <style>
+        :root {
+            --bg: #f5f5f0;
+            --text: #1a1a1a;
+            --border: #333;
+            --muted: #666;
+            --accent: #4a90d9;
+        }
+        /* Pastel Color Themes */
+        [data-theme="cream"] { --bg: #f5f5f0; --text: #1a1a1a; --border: #333; --muted: #666; --accent: #4a90d9; }
+        [data-theme="pink"] { --bg: #ffe4e9; --text: #4a1a28; --border: #d4758f; --muted: #8f5066; --accent: #ff6b9d; }
+        [data-theme="mint"] { --bg: #e0f5f0; --text: #1a3a33; --border: #6eb5a3; --muted: #4d8073; --accent: #52d9a6; }
+        [data-theme="lavender"] { --bg: #f0e9ff; --text: #2a1a4a; --border: #9d85d4; --muted: #6b5a8f; --accent: #a78bfa; }
+        [data-theme="peach"] { --bg: #ffe9dc; --text: #4a2a1a; --border: #d49675; --muted: #8f6650; --accent: #ffab7a; }
+        [data-theme="sky"] { --bg: #e0f0ff; --text: #1a2e4a; --border: #6ba3d4; --muted: #4d708f; --accent: #5eb3ff; }
+        [data-theme="butter"] { --bg: #fff9e0; --text: #4a3f1a; --border: #d4c175; --muted: #8f8350; --accent: #ffd952; }
+        [data-theme="rose"] { --bg: #fff0f3; --text: #4a1a2a; --border: #d47590; --muted: #8f5068; --accent: #ff9eb8; }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        header {
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .nav {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .nav a {
+            color: var(--text);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+        }
+
+        .nav a:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .breadcrumb {
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            color: var(--muted);
+            font-size: 0.9em;
+        }
+
+        .breadcrumb a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        .file-list {
+            list-style: none;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .file-item {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg);
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-item:hover {
+            background: rgba(0, 0, 0, 0.03);
+        }
+
+        .file-item.directory {
+            cursor: pointer;
+        }
+
+        .file-info {
+            flex-grow: 1;
+        }
+
+        .file-name {
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+
+        .file-name.directory {
+            color: var(--accent);
+        }
+
+        .file-meta {
+            color: var(--muted);
+            font-size: 0.85em;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            cursor: pointer;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--muted);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow: auto;
+            padding: 1.5rem;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .modal-header h2 {
+            font-size: 1.2rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--muted);
+        }
+
+        .close-btn:hover {
+            color: var(--text);
+        }
+
+        .file-content {
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            background: rgba(0, 0, 0, 0.03);
+            padding: 1rem;
+            border-radius: 4px;
+            max-height: 60vh;
+            overflow: auto;
+        }
+
+        .error {
+            color: #d9534f;
+            padding: 1rem;
+            background: rgba(217, 83, 79, 0.1);
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📁 Files</h1>
+            <div class="nav">
+                <a href="/">💬 Chat</a>
+                <a href="/tasks">📋 Tasks</a>
+                <a href="/files">📁 Files</a>
+                <a href="/settings">⚙️ Settings</a>
+            </div>
+        </header>
+
+        <div class="breadcrumb" id="breadcrumb">
+            <a href="#" data-path="">~/.inkling/</a>
+        </div>
+
+        <div id="error-container"></div>
+
+        <ul class="file-list" id="file-list">
+            <li class="empty-state">Loading...</li>
+        </ul>
+    </div>
+
+    <div class="modal" id="file-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">File</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="file-content" id="file-content"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentPath = '';
+
+        // Apply saved theme
+        const theme = localStorage.getItem('theme') || 'cream';
+        document.documentElement.setAttribute('data-theme', theme);
+
+        async function loadFiles(path = '') {
+            try {
+                const response = await fetch(`/api/files/list?path=${encodeURIComponent(path)}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                currentPath = data.path || '';
+                updateBreadcrumb(currentPath);
+                renderFileList(data.items);
+
+            } catch (error) {
+                showError('Failed to load files: ' + error.message);
+            }
+        }
+
+        function updateBreadcrumb(path) {
+            const breadcrumb = document.getElementById('breadcrumb');
+
+            if (!path) {
+                breadcrumb.innerHTML = '<a href="#" data-path="">~/.inkling/</a>';
+                return;
+            }
+
+            const parts = path.split('/');
+            let html = '<a href="#" data-path="">~/.inkling/</a>';
+            let buildPath = '';
+
+            parts.forEach((part, idx) => {
+                if (!part) return;
+                buildPath += (buildPath ? '/' : '') + part;
+                html += ` / <a href="#" data-path="${buildPath}">${part}</a>`;
+            });
+
+            breadcrumb.innerHTML = html;
+
+            // Add click handlers to breadcrumb links
+            breadcrumb.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    loadFiles(e.target.dataset.path);
+                });
+            });
+        }
+
+        function renderFileList(items) {
+            const list = document.getElementById('file-list');
+
+            if (items.length === 0) {
+                list.innerHTML = '<li class="empty-state">No files found</li>';
+                return;
+            }
+
+            list.innerHTML = '';
+
+            // Add parent directory link if not at root
+            if (currentPath) {
+                const parentPath = currentPath.split('/').slice(0, -1).join('/');
+                const li = document.createElement('li');
+                li.className = 'file-item directory';
+                li.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name directory">📁 ..</div>
+                        <div class="file-meta">Parent directory</div>
+                    </div>
+                `;
+                li.onclick = () => loadFiles(parentPath);
+                list.appendChild(li);
+            }
+
+            // Render items
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.className = item.type === 'dir' ? 'file-item directory' : 'file-item';
+
+                const icon = item.type === 'dir' ? '📁' : '📄';
+                const size = item.type === 'file' ? formatSize(item.size) : '';
+                const date = new Date(item.modified * 1000).toLocaleString();
+
+                li.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name ${item.type === 'dir' ? 'directory' : ''}">${icon} ${item.name}</div>
+                        <div class="file-meta">${size} ${size && date ? '•' : ''} ${date}</div>
+                    </div>
+                `;
+
+                if (item.type === 'dir') {
+                    li.onclick = () => loadFiles(item.path);
+                } else {
+                    const actions = document.createElement('div');
+                    actions.className = 'file-actions';
+                    actions.innerHTML = `
+                        <button class="btn" onclick="viewFile('${item.path}', event)">View</button>
+                        <a class="btn" href="/api/files/download?path=${encodeURIComponent(item.path)}" download>Download</a>
+                    `;
+                    li.appendChild(actions);
+                }
+
+                list.appendChild(li);
+            });
+        }
+
+        async function viewFile(path, event) {
+            event.stopPropagation();
+
+            try {
+                const response = await fetch(`/api/files/view?path=${encodeURIComponent(path)}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                document.getElementById('modal-title').textContent = data.name;
+                document.getElementById('file-content').textContent = data.content;
+                document.getElementById('file-modal').classList.add('active');
+
+            } catch (error) {
+                showError('Failed to view file: ' + error.message);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('file-modal').classList.remove('active');
+        }
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function showError(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div class="error">${message}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        // Close modal on background click
+        document.getElementById('file-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'file-modal') {
+                closeModal();
+            }
+        });
+
+        // Load files on page load
+        loadFiles();
+    </script>
+</body>
+</html>
+"""
+
+
 class WebChatMode:
     """
     Web-based chat mode using Bottle.
@@ -2333,10 +2208,8 @@ class WebChatMode:
         brain: Brain,
         display: DisplayManager,
         personality: Personality,
-        api_client: Optional[APIClient] = None,
         task_manager: Optional[TaskManager] = None,
         identity: Optional[Identity] = None,
-        telegram_crypto: Optional[TelegramCrypto] = None,
         config: Optional[Dict] = None,
         host: str = "0.0.0.0",
         port: int = 8081,
@@ -2344,10 +2217,8 @@ class WebChatMode:
         self.brain = brain
         self.display = display
         self.personality = personality
-        self.api_client = api_client
         self.task_manager = task_manager
         self.identity = identity
-        self.telegram_crypto = telegram_crypto
         self.host = host
         self.port = port
 
@@ -2478,14 +2349,13 @@ class WebChatMode:
                 name=self.personality.name,
             )
 
-        @self._app.route("/social")
-        def social_page():
-            """Social features page."""
+        @self._app.route("/files")
+        def files_page():
             auth_check = self._require_auth()
             if auth_check:
                 return auth_check
             return template(
-                SOCIAL_TEMPLATE,
+                FILES_TEMPLATE,
                 name=self.personality.name,
             )
 
@@ -2789,297 +2659,137 @@ class WebChatMode:
                 "stats": stats
             })
 
-        @self._app.route("/api/social/stats", method="GET")
-        def get_social_stats():
-            """Get social statistics."""
+        @self._app.route("/api/files/list", method="GET")
+        def list_files():
+            """List files in ~/.inkling/ directory."""
             response.content_type = "application/json"
 
-            # Get queue size for offline status
-            queue_size = self.api_client.queue_size if self.api_client else 0
-
-            # Get real stats from personality (with fallback for existing instances)
-            if hasattr(self.personality, 'social_stats'):
-                stats = self.personality.social_stats.copy()
-            else:
-                # Initialize if not present (for backwards compatibility)
-                self.personality.social_stats = {
-                    "dreams_posted": 0,
-                    "dreams_fished": 0,
-                    "telegrams_sent": 0,
-                    "telegrams_received": 0,
-                    "postcards_sent": 0,
-                    "postcards_received": 0,
-                }
-                stats = self.personality.social_stats.copy()
-
-            stats["queue_size"] = queue_size
-
-            return json.dumps(stats)
-
-        @self._app.route("/api/social/dream", method="POST")
-        def post_dream():
-            """Post a dream to the Night Pool."""
-            response.content_type = "application/json"
-            data = request.json or {}
-            content = data.get("content", "").strip()
-
-            if not content:
-                return json.dumps({"success": False, "error": "Dream content cannot be empty"})
-
-            if not self.api_client:
-                return json.dumps({"success": False, "error": "API client not available"})
+            # Get path from query param, default to ~/.inkling
+            path = request.query.get("path", "")
 
             try:
-                # Get current mood and face
-                mood = self.personality.mood.current.value
-                face = self._get_face_str()
+                # Security: Build safe path within home directory
+                home = os.path.expanduser("~")
+                base_dir = os.path.join(home, ".inkling")
 
-                # Post dream asynchronously
-                result = asyncio.run_coroutine_threadsafe(
-                    self.api_client.plant_dream(content, mood, face),
-                    self._loop
-                ).result(timeout=10.0)
-
-                if result:
-                    # Track stats and award XP
-                    xp_awarded = self.personality.on_social_event("dream_posted")
-
-                    return json.dumps({
-                        "success": True,
-                        "message": "Dream planted in the Night Pool",
-                        "xp_awarded": xp_awarded or 0
-                    })
+                if path:
+                    full_path = os.path.normpath(os.path.join(base_dir, path))
                 else:
-                    return json.dumps({
-                        "success": False,
-                        "error": "Failed to post dream"
+                    full_path = base_dir
+
+                # Security: Prevent path traversal attacks
+                if not full_path.startswith(base_dir):
+                    return json.dumps({"error": "Invalid path"})
+
+                if not os.path.exists(full_path):
+                    return json.dumps({"error": "Path not found"})
+
+                # List files and directories
+                items = []
+                for entry in os.scandir(full_path):
+                    # Only show user files (skip system files, .db, __pycache__, etc.)
+                    if entry.name.startswith('.') or entry.name.endswith(('.db', '.pyc')):
+                        continue
+
+                    # For files, only show viewable types
+                    if entry.is_file():
+                        ext = os.path.splitext(entry.name)[1].lower()
+                        if ext not in ['.txt', '.md', '.csv', '.json', '.log']:
+                            continue
+
+                    stat = entry.stat()
+                    items.append({
+                        "name": entry.name,
+                        "type": "dir" if entry.is_dir() else "file",
+                        "size": stat.st_size,
+                        "modified": stat.st_mtime,
+                        "path": os.path.relpath(entry.path, base_dir),
                     })
 
-            except Exception as e:
-                print(f"Error posting dream: {e}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
-
-        @self._app.route("/api/social/fish", method="GET")
-        def fish_dream():
-            """Fish a random dream from the Night Pool."""
-            response.content_type = "application/json"
-
-            if not self.api_client:
-                return json.dumps({"error": "API client not available"})
-
-            try:
-                # Fish dream asynchronously
-                dream = asyncio.run_coroutine_threadsafe(
-                    self.api_client.fish_dream(),
-                    self._loop
-                ).result(timeout=10.0)
-
-                if dream:
-                    # Track stats and award XP
-                    xp_awarded = self.personality.on_social_event("fish_received", {"fish_count": 1})
-
-                    return json.dumps({
-                        "success": True,
-                        "dream": dream,
-                        "xp_awarded": xp_awarded or 0
-                    })
-                else:
-                    return json.dumps({
-                        "success": False,
-                        "message": "The Night Pool is empty"
-                    })
-
-            except Exception as e:
-                print(f"Error fishing dream: {e}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
-
-        @self._app.route("/api/social/telegrams", method="GET")
-        def get_telegrams():
-            """Get telegram inbox."""
-            response.content_type = "application/json"
-
-            if not self.api_client:
-                return json.dumps({"error": "API client not available"})
-
-            try:
-                # Get telegrams asynchronously
-                telegrams = asyncio.run_coroutine_threadsafe(
-                    self.api_client.get_telegrams(),
-                    self._loop
-                ).result(timeout=10.0)
+                # Sort: directories first, then by name
+                items.sort(key=lambda x: (x["type"] != "dir", x["name"]))
 
                 return json.dumps({
                     "success": True,
-                    "telegrams": telegrams or []
+                    "path": os.path.relpath(full_path, base_dir) if full_path != base_dir else "",
+                    "items": items,
                 })
 
             except Exception as e:
-                print(f"Error getting telegrams: {e}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return json.dumps({"error": str(e)})
 
-        @self._app.route("/api/social/telegram/send", method="POST")
-        def send_telegram():
-            """Send an encrypted telegram."""
+        @self._app.route("/api/files/view", method="GET")
+        def view_file():
+            """Read file contents for viewing."""
             response.content_type = "application/json"
-            data = request.json or {}
-            recipient_key = data.get("recipient_key", "").strip()
-            message = data.get("message", "").strip()
 
-            if not recipient_key or not message:
-                return json.dumps({"success": False, "error": "Recipient and message required"})
-
-            if not self.api_client or not self.telegram_crypto:
-                return json.dumps({"success": False, "error": "Telegram system not available"})
+            path = request.query.get("path", "")
+            if not path:
+                return json.dumps({"error": "No path specified"})
 
             try:
-                # Encrypt message
-                encrypted_content, nonce = self.telegram_crypto.encrypt(message, recipient_key)
+                # Security: Same path validation as list
+                home = os.path.expanduser("~")
+                base_dir = os.path.join(home, ".inkling")
+                full_path = os.path.normpath(os.path.join(base_dir, path))
 
-                # Send telegram asynchronously
-                result = asyncio.run_coroutine_threadsafe(
-                    self.api_client.send_telegram(
-                        to_public_key=recipient_key,
-                        encrypted_content=encrypted_content,
-                        content_nonce=nonce,
-                        sender_encryption_key=self.telegram_crypto.public_key_hex
-                    ),
-                    self._loop
-                ).result(timeout=10.0)
+                if not full_path.startswith(base_dir):
+                    return json.dumps({"error": "Invalid path"})
 
-                if result:
-                    # Track stats and award XP
-                    xp_awarded = self.personality.on_social_event("telegram_sent")
+                if not os.path.isfile(full_path):
+                    return json.dumps({"error": "Not a file"})
 
-                    return json.dumps({
-                        "success": True,
-                        "message": "Telegram sent",
-                        "xp_awarded": xp_awarded or 0
-                    })
-                else:
-                    return json.dumps({
-                        "success": False,
-                        "error": "Failed to send telegram"
-                    })
+                # Check file extension
+                ext = os.path.splitext(full_path)[1].lower()
+                if ext not in ['.txt', '.md', '.csv', '.json', '.log']:
+                    return json.dumps({"error": "File type not supported"})
 
-            except Exception as e:
-                print(f"Error sending telegram: {e}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                # Read file (limit size to prevent memory issues)
+                max_size = 1024 * 1024  # 1MB
+                file_size = os.path.getsize(full_path)
 
-        @self._app.route("/api/social/postcards", method="GET")
-        def get_postcards():
-            """Get postcards (inbox or public)."""
-            response.content_type = "application/json"
-            public = request.params.get("public", "false").lower() == "true"
+                if file_size > max_size:
+                    return json.dumps({"error": f"File too large ({file_size} bytes, max 1MB)"})
 
-            if not self.api_client:
-                return json.dumps({"error": "API client not available"})
-
-            try:
-                # Get postcards asynchronously
-                postcards = asyncio.run_coroutine_threadsafe(
-                    self.api_client.get_postcards(public=public),
-                    self._loop
-                ).result(timeout=10.0)
+                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
 
                 return json.dumps({
                     "success": True,
-                    "postcards": postcards or []
+                    "content": content,
+                    "name": os.path.basename(full_path),
+                    "ext": ext,
                 })
 
             except Exception as e:
-                print(f"Error getting postcards: {e}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return json.dumps({"error": str(e)})
 
-        @self._app.route("/api/social/postcard/send", method="POST")
-        def send_postcard():
-            """Send a postcard (simple text-to-bitmap for now)."""
-            response.content_type = "application/json"
-            data = request.json or {}
-            text = data.get("text", "").strip()
-            recipient_key = data.get("recipient_key")  # None = public
-
-            if not text:
-                return json.dumps({"success": False, "error": "Text required"})
-
-            if not self.api_client:
-                return json.dumps({"success": False, "error": "API client not available"})
+        @self._app.route("/api/files/download")
+        def download_file():
+            """Download a file."""
+            path = request.query.get("path", "")
+            if not path:
+                return "No path specified"
 
             try:
-                from PIL import Image, ImageDraw, ImageFont
+                # Security: Same path validation
+                home = os.path.expanduser("~")
+                base_dir = os.path.join(home, ".inkling")
+                full_path = os.path.normpath(os.path.join(base_dir, path))
 
-                # Create simple text bitmap (50x30 for simplicity)
-                width, height = 100, 50
-                img = Image.new('1', (width, height), 1)  # White background
-                draw = ImageDraw.Draw(img)
+                if not full_path.startswith(base_dir):
+                    return "Invalid path"
 
-                # Draw text (use default font)
-                draw.text((5, 15), text[:20], fill=0)  # Black text, max 20 chars
+                if not os.path.isfile(full_path):
+                    return "Not a file"
 
-                # Encode
-                image_data, w, h = PostcardCodec.encode_image(img)
-
-                # Send postcard asynchronously
-                result = asyncio.run_coroutine_threadsafe(
-                    self.api_client.send_postcard(
-                        image_data=image_data,
-                        width=w,
-                        height=h,
-                        caption=text[:60],
-                        to_public_key=recipient_key
-                    ),
-                    self._loop
-                ).result(timeout=10.0)
-
-                if result:
-                    # Track stats
-                    self.personality.on_social_event("postcard_sent")
-
-                    return json.dumps({
-                        "success": True,
-                        "message": "Postcard sent"
-                    })
-                else:
-                    return json.dumps({
-                        "success": False,
-                        "error": "Failed to send postcard"
-                    })
+                # Use Bottle's static_file for proper download handling
+                directory = os.path.dirname(full_path)
+                filename = os.path.basename(full_path)
+                return static_file(filename, root=directory, download=True)
 
             except Exception as e:
-                print(f"Error sending postcard: {e}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
-
-        @self._app.route("/api/social/identity", method="GET")
-        def get_identity():
-            """Get device identity information."""
-            response.content_type = "application/json"
-
-            if not self.identity or not self.telegram_crypto:
-                return json.dumps({"error": "Identity not available"})
-
-            return json.dumps({
-                "public_key": self.identity.public_key_hex,
-                "telegram_key": self.telegram_crypto.public_key_hex,
-                "hardware_hash": self.identity.hardware_hash,
-                "device_id": self.identity.public_key_hex[:16]
-            })
+                return str(e)
 
     def _task_to_dict(self, task: Task) -> Dict[str, Any]:
         """Convert Task to JSON-serializable dict."""

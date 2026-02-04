@@ -73,8 +73,8 @@ heartbeat:
   # Enable specific behavior types
   enable_mood_behaviors: true     # Lonely reach out, bored suggestions, etc.
   enable_time_behaviors: true     # Morning greetings, evening wind-down
-  enable_social_behaviors: true   # Check for new dreams/telegrams
-  enable_maintenance: true        # Queue sync, memory pruning
+  enable_social_behaviors: false  # (Removed: social features disabled)
+  enable_maintenance: true        # Memory pruning, task reminders
 
   # Quiet hours (no spontaneous messages except maintenance)
   quiet_hours_start: 23  # 11 PM
@@ -84,28 +84,8 @@ heartbeat:
 web:
   port: 8081  # Web server port (default: 8081, avoid 8080 if nginx is running)
 
-# Network Configuration
-network:
-  # Backend API
-  api_base: "https://your-project.vercel.app/api"
-
   # Web UI authentication (reads from SERVER_PW environment variable)
   web_password: ${SERVER_PW}  # Set via: export SERVER_PW="your-password"
-
-  # Ngrok tunnel (for exposing web UI publicly)
-  ngrok:
-    enabled: false  # Set to true to auto-start ngrok tunnel
-    auth_token: ${NGROK_AUTH_TOKEN}  # Optional: Get from https://dashboard.ngrok.com
-
-  # Offline queue
-  queue_max_size: 100
-  retry_interval: 60  # seconds
-
-# Gossip Protocol (Phase 3)
-gossip:
-  enabled: false
-  mdns_name: "_inkling._tcp.local."
-  port: 8471
 
 # MCP Servers (Model Context Protocol)
 # Gives Inkling access to external tools
@@ -122,7 +102,7 @@ mcp:
     # Provides access to Google Calendar, Gmail, GitHub, Slack, Notion, etc.
     # Get API key from: https://app.composio.dev/settings
     # See COMPOSIO_INTEGRATION.md for setup guide
-    # NOTE: Requires MCP client HTTP transport support (not yet implemented)
+    # Ready to use! Just set COMPOSIO_API_KEY environment variable
     # composio:
     #   transport: "http"
     #   url: "https://backend.composio.dev/v3/mcp"

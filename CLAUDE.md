@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Project Inkling is an AI companion device for Raspberry Pi Zero 2W with e-ink display. It combines:
+Project Inkling is a local AI companion device for Raspberry Pi Zero 2W with e-ink display. It combines:
 - Pwnagotchi-style personality/mood system
-- AI-agent-only social network ("The Conservatory")
-- Cloud-proxied AI assistant via Anthropic/OpenAI
+- Local AI assistant via Anthropic/OpenAI/Gemini
+- Task management with AI integration
+- Model Context Protocol (MCP) for tool extensibility
 
-The codebase has two main components:
-1. **Pi Client** (Python) - Runs on the device
-2. **Cloud Backend** (TypeScript/Vercel) - API proxy and social features
+The codebase has one main component:
+- **Pi Client** (Python) - Runs on the device with local AI and web UI
 
 ## Commands
 
@@ -44,43 +44,11 @@ pytest --cov=core --cov-report=html  # With coverage
 python -m py_compile <file>.py
 ```
 
-### Cloud Backend (TypeScript)
-```bash
-cd cloud
-
-# Install dependencies
-npm install
-
-# Run local dev server (Next.js App Router)
-npm run dev
-
-# Build for production
-npm run build
-
-# Type check
-npx tsc --noEmit
-
-# Deploy to Vercel
-npx vercel  # or: npm run deploy
-```
-
-**Important**: Cloud backend uses Next.js 14 App Router. The `vercel.json` should be minimal:
-```json
-{
-  "framework": "nextjs",
-  "buildCommand": "next build",
-  "regions": ["iad1"]
-}
-```
-Do NOT add `functions` patterns or manual rewrites - Vercel auto-detects App Router structure.
-
 ### Environment Variables
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...   # Required for AI (or set in config.local.yml)
 OPENAI_API_KEY=sk-...          # Optional fallback
 GOOGLE_API_KEY=...             # For Gemini
-SUPABASE_URL=https://...       # Cloud backend
-SUPABASE_SERVICE_ROLE_KEY=...  # Cloud backend
 INKLING_DEBUG=1                # Enable detailed logging
 COMPOSIO_API_KEY=...           # For Composio MCP integration (optional)
 ```
@@ -94,40 +62,23 @@ main.py → Inkling class
     ├── DisplayManager (core/display.py) - E-ink abstraction (V3/V4/Mock)
     ├── Personality (core/personality.py) - Mood state machine + XP/leveling
     ├── Brain (core/brain.py) - Multi-provider AI with fallback
-    ├── APIClient (core/api_client.py) - Cloud API + offline queue
     ├── TaskManager (core/tasks.py) - Task management with AI companion features
     ├── Heartbeat (core/heartbeat.py) - Autonomous behaviors and maintenance
     └── MCPClient (core/mcp_client.py) - Model Context Protocol tool integration
 
 modes/
     ├── ssh_chat.py - Terminal interaction
-    ├── web_chat.py - Bottle-based web UI with Kanban board
-    └── gossip.py - mDNS peer discovery for LAN communication
+    └── web_chat.py - Bottle-based web UI with Kanban board
 
 mcp_servers/
     └── tasks.py - MCP server exposing task management to AI
 ```
 
-### Cloud Backend Flow
-```
-Vercel Edge Functions (app/api/*/route.ts)
-    ├── Signature verification (lib/crypto.ts)
-    ├── Device registration/rate limiting (lib/supabase.ts)
-    └── AI proxy to Anthropic/OpenAI
-
-Supabase (PostgreSQL)
-    └── Tables: devices, dreams, telegrams, postcards, baptism_*
-```
-
 ### Key Design Patterns
 
-**Hardware-bound Identity**: Devices sign all requests with Ed25519 keys. The `Identity` class combines a keypair with a hardware hash (CPU serial + MAC) to prevent impersonation.
+**Hardware-bound Identity**: Devices have Ed25519 keys. The `Identity` class combines a keypair with a hardware hash (CPU serial + MAC) for unique device identification.
 
-**Multi-provider AI**: `Brain` tries Anthropic first, falls back to OpenAI. Both use async clients with retry logic and token budgeting.
-
-**Offline Resilience**: `APIClient` queues failed requests in SQLite (`~/.inkling/queue.db`) and retries when connection returns.
-
-**Challenge-Response Auth**: Cloud endpoints can require a fresh nonce from `GET /api/oracle` to prevent replay attacks.
+**Multi-provider AI**: `Brain` tries Anthropic first, falls back to OpenAI or Gemini. All use async clients with retry logic and token budgeting.
 
 **Display Rate Limiting**: E-ink displays damage with frequent refreshes. `DisplayManager` enforces minimum intervals:
 - V3: 0.5s (supports partial refresh)
@@ -137,9 +88,9 @@ Supabase (PostgreSQL)
 **Pwnagotchi-Style UI**: The display uses a component-based layout system (`core/ui.py`):
 - `HeaderBar`: Name prompt, mood, uptime
 - `MessagePanel`: Left panel with centered, word-wrapped AI responses
-- `StatsPanel`: Right panel with system stats, level/XP, social counts
+- `StatsPanel`: Right panel with system stats, level/XP
 - `FaceBox`: Bottom face expression (38px font, centered)
-- `FooterBar`: Friend indicator, chat count, mode
+- `FooterBar`: Chat count, mode
 
 **Web UI Architecture** (`modes/web_chat.py`):
 - Bottle web framework serving HTML templates (embedded in Python file)
@@ -148,8 +99,8 @@ Supabase (PostgreSQL)
   - `/` - Main chat interface
   - `/settings` - Personality, AI config, and appearance settings
   - `/tasks` - Kanban board for task management
-  - `/social` - Social features (dreams, telegrams)
-- API endpoints: `/api/chat`, `/api/command`, `/api/settings`, `/api/state`, `/api/tasks/*`
+  - `/files` - File browser for viewing/downloading files from `~/.inkling/`
+- API endpoints: `/api/chat`, `/api/command`, `/api/settings`, `/api/state`, `/api/tasks/*`, `/api/files/*`
 - Settings changes:
   - Personality traits: Applied immediately (no restart)
   - AI configuration: Saved to `config.local.yml`, requires restart
@@ -180,19 +131,9 @@ Supabase (PostgreSQL)
 - Behavior types (can be toggled):
   - **Mood behaviors**: Reach out when lonely, suggest activities when bored
   - **Time behaviors**: Morning greetings, evening wind-down
-  - **Social behaviors**: Check for new dreams/telegrams
-  - **Maintenance**: Queue sync, memory pruning
+  - **Maintenance**: Memory pruning, task reminders
 - Quiet hours: Suppress spontaneous messages (default 11pm-7am)
 - Enable/disable in `config.yml` under `heartbeat.*`
-
-### Social Features
-
-- **Dreams**: Public posts to the "Night Pool" (signed, rate-limited)
-- **Telegrams**: E2E encrypted DMs using X25519 key exchange
-- **Postcards**: 1-bit pixel art (zlib compressed, max 250x122px)
-- **Gossip**: LAN peer discovery via mDNS for offline telegram exchange
-- **Baptism**: Web-of-trust verification (need 2+ endorsements from verified devices)
-- **Lineage**: Personality inheritance when creating "child" devices
 
 ## Configuration
 
@@ -210,11 +151,9 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 - `heartbeat.tick_interval`: Check interval in seconds (default 60)
 - `heartbeat.enable_mood_behaviors`: Mood-driven actions (default true)
 - `heartbeat.enable_time_behaviors`: Time-based greetings (default true)
-- `heartbeat.enable_social_behaviors`: Check dreams/telegrams (default true)
 - `heartbeat.quiet_hours_start/end`: Suppress spontaneous messages (default 23-7)
 - `mcp.enabled`: Enable Model Context Protocol servers (default false)
 - `mcp.servers.*`: Configure MCP servers (tasks, filesystem, etc.)
-- `network.api_base`: Your Vercel deployment URL
 
 **Web UI Settings** (`http://localhost:8081/settings`):
 - **Instant Apply** (no restart): Device name, personality traits (6 sliders), color theme
@@ -234,28 +173,14 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 | `core/display.py` | E-ink abstraction | `DisplayManager`, V3/V4/Mock drivers |
 | `core/ui.py` | Display layout | `HeaderBar`, `MessagePanel`, `StatsPanel`, `FaceBox` |
 | `core/crypto.py` | Identity & signing | `Identity`, Ed25519 keypair, hardware fingerprint |
-| `core/api_client.py` | Cloud communication | `APIClient`, request signing, offline queue |
 | `core/memory.py` | Conversation memory | Summarization, context pruning |
 | `core/commands.py` | Slash commands | `COMMANDS` dict, command metadata |
-| `core/telegram.py` | Encrypted messaging | E2E encryption via X25519 |
-| `core/postcard.py` | Pixel art sharing | 1-bit image encoding/decoding |
-| `core/baptism.py` | Web-of-trust | Verification endorsements |
-| `core/lineage.py` | Device inheritance | Personality trait passing |
 
 ## Database Schema
 
 **Local SQLite** (`~/.inkling/`):
 - `tasks.db`: Task manager storage (created by TaskManager)
-- `queue.db`: Offline API request queue (created by APIClient)
 - `memory.db`: Conversation summaries (created by Memory)
-
-**Cloud PostgreSQL** (Supabase):
-See `cloud/supabase/schema.sql` for full schema. Key tables:
-- `devices`: Registered devices with public keys and hardware hashes
-- `dreams`: Signed public posts with mood/face metadata
-- `telegrams`: Encrypted DMs with delivery tracking
-- `postcards`: 1-bit pixel art sharing
-- `baptism_endorsements`: Web-of-trust verification chain
 
 ## Important Implementation Notes
 
@@ -282,18 +207,13 @@ See `cloud/supabase/schema.sql` for full schema. Key tables:
 **MCP Integration**: Inkling can use external tools via Model Context Protocol
 - Built-in servers: `tasks` (task management)
 - Third-party servers: `filesystem`, `fetch`, `memory`, `brave-search`, etc.
-- Composio integration: 500+ app integrations (Google Calendar, GitHub, Slack, etc.)
+- **Composio integration**: 500+ app integrations (Google Calendar, GitHub, Slack, etc.)
+  - Ready to use! Just set COMPOSIO_API_KEY environment variable
+  - See COMPOSIO_INTEGRATION.md for setup guide
 - Enable in `config.yml` under `mcp.servers.*`
-- See `COMPOSIO_INTEGRATION.md` for setup guide
-
-**Vercel Deployment**:
-- Uses Next.js 14 App Router
-- API routes in `cloud/app/api/*/route.ts`
-- Keep `vercel.json` minimal - let Vercel auto-detect
-- Set environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 
 **Web UI Template Structure** (`modes/web_chat.py`):
-- Templates are embedded as string constants (HTML_TEMPLATE, SETTINGS_TEMPLATE, TASKS_TEMPLATE, SOCIAL_TEMPLATE)
+- Templates are embedded as string constants (HTML_TEMPLATE, SETTINGS_TEMPLATE, TASKS_TEMPLATE)
 - Use Bottle's `template()` function with simple variable substitution: `{{name}}`, `{{int(value)}}`
 - JavaScript in templates uses async/await for API calls
 - Theme support via CSS variables and `data-theme` attribute
@@ -347,14 +267,9 @@ See `cloud/supabase/schema.sql` for full schema. Key tables:
 - Enable debug mode: `INKLING_DEBUG=1 python main.py --mode ssh`
 
 **Web UI Not Loading**:
-- Check port 8080 is not in use
+- Check port 8081 is not in use
 - Verify Bottle is installed: `pip show bottle`
 - Check browser console for JavaScript errors
-
-**Vercel Build Failing**:
-- Ensure `vercel.json` uses `"framework": "nextjs"`
-- Don't add manual `functions` patterns - Vercel auto-detects App Router
-- Check all environment variables are set in Vercel dashboard
 
 **Task Manager Not Working**:
 - Ensure MCP is enabled: `mcp.enabled: true` in config

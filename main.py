@@ -27,11 +27,9 @@ import yaml
 
 from core.brain import Brain
 from core.crypto import Identity
-from core.telegram import TelegramCrypto
 from core.display import DisplayManager
 from core.mcp_client import MCPClientManager
 from core.personality import Personality, PersonalityTraits
-from core.api_client import APIClient
 from core.heartbeat import Heartbeat, HeartbeatConfig
 from core.tasks import TaskManager
 from modes.ssh_chat import SSHChatMode
@@ -126,11 +124,9 @@ class Inkling:
 
         # Core components (initialized in setup)
         self.identity: Optional[Identity] = None
-        self.telegram_crypto: Optional[TelegramCrypto] = None
         self.display: Optional[DisplayManager] = None
         self.personality: Optional[Personality] = None
         self.brain: Optional[Brain] = None
-        self.api_client: Optional[APIClient] = None
         self.mcp_client: Optional[MCPClientManager] = None
         self.heartbeat: Optional[Heartbeat] = None
         self.task_manager: Optional[TaskManager] = None
@@ -148,12 +144,6 @@ class Inkling:
         self.identity.initialize()
         print(f"    Public key: {self.identity.public_key_hex[:16]}...")
         print(f"    Hardware hash: {self.identity.hardware_hash[:16]}...")
-
-        # Telegram encryption
-        print("  - Loading telegram encryption...")
-        self.telegram_crypto = TelegramCrypto()
-        self.telegram_crypto.initialize()
-        print(f"    Telegram key: {self.telegram_crypto.public_key_hex[:16]}...")
 
         # Personality (create first so display can reference it)
         print("  - Creating personality...")
@@ -206,7 +196,7 @@ class Inkling:
             self.heartbeat = Heartbeat(
                 personality=self.personality,
                 display_manager=self.display,
-                api_client=self.api_client,
+                api_client=None,
                 brain=self.brain,
                 task_manager=self.task_manager,
                 config=heartbeat_config,
@@ -242,19 +232,6 @@ class Inkling:
             print("    Warning: No AI providers configured!")
             print("    Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variables.")
 
-        # API Client (for social features)
-        network_config = self.config.get("network", {})
-        api_base = network_config.get("api_base", "")
-        if api_base and api_base != "https://your-project.vercel.app/api":
-            print("  - Connecting to Conservatory...")
-            self.api_client = APIClient(
-                identity=self.identity,
-                api_base=api_base,
-            )
-            print(f"    API: {api_base}")
-        else:
-            print("  - Social features disabled (no api_base configured)")
-
         print("Initialization complete!")
 
     def _on_mood_change(self, old_mood, new_mood) -> None:
@@ -266,15 +243,6 @@ class Inkling:
         from core.progression import LevelCalculator
         level_name = LevelCalculator.level_name(new_level)
         print(f"[Level Up!] {old_level} -> {new_level} ({level_name})")
-
-        # Sync to cloud if API is available
-        if self.api_client:
-            asyncio.create_task(self.api_client.sync_progression(
-                xp=self.personality.progression.xp,
-                level=self.personality.progression.level,
-                prestige=self.personality.progression.prestige,
-                badges=self.personality.progression.badges,
-            ))
 
     async def _on_heartbeat_message(self, message: str, face: str) -> None:
         """Handle spontaneous messages from heartbeat."""
@@ -303,7 +271,6 @@ class Inkling:
                     brain=self.brain,
                     display=self.display,
                     personality=self.personality,
-                    api_client=self.api_client,
                     task_manager=self.task_manager,
                 )
                 await self._mode.run()
@@ -313,10 +280,8 @@ class Inkling:
                     brain=self.brain,
                     display=self.display,
                     personality=self.personality,
-                    api_client=self.api_client,
                     task_manager=self.task_manager,
                     identity=self.identity,
-                    telegram_crypto=self.telegram_crypto,
                     config=self.config,
                     port=self.config.get("web", {}).get("port", 8081),
                 )
@@ -415,9 +380,6 @@ class Inkling:
 
         if self.mcp_client:
             await self.mcp_client.stop_all()
-
-        if self.api_client:
-            await self.api_client.close()
 
         if self.display:
             self.display.sleep()

@@ -12,7 +12,6 @@ from typing import Optional
 from core.brain import Brain, AllProvidersExhaustedError, QuotaExceededError
 from core.display import DisplayManager
 from core.personality import Personality
-from core.api_client import APIClient, APIError, OfflineError
 from core.ui import FACES, UNICODE_FACES
 from core.commands import COMMANDS, get_command, get_commands_by_category
 from core.tasks import TaskManager, Task, TaskStatus, Priority
@@ -76,11 +75,6 @@ class SSHChatMode:
         /mood - Show current mood
         /stats - Show token usage stats
         /face <name> - Test a face expression
-
-    Social Commands:
-        /dream <text> - Post a dream to the Night Pool
-        /fish - Fetch a random dream from the pool
-        /queue - Show offline queue status
     """
 
     def __init__(
@@ -88,13 +82,11 @@ class SSHChatMode:
         brain: Brain,
         display: DisplayManager,
         personality: Personality,
-        api_client: Optional[APIClient] = None,
         task_manager: Optional[TaskManager] = None,
     ):
         self.brain = brain
         self.display = display
         self.personality = personality
-        self.api_client = api_client
         self.task_manager = task_manager
         self._running = False
 

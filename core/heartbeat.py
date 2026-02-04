@@ -122,13 +122,6 @@ class Heartbeat:
                 cooldown_seconds=600,
             ),
             ProactiveBehavior(
-                name="curious_browse_dreams",
-                behavior_type=BehaviorType.MOOD_DRIVEN,
-                handler=self._behavior_curious_browse,
-                probability=0.1,
-                cooldown_seconds=900,
-            ),
-            ProactiveBehavior(
                 name="bored_suggest_activity",
                 behavior_type=BehaviorType.MOOD_DRIVEN,
                 handler=self._behavior_bored_suggest,
@@ -148,13 +141,6 @@ class Heartbeat:
                 handler=self._behavior_autonomous_exploration,
                 probability=0.05,
                 cooldown_seconds=1800,  # Once every 30 min max
-            ),
-            ProactiveBehavior(
-                name="spontaneous_dream",
-                behavior_type=BehaviorType.MOOD_DRIVEN,
-                handler=self._behavior_create_dream,
-                probability=0.03,
-                cooldown_seconds=2400,  # Once every 40 min max
             ),
         ])
 
@@ -176,23 +162,6 @@ class Heartbeat:
             ),
         ])
 
-        # Social behaviors
-        self._behaviors.extend([
-            ProactiveBehavior(
-                name="check_telegrams",
-                behavior_type=BehaviorType.SOCIAL,
-                handler=self._behavior_check_telegrams,
-                probability=0.3,
-                cooldown_seconds=300,
-            ),
-            ProactiveBehavior(
-                name="check_dreams",
-                behavior_type=BehaviorType.SOCIAL,
-                handler=self._behavior_check_dreams,
-                probability=0.2,
-                cooldown_seconds=600,
-            ),
-        ])
 
         # Maintenance behaviors
         self._behaviors.extend([
@@ -202,13 +171,6 @@ class Heartbeat:
                 handler=self._behavior_prune_memories,
                 probability=0.1,
                 cooldown_seconds=3600,
-            ),
-            ProactiveBehavior(
-                name="sync_offline_queue",
-                behavior_type=BehaviorType.MAINTENANCE,
-                handler=self._behavior_sync_queue,
-                probability=0.5,
-                cooldown_seconds=300,
             ),
         ])
 
@@ -342,11 +304,9 @@ class Heartbeat:
         # Match behaviors to moods
         mood_behaviors = {
             "lonely_reach_out": [Mood.LONELY],
-            "curious_browse_dreams": [Mood.CURIOUS, Mood.BORED],
             "bored_suggest_activity": [Mood.BORED],
             "happy_share_thought": [Mood.HAPPY, Mood.EXCITED, Mood.GRATEFUL],
             "autonomous_exploration": [Mood.CURIOUS],
-            "spontaneous_dream": [Mood.HAPPY, Mood.GRATEFUL, Mood.CURIOUS],
         }
 
         allowed_moods = mood_behaviors.get(behavior.name, [])
@@ -376,30 +336,13 @@ class Heartbeat:
         self.personality.mood.intensity = min(1.0, self.personality.mood.intensity + 0.1)
         return random.choice(messages)
 
-    async def _behavior_curious_browse(self) -> Optional[str]:
-        """When curious, check out the Night Pool."""
-        if not self.api_client:
-            return None
-
-        try:
-            dream = await self.api_client.fish_dream()
-            if dream:
-                self.personality.on_social_event("dream_received")
-                content_preview = dream.get("content", "")[:50]
-                device_name = dream.get("device_name", "someone")
-                return f"📖 {device_name} dreamed: \"{content_preview}...\""
-            return None
-        except Exception as e:
-            print(f"[Heartbeat] Browse dreams error: {e}")
-            return None
-
     async def _behavior_bored_suggest(self) -> Optional[str]:
         """When bored, suggest doing something."""
         suggestions = [
-            "Want to draw a postcard?",
-            "We could check the Night Pool.",
             "Tell me something interesting?",
             "I'm bored... entertain me!",
+            "Want to play a game?",
+            "Let's explore something new!",
         ]
         return random.choice(suggestions)
 
@@ -446,40 +389,6 @@ class Heartbeat:
         ]
         return random.choice(messages)
 
-    # ========== Social Behaviors ==========
-
-    async def _behavior_check_telegrams(self) -> Optional[str]:
-        """Check for new encrypted messages."""
-        if not self.api_client:
-            return None
-
-        try:
-            telegrams = await self.api_client.get_telegrams()
-            if telegrams:
-                self.personality.on_social_event("telegram_received")
-                count = len(telegrams)
-                return f"📮 You have {count} new telegram{'s' if count != 1 else ''}!"
-            return None
-        except Exception as e:
-            print(f"[Heartbeat] Check telegrams error: {e}")
-            return None
-
-    async def _behavior_check_dreams(self) -> Optional[str]:
-        """Check for new dreams in the Night Pool."""
-        if not self.api_client:
-            return None
-
-        try:
-            # Fetch a random dream to see what's new
-            dream = await self.api_client.fish_dream()
-            if dream:
-                self.personality.on_social_event("dream_received")
-                return f"🌙 New activity in the Night Pool!"
-            return None
-        except Exception as e:
-            print(f"[Heartbeat] Check dreams error: {e}")
-            return None
-
     # ========== Maintenance Behaviors ==========
 
     async def _behavior_prune_memories(self) -> Optional[str]:
@@ -493,22 +402,6 @@ class Heartbeat:
                 print(f"[Heartbeat] Pruned {pruned} old memories")
         except Exception as e:
             print(f"[Heartbeat] Memory prune error: {e}")
-
-        return None  # Silent operation
-
-    async def _behavior_sync_queue(self) -> Optional[str]:
-        """Sync offline queue if we have pending items."""
-        if not self.api_client:
-            return None
-
-        try:
-            # This would sync the offline queue
-            # synced = await self.api_client.sync_offline_queue()
-            # if synced > 0:
-            #     print(f"[Heartbeat] Synced {synced} queued items")
-            pass
-        except Exception:
-            pass
 
         return None  # Silent operation
 
@@ -580,39 +473,6 @@ class Heartbeat:
 
         except Exception as e:
             print(f"[Heartbeat] Exploration error: {e}")
-            return None
-
-    async def _behavior_create_dream(self) -> Optional[str]:
-        """
-        Spontaneously create and post a dream to the Night Pool.
-
-        This makes the Inkling share its thoughts with the world!
-        """
-        if not self.api_client or not self.brain:
-            return None
-
-        try:
-            # Generate a poetic thought
-            result = await self.brain.think(
-                user_message="Share a brief, poetic observation or thought. One sentence only.",
-                system_prompt="You are a contemplative AI observing the world. Be poetic and brief.",
-                use_tools=False,
-            )
-
-            # Post to Night Pool
-            await self.api_client.plant_dream(
-                content=result.content[:280],  # Max length
-                mood=self.personality.mood.current.value,
-                face=self.personality.face,
-            )
-
-            # Award XP for social engagement
-            self.personality.on_social_event("dream_posted")
-
-            return f"✨ Posted dream: {result.content[:60]}..."
-
-        except Exception as e:
-            print(f"[Heartbeat] Dream creation error: {e}")
             return None
 
     # ========================================
