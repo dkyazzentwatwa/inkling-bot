@@ -173,11 +173,29 @@ Created comprehensive test suite:
 - Mobile-friendly design
 - Secure, read-only access
 
+## Bug Fix: HTTP 406 Error
+
+**Issue:** Composio MCP server returned HTTP 406 error:
+```
+Not Acceptable: Client must accept both application/json and text/event-stream
+```
+
+**Root Cause:** MCP HTTP client wasn't sending proper `Accept` header.
+
+**Fix:** Added `Accept` header to HTTP requests in `core/mcp_client.py`:
+- Line 277: Added `"accept": "application/json, text/event-stream"`
+- Line 312: Added same header to notification method
+
+Composio requires both content types:
+- `application/json` - for regular JSON-RPC responses
+- `text/event-stream` - for Server-Sent Events (SSE)
+
 ## Files Modified
 
 1. `config.yml` - Updated Composio comment
 2. `CLAUDE.md` - Updated documentation
 3. `modes/web_chat.py` - Added file browser feature
+4. `core/mcp_client.py` - Fixed HTTP Accept header for Composio compatibility
 
 ## Files Created
 

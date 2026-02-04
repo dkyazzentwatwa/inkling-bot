@@ -1,0 +1,18 @@
+# Example config.local.yml with Composio enabled
+# Copy this to config.local.yml and customize
+
+# MCP Servers (Model Context Protocol)
+mcp:
+  enabled: true
+  servers:
+    # Task Management (built-in)
+    tasks:
+      command: "python"
+      args: ["mcp_servers/tasks.py"]
+
+    # Composio MCP Gateway (500+ app integrations)
+    composio:
+      transport: "http"
+      url: "https://backend.composio.dev/v3/mcp"
+      headers:
+        x-api-key: "${COMPOSIO_API_KEY}"

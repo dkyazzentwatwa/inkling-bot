@@ -686,7 +686,6 @@ SETTINGS_TEMPLATE = """
             <button class="back-button" onclick="location.href='/'">Chat</button>
             <button class="back-button" onclick="location.href='/tasks'">Tasks</button>
             <button class="back-button" onclick="location.href='/files'">Files</button>
-            <button class="back-button" onclick="location.href='/social'">Social</button>
         </div>
     </header>
 
@@ -1787,6 +1786,8 @@ FILES_TEMPLATE = """
         [data-theme="sky"] { --bg: #e0f0ff; --text: #1a2e4a; --border: #6ba3d4; --muted: #4d708f; --accent: #5eb3ff; }
         [data-theme="butter"] { --bg: #fff9e0; --text: #4a3f1a; --border: #d4c175; --muted: #8f8350; --accent: #ffd952; }
         [data-theme="rose"] { --bg: #fff0f3; --text: #4a1a2a; --border: #d47590; --muted: #8f5068; --accent: #ff9eb8; }
+        [data-theme="sage"] { --bg: #e8f5e8; --text: #1a3a1a; --border: #75a375; --muted: #507050; --accent: #6dbf6d; }
+        [data-theme="periwinkle"] { --bg: #e8e8ff; --text: #1a1a4a; --border: #7575d4; --muted: #505068; --accent: #8c8cff; }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -2032,16 +2033,20 @@ FILES_TEMPLATE = """
         let currentPath = '';
 
         // Apply saved theme
-        const theme = localStorage.getItem('theme') || 'cream';
+        const theme = localStorage.getItem('inklingTheme') || 'cream';
         document.documentElement.setAttribute('data-theme', theme);
 
         async function loadFiles(path = '') {
             try {
+                console.log('Loading files from path:', path);
                 const response = await fetch(`/api/files/list?path=${encodeURIComponent(path)}`);
                 const data = await response.json();
+                console.log('Received data:', data);
 
                 if (data.error) {
                     showError(data.error);
+                    // Still show empty state
+                    document.getElementById('file-list').innerHTML = '<li class="empty-state">Error: ' + data.error + '</li>';
                     return;
                 }
 
@@ -2050,7 +2055,9 @@ FILES_TEMPLATE = """
                 renderFileList(data.items);
 
             } catch (error) {
+                console.error('Load files error:', error);
                 showError('Failed to load files: ' + error.message);
+                document.getElementById('file-list').innerHTML = '<li class="empty-state">Failed to load files</li>';
             }
         }
 
@@ -2087,7 +2094,17 @@ FILES_TEMPLATE = """
             const list = document.getElementById('file-list');
 
             if (items.length === 0) {
-                list.innerHTML = '<li class="empty-state">No files found</li>';
+                list.innerHTML = `
+                    <li class="empty-state">
+                        <div style="padding: 2rem;">
+                            <p style="margin-bottom: 1rem;">📁 No files found in this directory</p>
+                            <p style="font-size: 0.9em; color: var(--muted);">
+                                Only .txt, .md, .csv, .json, and .log files are shown.<br>
+                                System files (.db, .pyc) are hidden.
+                            </p>
+                        </div>
+                    </li>
+                `;
                 return;
             }
 

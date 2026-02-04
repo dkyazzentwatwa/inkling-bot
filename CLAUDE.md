@@ -141,9 +141,9 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 - `device.name`: Device name (editable via web UI)
 - `display.type`: `auto`, `v3`, `v4`, or `mock`
 - `ai.primary`: `anthropic`, `openai`, or `gemini`
-- `ai.anthropic.model`: Model selection (haiku/sonnet/opus)
-- `ai.openai.model`: Model selection (gpt-4o-mini/gpt-4o/o1-mini)
-- `ai.gemini.model`: Model selection (gemini-2.0-flash-exp/gemini-1.5-pro)
+- `ai.anthropic.model`: Model selection (claude-haiku-4-5/claude-sonnet-4-5/claude-opus-4-5)
+- `ai.openai.model`: Model selection (gpt-5-mini/gpt-5.2)
+- `ai.gemini.model`: Model selection (gemini-3-flash-preview/gemini-2.5-flash)
 - `ai.budget.daily_tokens`: Daily token limit (default 10000)
 - `ai.budget.per_request_max`: Max tokens per request (default 500)
 - `personality.*`: Base trait values (curiosity, cheerfulness, verbosity, playfulness, empathy, independence - 0.0-1.0)

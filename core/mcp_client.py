@@ -273,6 +273,7 @@ class MCPClientManager:
 
         headers = {
             "content-type": "application/json",
+            "accept": "application/json, text/event-stream",
             **(srv.headers or {}),
         }
         if srv.session_id:
@@ -309,6 +310,7 @@ class MCPClientManager:
 
         headers = {
             "content-type": "application/json",
+            "accept": "application/json, text/event-stream",
             **(srv.headers or {}),
         }
         if srv.session_id:
