@@ -4,14 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Project Inkling is a local AI companion device for Raspberry Pi Zero 2W with e-ink display. It combines:
+Project Inkling is a **fully local** AI companion device for Raspberry Pi Zero 2W with e-ink display. It combines:
 - Pwnagotchi-style personality/mood system
-- Local AI assistant via Anthropic/OpenAI/Gemini
+- Local AI assistant via Anthropic/OpenAI/Gemini APIs
 - Task management with AI integration
 - Model Context Protocol (MCP) for tool extensibility
+- No cloud dependencies - all social features (The Conservatory) have been removed
 
 The codebase has one main component:
 - **Pi Client** (Python) - Runs on the device with local AI and web UI
+
+**Note**: All social/cloud features (dreams, telegrams, Night Pool, etc.) have been completely removed. The bot is now 100% local and self-contained.
 
 ## Commands
 
@@ -84,7 +87,6 @@ INKLING_DEBUG=1  # Enable detailed logging
 ### Pi Client Flow
 ```
 main.py → Inkling class
-    ├── Identity (core/crypto.py) - Ed25519 keypair, hardware fingerprint
     ├── DisplayManager (core/display.py) - E-ink abstraction (V3/V4/Mock)
     ├── Personality (core/personality.py) - Mood state machine + XP/leveling
     ├── Brain (core/brain.py) - Multi-provider AI with fallback
@@ -97,12 +99,17 @@ modes/
     └── web_chat.py - Bottle-based web UI with Kanban board
 
 mcp_servers/
-    └── tasks.py - MCP server exposing task management to AI
+    ├── tasks.py - MCP server exposing task management to AI
+    └── filesystem.py - Optional Python-based file operations (read/write/list/search)
 ```
 
 ### Key Design Patterns
 
-**Hardware-bound Identity**: Devices have Ed25519 keys. The `Identity` class combines a keypair with a hardware hash (CPU serial + MAC) for unique device identification.
+**Removed Features**: The Conservatory social backend has been removed. All related features are gone:
+- No social commands (/dream, /fish, /telegram, /queue, /identity)
+- No cloud synchronization or P2P features
+- `Identity` class (core/crypto.py) still exists but is unused
+- Focus is now entirely on local AI companion functionality
 
 **Multi-provider AI**: `Brain` tries Anthropic first, falls back to OpenAI or Gemini. All use async clients with retry logic and token budgeting.
 
@@ -112,11 +119,10 @@ mcp_servers/
 - Mock: 0.5s (development)
 
 **Pwnagotchi-Style UI**: The display uses a component-based layout system (`core/ui.py`):
-- `HeaderBar`: Name prompt, mood, uptime
-- `MessagePanel`: Left panel with centered, word-wrapped AI responses
-- `StatsPanel`: Right panel with system stats, level/XP
-- `FaceBox`: Bottom face expression (38px font, centered)
-- `FooterBar`: Chat count, mode
+- `HeaderBar`: Name prompt, mood, uptime (14px)
+- `MessagePanel`: Full-width message area with centered, word-wrapped AI responses (86px, ~40 chars/line, 6 lines max)
+- `FooterBar`: Compact footer with all stats in format `(^_^) | L1 NEWB | 54%mem 1%cpu 43° | CHAT3 | SSH` (22px)
+- Auto-pagination: Long responses (>6 lines) automatically split into pages with 3-second transitions
 
 **Web UI Architecture** (`modes/web_chat.py`):
 - Bottle web framework serving HTML templates (embedded in Python file)
@@ -146,9 +152,56 @@ mcp_servers/
 - `task_create`, `task_list`, `task_complete`, `task_update`, `task_delete`, `task_stats`
 - Enable in `config.yml` under `mcp.servers.tasks`
 
+**Slash Commands**:
+- `/tasks` - List all tasks (with optional filters)
+- `/task [title]` - Show task details or create new task
+- `/done <id>` - Mark task as complete (awards XP)
+- `/cancel <id>` - Cancel a task (keeps record, no XP)
+- `/delete <id>` - Permanently delete a task
+- `/taskstats` - Show completion rate, streaks, overdue count
+- All commands support partial ID matching (can use just first few characters)
+
 **Web UI** (`/tasks` route): Kanban board with drag-and-drop, filtering, quick add
 
 **XP Integration**: Tasks award XP based on priority (5-40 XP), with bonuses for on-time completion and streaks
+
+### Available Slash Commands
+
+All commands defined in `core/commands.py` and available in both SSH and web modes:
+
+**Info & Status**:
+- `/help` - Show all available commands
+- `/level` - Show XP, progression, and achievements
+- `/prestige` - Reset level with XP bonus
+- `/stats` - Show AI token usage statistics
+- `/history` - Show recent conversation messages
+
+**Personality**:
+- `/mood` - Show current mood and intensity
+- `/energy` - Show energy level
+- `/traits` - Show all personality traits
+
+**Tasks** (see Task Management System section above for details):
+- `/tasks` - List all tasks
+- `/task [title]` - Show or create task
+- `/done <id>` - Complete task (awards XP)
+- `/cancel <id>` - Cancel task
+- `/delete <id>` - Delete task permanently
+- `/taskstats` - Show statistics
+
+**System**:
+- `/system` - Show system stats (CPU, memory, temp, uptime)
+- `/config` - Show AI configuration
+
+**Display**:
+- `/face <name>` - Test a face expression
+- `/faces` - List all available faces
+- `/refresh` - Force display refresh
+
+**Session** (SSH only):
+- `/ask <message>` - Explicit chat command
+- `/clear` - Clear conversation history
+- `/quit` or `/exit` - Exit chat
 
 ### Autonomous Behaviors (Heartbeat System)
 
@@ -197,8 +250,8 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 | `core/heartbeat.py` | Autonomous behaviors | `Heartbeat` class, tick cycle, behavior triggers |
 | `core/mcp_client.py` | MCP tool integration | `MCPClient`, tool discovery, async tool calls |
 | `core/display.py` | E-ink abstraction | `DisplayManager`, V3/V4/Mock drivers |
-| `core/ui.py` | Display layout | `HeaderBar`, `MessagePanel`, `StatsPanel`, `FaceBox` |
-| `core/crypto.py` | Identity & signing | `Identity`, Ed25519 keypair, hardware fingerprint |
+| `core/ui.py` | Display layout | `HeaderBar`, `MessagePanel`, `FooterBar`, `PwnagotchiUI` |
+| `core/crypto.py` | Identity (unused) | `Identity`, Ed25519 keypair - legacy from removed social features |
 | `core/memory.py` | Conversation memory | Summarization, context pruning |
 | `core/commands.py` | Slash commands | `COMMANDS` dict, command metadata |
 
@@ -210,7 +263,12 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 
 ## Important Implementation Notes
 
-**Display Text Rendering**: AI response text in `MessagePanel` is centered both horizontally (per line) and vertically (as block). Use `textbbox()` to calculate width for centering.
+**Display Text Rendering**:
+- AI response text in `MessagePanel` is centered both horizontally (per line) and vertically (as block)
+- Use `textbbox()` to calculate width for centering
+- Full-width layout: ~40 chars per line, 6 lines max in 86px message area
+- Auto-pagination: `display.show_message_paginated()` splits long messages into pages with 3-second delay
+  - Used automatically in both SSH and web modes when response exceeds 6 lines
 
 **Face Preference**:
 - E-ink displays (V3/V4): Use ASCII faces from `FACES` (better rendering on e-ink)
@@ -231,11 +289,17 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 4. AI settings require restart; personality changes apply immediately
 
 **MCP Integration**: Inkling can use external tools via Model Context Protocol
-- Built-in servers: `tasks` (task management)
-- Third-party servers: `filesystem`, `fetch`, `memory`, `brave-search`, etc.
-- **Composio integration**: 500+ app integrations (Google Calendar, GitHub, Slack, etc.)
-  - Ready to use! Just set COMPOSIO_API_KEY environment variable
-  - See COMPOSIO_INTEGRATION.md for setup guide
+- Built-in servers:
+  - `tasks` (task management) - Python-based, always available
+  - `filesystem` (file operations) - Python-based, optional (see FILESYSTEM_MCP.md)
+- Third-party servers: Composio (500+ app integrations), fetch, memory, brave-search, etc.
+- **Composio integration**: Google Calendar, Gmail, Google Sheets, Notion, GitHub, Slack, etc.
+  - HTTP transport with SSE (Server-Sent Events) support
+  - Set `COMPOSIO_API_KEY` environment variable
+  - Enable in `config.yml` under `mcp.servers.composio`
+- **Tool limiting**: Set `mcp.max_tools` to limit total tools (default: 20)
+  - Built-in tools prioritized over third-party
+  - OpenAI has hard limit of 128 tools
 - Enable in `config.yml` under `mcp.servers.*`
 
 **Web UI Template Structure** (`modes/web_chat.py`):
@@ -249,9 +313,14 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 ## Common Development Patterns
 
 **Adding a New Slash Command**:
-1. Add command metadata to `COMMANDS` dict in `core/commands.py`
-2. Implement handler method in mode file (e.g., `_cmd_mycommand` in `modes/web_chat.py`)
-3. Command handler returns `Dict[str, Any]` with keys: `success`, `message`, `data` (optional)
+1. Add command metadata to `COMMANDS` list in `core/commands.py`
+2. Implement handler method in mode files:
+   - SSH: `async def cmd_mycommand(self, args: str = "") -> None` in `modes/ssh_chat.py`
+   - Web: `def _cmd_mycommand(self, args: str = "") -> Dict[str, Any]` in `modes/web_chat.py`
+3. Command handlers are auto-detected using `inspect.signature()`:
+   - If handler has `args` parameter without default value, args are passed automatically
+   - No need to maintain hardcoded list of commands that need args
+4. Web handler returns `Dict[str, Any]` with keys: `response`, `face`, `status`, optionally `error`
 
 **Adding a New XP Source**:
 1. Add enum value to `XPSource` in `core/progression.py`
