@@ -16,6 +16,12 @@ from enum import Enum
 
 from .personality import Personality, Mood
 
+try:
+    from .scheduler import ScheduledTaskManager
+    SCHEDULER_AVAILABLE = True
+except ImportError:
+    SCHEDULER_AVAILABLE = False
+
 
 class BehaviorType(Enum):
     """Types of proactive behaviors."""
@@ -81,6 +87,7 @@ class Heartbeat:
         memory_store=None,
         brain=None,
         task_manager=None,
+        scheduler=None,
         config: Optional[HeartbeatConfig] = None,
     ):
         self.personality = personality
@@ -89,6 +96,7 @@ class Heartbeat:
         self.memory = memory_store
         self.brain = brain
         self.task_manager = task_manager
+        self.scheduler = scheduler
         self.config = config or HeartbeatConfig()
 
         self._running = False
@@ -221,6 +229,10 @@ class Heartbeat:
 
         # Natural mood decay
         self.personality.update()
+
+        # Run scheduled tasks (if scheduler is available)
+        if self.scheduler:
+            self.scheduler.run_pending()
 
         # Run proactive behaviors
         await self._run_behaviors()

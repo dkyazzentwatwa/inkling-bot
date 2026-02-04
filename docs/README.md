@@ -2,37 +2,86 @@
 
 Welcome to the Inkling documentation! This directory contains comprehensive guides for using and developing Inkling.
 
-## 📖 User Guides
+## 📁 Documentation Structure
 
-### Getting Started
+### 📘 [guides/](guides/) - User Guides & Tutorials
 
-- **[Setup Guide](SETUP.md)** - Hardware assembly and software installation
-- **[Quick Start](../README.md#-quick-start)** - Get up and running in 5 minutes
-- **[Usage Guide](USAGE.md)** - Complete feature walkthrough
+Getting started, feature guides, and how-tos for users:
+- **[Setup Guide](guides/SETUP.md)** - Hardware assembly and software installation
+- **[Usage Guide](guides/USAGE.md)** - Complete feature walkthrough
+- **[Web UI Guide](guides/WEB_UI.md)** - Browser interface documentation
+- **[Web Commands](guides/WEB_COMMANDS.md)** - Web-specific commands
+- **[Autonomous Mode](guides/AUTONOMOUS_MODE.md)** - Heartbeat system and autonomous behaviors
+- **[Leveling System](guides/LEVELING_SYSTEM.md)** - XP, progression, and prestige mechanics
+- **[AI Providers](guides/AI_PROVIDERS.md)** - Configuring Anthropic, OpenAI, Gemini
+- **[Social Guide](guides/SOCIAL_GUIDE.md)** - Social features (deprecated)
+- **[Troubleshooting](guides/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Filesystem MCP](guides/FILESYSTEM_MCP.md)** - File operations via MCP
+- **[YAML Fix Guide](guides/YAML_FIX_GUIDE.md)** - Config file troubleshooting
 
-### Features
+### 🔧 [implementation/](implementation/) - Implementation Notes
 
-- **[Web UI Guide](WEB_UI.md)** - Browser interface documentation
-- **[Autonomous Mode](AUTONOMOUS_MODE.md)** - Heartbeat system and autonomous behaviors
-- **[Leveling System](LEVELING_SYSTEM.md)** - XP, progression, and prestige mechanics
-- **[Social Features](SOCIAL.md)** - Dreams, telegrams, postcards, and baptism
+Technical implementation details, changelogs, and feature summaries:
+- **[Implementation Summary](implementation/IMPLEMENTATION_SUMMARY.md)** - Recent feature implementations
+- **[Final Summary](implementation/FINAL_SUMMARY.md)** - Complete feature overview
+- **[Changes](implementation/CHANGES.md)** - Changelog and version history
+- **[Bugfixes Summary](implementation/BUGFIXES_SUMMARY.md)** - Bug fix documentation
+- **[Rate Limit Fix](implementation/RATE_LIMIT_FIX.md)** - AI rate limiting implementation
+- **[SD Card Implementation](implementation/SD_CARD_IMPLEMENTATION.md)** - Multiple storage locations
+- **[Task Manager Implementation](implementation/TASK_MANAGER_IMPLEMENTATION.md)** - Task system details
+- **[Task Manager Quickstart](implementation/TASK_MANAGER_QUICKSTART.md)** - Quick setup guide
+- **[Task Manager Test Report](implementation/TASK_MANAGER_TEST_REPORT.md)** - Test results
+- **[Task Manager Enabled](implementation/TASK_MANAGER_ENABLED.md)** - Enabling task features
+- **[AI Settings Implementation](implementation/AI_SETTINGS_IMPLEMENTATION.md)** - AI config details
+- **[Composio Integration](implementation/COMPOSIO_INTEGRATION.md)** - MCP app integrations
+- **[Settings UI Plan](implementation/SETTINGS_UI_PLAN.md)** - Settings page design
 
-## 🔧 Technical Documentation
+### 📖 [reference/](reference/) - Technical Reference
 
-### Architecture
+API documentation and technical specifications:
+- **[API Reference](reference/API.md)** - Cloud backend API documentation
+- **[Faces Reference](reference/FACES_REFERENCE.md)** - Available face expressions
+- **[Documentation Summary](reference/DOCUMENTATION_SUMMARY.md)** - Doc structure overview
 
-- **[Architecture Overview](ARCHITECTURE.md)** - System design and component interaction
-- **[Implementation Summary](IMPLEMENTATION_SUMMARY.md)** - Recent feature implementations
-- **[API Reference](API.md)** - Cloud backend API documentation
+### 🛠️ [development/](development/) - Development Guides
 
-### Development
+Contributing, testing, and development workflows:
+- **[Contributing Guide](development/CONTRIBUTING.md)** - How to contribute to Inkling
+- **[Testing Guide](development/TESTING_GUIDE.md)** - Running tests and validation
+- **[Verification Checklist](development/VERIFICATION_CHECKLIST.md)** - Pre-commit checks
 
-- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to Inkling
-- **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions
-- **[Changelog](../CHANGES.md)** - Recent updates and features
+## 🚀 Quick Links
+
+### For Users
+
+**Getting Started:**
+- [Installation](guides/SETUP.md#installation)
+- [First Run](guides/USAGE.md#first-run)
+- [Web Interface](guides/WEB_UI.md#getting-started)
+- [Slash Commands](../README.md#slash-commands-both-ssh-and-web)
+
+**Features:**
+- [Task Management](implementation/TASK_MANAGER_QUICKSTART.md)
+- [Multiple Storage Locations](implementation/SD_CARD_IMPLEMENTATION.md)
+- [Autonomous Behaviors](guides/AUTONOMOUS_MODE.md)
+- [Leveling System](guides/LEVELING_SYSTEM.md)
+
+### For Developers
+
+**Development:**
+- [Project Structure](../README.md#project-structure)
+- [Running Tests](development/TESTING_GUIDE.md)
+- [Contributing](development/CONTRIBUTING.md)
+- [API Reference](reference/API.md)
+
+**Implementation Notes:**
+- [Recent Changes](implementation/CHANGES.md)
+- [Feature Implementations](implementation/)
+- [Bug Fixes](implementation/BUGFIXES_SUMMARY.md)
 
 ## 🗂️ Document Index
 
+### User Guides
 | Document | Audience | Topics Covered |
 |----------|----------|----------------|
 | **Setup Guide** | Beginners | Hardware assembly, OS setup, installation |
@@ -40,32 +89,20 @@ Welcome to the Inkling documentation! This directory contains comprehensive guid
 | **Web UI Guide** | Users | Browser interface, settings, themes |
 | **Autonomous Mode** | Advanced users | Heartbeat configuration, behaviors |
 | **Leveling System** | Users | XP mechanics, achievements, prestige |
-| **Social Features** | Users | Dreams, telegrams, web of trust |
-| **Architecture** | Developers | System design, components |
-| **API Reference** | Developers | Cloud backend endpoints |
+| **AI Providers** | Users | Configuring API keys and models |
 | **Troubleshooting** | Everyone | Error messages, common fixes |
 
-## 🚀 Quick Links
-
-### For Users
-
-- [Installation](SETUP.md#installation)
-- [First Run](USAGE.md#first-run)
-- [Web Interface](WEB_UI.md#getting-started)
-- [Slash Commands](../README.md#slash-commands-both-ssh-and-web)
-- [Social Network](SOCIAL.md#the-conservatory)
-
-### For Developers
-
-- [Project Structure](../README.md#project-structure)
-- [Running Tests](../README.md#running-tests)
-- [Cloud Deployment](../cloud/README.md#deployment)
-- [API Endpoints](../cloud/README.md#api-reference)
-- [Database Schema](../cloud/README.md#database-schema)
+### Technical Documentation
+| Document | Audience | Topics Covered |
+|----------|----------|----------------|
+| **API Reference** | Developers | Cloud backend endpoints |
+| **Implementation Summary** | Developers | Feature implementation details |
+| **Contributing Guide** | Contributors | Development workflow |
+| **Testing Guide** | Developers | Test suite and validation |
 
 ## 🆘 Need Help?
 
-1. **Check [Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and fixes
+1. **Check [Troubleshooting Guide](guides/TROUBLESHOOTING.md)** - Common issues and fixes
 2. **Read relevant docs** - Use the index above to find specific topics
 3. **Search closed issues** - Someone may have had the same problem
 4. **Open a new issue** - Include logs and reproduction steps
@@ -97,21 +134,11 @@ For new guides or substantial rewrites:
 - **Add emojis sparingly** - One per section header max
 - **Link between docs** - Help users navigate
 - **Keep it current** - Update when features change
-
-## 🗺️ Document Status
-
-| Document | Status | Last Updated |
-|----------|--------|--------------|
-| Setup Guide | ⏳ Planned | - |
-| Usage Guide | ⏳ Planned | - |
-| Web UI Guide | ⏳ Planned | - |
-| Autonomous Mode | ✅ Complete | Feb 2, 2026 |
-| Leveling System | ✅ Complete | Feb 2, 2026 |
-| Social Features | ⏳ Planned | - |
-| Architecture | ⏳ Planned | - |
-| API Reference | ⏳ Planned | - |
-| Troubleshooting | ⏳ Planned | - |
-| Contributing | ⏳ Planned | - |
+- **Place in correct directory**:
+  - User-facing guides → `guides/`
+  - Implementation notes → `implementation/`
+  - API/reference → `reference/`
+  - Development workflows → `development/`
 
 ## 📄 License
 

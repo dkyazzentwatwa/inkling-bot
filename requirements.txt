@@ -26,6 +26,13 @@ python-dotenv>=1.0.0
 bottle>=0.12.25
 pyngrok>=7.0.0
 
+# Task Scheduling
+schedule>=1.2.0
+
+# System Monitoring
+psutil>=5.9.0
+requests>=2.31.0
+
 # E-ink Display (Pi only)
 # spidev>=3.6  # Uncomment on Raspberry Pi
 # RPi.GPIO>=0.7.1  # Uncomment on Raspberry Pi

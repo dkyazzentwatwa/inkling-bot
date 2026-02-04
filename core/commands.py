@@ -50,6 +50,9 @@ COMMANDS: List[Command] = [
     Command("delete", "Delete a task", "cmd_delete", "tasks"),
     Command("taskstats", "Show task statistics", "cmd_taskstats", "tasks"),
 
+    # Scheduler commands
+    Command("schedule", "Manage scheduled tasks", "cmd_schedule", "scheduler"),
+
     # Session commands (SSH only)
     Command("ask", "Explicit chat command", "cmd_ask", "session", requires_brain=True),
     Command("clear", "Clear conversation history", "cmd_clear", "session", requires_brain=True),

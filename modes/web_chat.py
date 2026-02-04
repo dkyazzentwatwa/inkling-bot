@@ -1993,6 +1993,37 @@ FILES_TEMPLATE = """
             border-radius: 4px;
             margin-bottom: 1rem;
         }
+
+        .storage-selector {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .storage-selector label {
+            font-weight: bold;
+            color: var(--text);
+        }
+
+        .storage-selector select {
+            padding: 0.5rem;
+            border: 2px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            border-radius: 4px;
+            font-size: 1em;
+            cursor: pointer;
+            flex-grow: 1;
+        }
+
+        .storage-selector select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -2006,6 +2037,14 @@ FILES_TEMPLATE = """
                 <a href="/settings">⚙️ Settings</a>
             </div>
         </header>
+
+        <div class="storage-selector">
+            <label>Storage Location:</label>
+            <select id="storageSelect" onchange="switchStorage()">
+                <option value="inkling">Inkling Data (~/.inkling/)</option>
+                <option value="sd" {{!'disabled' if not sd_available else ''}}>SD Card {{!'(not available)' if not sd_available else ''}}</option>
+            </select>
+        </div>
 
         <div class="breadcrumb" id="breadcrumb">
             <a href="#" data-path="">~/.inkling/</a>
@@ -2030,15 +2069,22 @@ FILES_TEMPLATE = """
 
     <script>
         let currentPath = '';
+        let currentStorage = 'inkling';  // Track current storage location
 
         // Apply saved theme
         const theme = localStorage.getItem('inklingTheme') || 'cream';
         document.documentElement.setAttribute('data-theme', theme);
 
+        function switchStorage() {
+            currentStorage = document.getElementById('storageSelect').value;
+            console.log('Switched to storage:', currentStorage);
+            loadFiles('');  // Reload from root of new storage
+        }
+
         async function loadFiles(path = '') {
             try {
-                console.log('Loading files from path:', path);
-                const response = await fetch(`/api/files/list?path=${encodeURIComponent(path)}`);
+                console.log('Loading files from path:', path, 'storage:', currentStorage);
+                const response = await fetch(`/api/files/list?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(path)}`);
                 const data = await response.json();
                 console.log('Received data:', data);
 
@@ -2063,13 +2109,16 @@ FILES_TEMPLATE = """
         function updateBreadcrumb(path) {
             const breadcrumb = document.getElementById('breadcrumb');
 
+            // Get storage root label
+            const storageRoot = currentStorage === 'inkling' ? '~/.inkling/' : 'SD Card/';
+
             if (!path) {
-                breadcrumb.innerHTML = '<a href="#" data-path="">~/.inkling/</a>';
+                breadcrumb.innerHTML = `<a href="#" data-path="">${storageRoot}</a>`;
                 return;
             }
 
             const parts = path.split('/');
-            let html = '<a href="#" data-path="">~/.inkling/</a>';
+            let html = `<a href="#" data-path="">${storageRoot}</a>`;
             let buildPath = '';
 
             parts.forEach((part, idx) => {
@@ -2147,7 +2196,7 @@ FILES_TEMPLATE = """
                     actions.className = 'file-actions';
                     actions.innerHTML = `
                         <button class="btn" onclick="viewFile('${item.path}', event)">View</button>
-                        <a class="btn" href="/api/files/download?path=${encodeURIComponent(item.path)}" download>Download</a>
+                        <a class="btn" href="/api/files/download?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(item.path)}" download>Download</a>
                     `;
                     li.appendChild(actions);
                 }
@@ -2160,7 +2209,7 @@ FILES_TEMPLATE = """
             event.stopPropagation();
 
             try {
-                const response = await fetch(`/api/files/view?path=${encodeURIComponent(path)}`);
+                const response = await fetch(`/api/files/view?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(path)}`);
                 const data = await response.json();
 
                 if (data.error) {
@@ -2225,6 +2274,7 @@ class WebChatMode:
         display: DisplayManager,
         personality: Personality,
         task_manager: Optional[TaskManager] = None,
+        scheduler=None,
         identity: Optional[Identity] = None,
         config: Optional[Dict] = None,
         host: str = "0.0.0.0",
@@ -2234,6 +2284,7 @@ class WebChatMode:
         self.display = display
         self.personality = personality
         self.task_manager = task_manager
+        self.scheduler = scheduler
         self.identity = identity
         self.host = host
         self.port = port
@@ -2370,9 +2421,23 @@ class WebChatMode:
             auth_check = self._require_auth()
             if auth_check:
                 return auth_check
+
+            # Check if SD card storage is available
+            sd_available = False
+            sd_config = self._config.get("storage", {}).get("sd_card", {})
+            if sd_config.get("enabled", False):
+                sd_path = sd_config.get("path")
+                if sd_path == "auto":
+                    from core.storage import get_sd_card_path
+                    sd_available = get_sd_card_path() is not None
+                else:
+                    from core.storage import is_storage_available
+                    sd_available = is_storage_available(sd_path) if sd_path else False
+
             return template(
                 FILES_TEMPLATE,
                 name=self.personality.name,
+                sd_available=sd_available,
             )
 
         @self._app.route("/api/chat", method="POST")
@@ -2675,18 +2740,42 @@ class WebChatMode:
                 "stats": stats
             })
 
+        def get_base_dir(storage: str) -> Optional[str]:
+            """Get base directory for storage location."""
+            if storage == "inkling":
+                home = os.path.expanduser("~")
+                return os.path.join(home, ".inkling")
+            elif storage == "sd":
+                # Get SD card path from config
+                sd_config = self._config.get("storage", {}).get("sd_card", {})
+                if not sd_config.get("enabled", False):
+                    return None
+
+                sd_path = sd_config.get("path")
+                if sd_path == "auto":
+                    # Auto-detect SD card
+                    from core.storage import get_sd_card_path
+                    detected_path = get_sd_card_path()
+                    return detected_path
+                else:
+                    # Use configured path
+                    return sd_path if sd_path else None
+            return None
+
         @self._app.route("/api/files/list", method="GET")
         def list_files():
-            """List files in ~/.inkling/ directory."""
+            """List files in storage directory (inkling or SD card)."""
             response.content_type = "application/json"
 
-            # Get path from query param, default to ~/.inkling
+            # Get storage and path from query params
+            storage = request.query.get("storage", "inkling")
             path = request.query.get("path", "")
 
             try:
-                # Security: Build safe path within home directory
-                home = os.path.expanduser("~")
-                base_dir = os.path.join(home, ".inkling")
+                # Get base directory for storage location
+                base_dir = get_base_dir(storage)
+                if not base_dir:
+                    return json.dumps({"error": f"Storage '{storage}' not available"})
 
                 if path:
                     full_path = os.path.normpath(os.path.join(base_dir, path))
@@ -2739,14 +2828,17 @@ class WebChatMode:
             """Read file contents for viewing."""
             response.content_type = "application/json"
 
+            storage = request.query.get("storage", "inkling")
             path = request.query.get("path", "")
             if not path:
                 return json.dumps({"error": "No path specified"})
 
             try:
-                # Security: Same path validation as list
-                home = os.path.expanduser("~")
-                base_dir = os.path.join(home, ".inkling")
+                # Get base directory for storage location
+                base_dir = get_base_dir(storage)
+                if not base_dir:
+                    return json.dumps({"error": f"Storage '{storage}' not available"})
+
                 full_path = os.path.normpath(os.path.join(base_dir, path))
 
                 if not full_path.startswith(base_dir):
@@ -2783,14 +2875,17 @@ class WebChatMode:
         @self._app.route("/api/files/download")
         def download_file():
             """Download a file."""
+            storage = request.query.get("storage", "inkling")
             path = request.query.get("path", "")
             if not path:
                 return "No path specified"
 
             try:
-                # Security: Same path validation
-                home = os.path.expanduser("~")
-                base_dir = os.path.join(home, ".inkling")
+                # Get base directory for storage location
+                base_dir = get_base_dir(storage)
+                if not base_dir:
+                    return f"Storage '{storage}' not available"
+
                 full_path = os.path.normpath(os.path.join(base_dir, path))
 
                 if not full_path.startswith(base_dir):
@@ -2908,17 +3003,18 @@ class WebChatMode:
             "info": "Status & Info",
             "personality": "Personality",
             "tasks": "Task Management",
+            "scheduler": "Scheduler",
             "system": "System",
             "display": "Display",
             "session": "Session",
         }
 
-        for cat_key in ["info", "personality", "tasks", "system", "display", "session"]:
+        for cat_key in ["info", "personality", "tasks", "scheduler", "system", "display", "session"]:
             if cat_key in categories:
                 response_lines.append(f"\n{category_titles.get(cat_key, cat_key.title())}:")
                 for cmd in categories[cat_key]:
                     usage = f"/{cmd.name}"
-                    if cmd.name in ("face", "ask", "task", "done", "cancel", "delete"):
+                    if cmd.name in ("face", "ask", "task", "done", "cancel", "delete", "schedule"):
                         usage += " <arg>"
                     response_lines.append(f"  {usage} - {cmd.description}")
 
@@ -3149,6 +3245,121 @@ class WebChatMode:
             "status": self.personality.get_status_line(),
         }
 
+    def _cmd_schedule(self, args: str = "") -> Dict[str, Any]:
+        """Manage scheduled tasks."""
+        if not hasattr(self, 'scheduler') or not self.scheduler:
+            return {
+                "response": "Scheduler not available.\n\nEnable in config.yml under 'scheduler.enabled: true'",
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+                "error": True
+            }
+
+        if not args:
+            # List all scheduled tasks
+            tasks = self.scheduler.list_tasks()
+
+            if not tasks:
+                return {
+                    "response": "No scheduled tasks configured.\n\nAdd tasks in config.yml under 'scheduler.tasks'",
+                    "face": self._get_face_str(),
+                    "status": self.personality.get_status_line(),
+                }
+
+            response = "SCHEDULED TASKS\n\n"
+            next_runs = self.scheduler.get_next_run_times()
+
+            for task in tasks:
+                status_icon = "✓" if task.enabled else "✗"
+                response += f"{status_icon} {task.name}\n"
+                response += f"   Schedule: {task.schedule_expr}\n"
+                response += f"   Action:   {task.action}\n"
+
+                if task.enabled:
+                    next_run = next_runs.get(task.name, "Unknown")
+                    response += f"   Next run: {next_run}\n"
+
+                if task.last_run > 0:
+                    import time
+                    from datetime import datetime
+                    last_run_dt = datetime.fromtimestamp(task.last_run)
+                    response += f"   Last run: {last_run_dt.strftime('%Y-%m-%d %H:%M:%S')} ({task.run_count} times)\n"
+
+                if task.last_error:
+                    response += f"   Error: {task.last_error}\n"
+
+                response += "\n"
+
+            return {
+                "response": response,
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        # Parse subcommands
+        parts = args.split(maxsplit=1)
+        subcmd = parts[0].lower()
+
+        if subcmd == "list":
+            # Redirect to list (same as no args)
+            return self._cmd_schedule()
+
+        elif subcmd == "enable":
+            if len(parts) < 2:
+                return {
+                    "response": "Usage: /schedule enable <task_name>",
+                    "face": self._get_face_str(),
+                    "status": self.personality.get_status_line(),
+                    "error": True
+                }
+
+            task_name = parts[1]
+            if self.scheduler.enable_task(task_name):
+                return {
+                    "response": f"✓ Enabled: {task_name}",
+                    "face": self._get_face_str(),
+                    "status": self.personality.get_status_line(),
+                }
+            else:
+                return {
+                    "response": f"Task not found: {task_name}",
+                    "face": self._get_face_str(),
+                    "status": self.personality.get_status_line(),
+                    "error": True
+                }
+
+        elif subcmd == "disable":
+            if len(parts) < 2:
+                return {
+                    "response": "Usage: /schedule disable <task_name>",
+                    "face": self._get_face_str(),
+                    "status": self.personality.get_status_line(),
+                    "error": True
+                }
+
+            task_name = parts[1]
+            if self.scheduler.disable_task(task_name):
+                return {
+                    "response": f"✓ Disabled: {task_name}",
+                    "face": self._get_face_str(),
+                    "status": self.personality.get_status_line(),
+                }
+            else:
+                return {
+                    "response": f"Task not found: {task_name}",
+                    "face": self._get_face_str(),
+                    "status": self.personality.get_status_line(),
+                    "error": True
+                }
+
+        else:
+            return {
+                "response": f"Unknown subcommand: {subcmd}\n\nAvailable commands:\n  /schedule           - List all scheduled tasks\n  /schedule list      - List all scheduled tasks\n  /schedule enable <name>  - Enable a task\n  /schedule disable <name> - Disable a task",
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+                "error": True
+            }
+
     def _cmd_ask(self, args: str) -> Dict[str, Any]:
         """Handle explicit chat command."""
         if not args:
@@ -3181,7 +3392,7 @@ class WebChatMode:
             return {"response": f"Command handler not implemented: {cmd_obj.name}", "error": True}
 
         # Call handler with args if needed
-        if cmd_obj.name in ("face", "dream", "ask"):
+        if cmd_obj.name in ("face", "dream", "ask", "schedule"):
             return handler(args)
         else:
             return handler()

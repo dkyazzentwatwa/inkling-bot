@@ -131,12 +131,56 @@ mcp_servers/
   - `/` - Main chat interface
   - `/settings` - Personality, AI config, and appearance settings
   - `/tasks` - Kanban board for task management
-  - `/files` - File browser for viewing/downloading files from `~/.inkling/`
+  - `/files` - File browser with multiple storage locations (see Storage Locations below)
 - API endpoints: `/api/chat`, `/api/command`, `/api/settings`, `/api/state`, `/api/tasks/*`, `/api/files/*`
 - Settings changes:
   - Personality traits: Applied immediately (no restart)
   - AI configuration: Saved to `config.local.yml`, requires restart
   - Theme: Saved to localStorage
+
+### Storage Locations
+
+Project Inkling supports multiple storage locations for user files:
+
+**Inkling Data Directory** (`~/.inkling/`):
+- Default location for all Inkling-managed data
+- Contains: tasks.db, memory.db, logs, configs
+- Always available
+
+**SD Card** (optional):
+- External storage for large files, backups, exports
+- Auto-detected at `/media/pi/*` or `/mnt/*`, or configured manually
+- Requires configuration in `config.yml` under `storage.sd_card`
+- Configure in `config.local.yml`:
+  ```yaml
+  storage:
+    sd_card:
+      enabled: true
+      path: "auto"  # or "/media/pi/SD_CARD" for specific path
+  ```
+
+**Filesystem MCP Access**:
+- AI can access both locations via separate MCP server instances
+- `filesystem-inkling` - Tools for .inkling directory (fs_list, fs_read, fs_write, fs_search, fs_info)
+- `filesystem-sd` - Tools for SD card (same tool set, different base path)
+- Enable in `config.yml` under `mcp.servers.*`
+- Example configuration:
+  ```yaml
+  mcp:
+    servers:
+      filesystem-inkling:
+        command: "python"
+        args: ["mcp_servers/filesystem.py", "/home/pi/.inkling"]
+      filesystem-sd:
+        command: "python"
+        args: ["mcp_servers/filesystem.py", "/media/pi/SD_CARD"]
+  ```
+
+**Web UI /files Page**:
+- Storage selector dropdown to switch between locations
+- Same browse/view/download functionality for both
+- File type restrictions apply to all storage locations (.txt, .md, .csv, .json, .log)
+- Auto-disables SD card option if not available
 
 ### Task Management System
 
@@ -165,6 +209,138 @@ mcp_servers/
 
 **XP Integration**: Tasks award XP based on priority (5-40 XP), with bonuses for on-time completion and streaks
 
+### Scheduler System (Cron-Style Scheduling)
+
+**ScheduledTaskManager** (`core/scheduler.py`): Time-based task scheduling with exact times
+- Uses `schedule` library for cron-like functionality
+- Integrates with Heartbeat (checked every 60 seconds)
+- Tasks run at exact times (e.g., "daily at 2:30 PM")
+- Stored in `config.yml` under `scheduler.tasks`
+
+**Schedule Expressions**:
+- Daily: `every().day.at('14:30')` - Run at 2:30 PM every day
+- Hourly: `every().hour` - Run every hour on the hour
+- Weekly: `every().monday.at('09:00')` - Run every Monday at 9 AM
+- Interval: `every(5).minutes` - Run every 5 minutes
+
+**Built-in Actions**:
+- `daily_summary` - Daily task summary (default: 8 AM)
+- `weekly_cleanup` - Prune old memories, archive tasks (default: Sunday 2 AM)
+- `test_greeting` - Test action for debugging
+
+**Slash Commands**:
+- `/schedule` or `/schedule list` - List all scheduled tasks with next run times
+- `/schedule enable <name>` - Enable a scheduled task
+- `/schedule disable <name>` - Disable a scheduled task
+
+**Configuration** (in `config.yml`):
+```yaml
+scheduler:
+  enabled: true
+  tasks:
+    - name: "morning_summary"
+      schedule: "every().day.at('08:00')"
+      action: "daily_summary"
+      enabled: true
+    - name: "weekly_cleanup"
+      schedule: "every().sunday.at('02:00')"
+      action: "weekly_cleanup"
+      enabled: true
+```
+
+**Adding Custom Actions**: Register actions in main.py:
+```python
+async def my_custom_action():
+    # Your action code here
+    pass
+
+scheduler.register_action("my_action", my_custom_action)
+```
+
+### System Tools MCP Server
+
+**SystemMCPServer** (`mcp_servers/system.py`): Lightweight Linux utility tools via MCP
+- AI can use system commands without shell access
+- Safe wrappers with validation and timeouts
+- Enable in `config.yml` under `mcp.servers.system`
+
+**Available Tools** (6 total):
+
+1. **curl** - Make HTTP requests
+   - Inputs: url (required), method (GET/POST), headers, body
+   - Security: HTTP/HTTPS only, 1MB response limit, 5s timeout
+   - Use: Check website status, fetch data, API calls
+
+2. **df** - Disk space usage
+   - Input: path (optional, default /)
+   - Output: total/used/free space in GB, percent used
+
+3. **free** - Memory usage
+   - Output: RAM and swap (total/used/available in MB, percent)
+
+4. **uptime** - System uptime
+   - Output: uptime string, load averages (1/5/15 min)
+
+5. **ps** - Process listing
+   - Inputs: filter (name substring), limit (default 10)
+   - Output: PID, name, CPU%, memory%, command
+   - Sorted by CPU usage descending
+
+6. **ping** - Network connectivity
+   - Input: host (hostname or IP)
+   - Output: reachable (bool), latency (ms), IP address
+   - Tests ports 80 and 443 (HTTP/HTTPS)
+
+**Dependencies**: Requires `psutil>=5.9.0` and `requests>=2.31.0`
+
+**Token Budget**: ~50-100 tokens per tool × 6 = 300-600 tokens (well within 20-tool limit)
+
+**Example AI Usage**:
+- "What's my disk space?" → Uses `df` tool
+- "Check memory usage" → Uses `free` tool
+- "Is google.com reachable?" → Uses `ping` tool
+- "Fetch https://api.github.com" → Uses `curl` tool
+
+### Remote Access (Ngrok)
+
+**Status**: Fully implemented and supported
+
+Project Inkling supports secure remote access via ngrok tunneling. Access the web UI from anywhere while keeping the device local.
+
+**Setup**:
+
+1. Add to `config.local.yml`:
+```yaml
+network:
+  ngrok:
+    enabled: true
+    auth_token: "your_ngrok_token"  # Optional, for custom domains
+```
+
+2. Set password protection (recommended for public URLs):
+```bash
+export SERVER_PW="your-secure-password"
+```
+
+3. Start web mode:
+```bash
+python main.py --mode web
+```
+
+You'll see:
+```
+🌐 Ngrok tunnel: https://xxxx.ngrok.io
+🔐 Password protection enabled
+```
+
+**Security**:
+- Always use `SERVER_PW` when ngrok is enabled
+- Ngrok free tier has session limits (~2 hours)
+- Paid ngrok plans support custom domains and longer sessions
+- Web UI requires password authentication when `SERVER_PW` is set
+
+**Implementation**: See `modes/web_chat.py:3272-3334` for ngrok integration code
+
 ### Available Slash Commands
 
 All commands defined in `core/commands.py` and available in both SSH and web modes:
@@ -188,6 +364,11 @@ All commands defined in `core/commands.py` and available in both SSH and web mod
 - `/cancel <id>` - Cancel task
 - `/delete <id>` - Delete task permanently
 - `/taskstats` - Show statistics
+
+**Scheduler** (see Scheduler System section above for details):
+- `/schedule` or `/schedule list` - List all scheduled tasks
+- `/schedule enable <name>` - Enable a task
+- `/schedule disable <name>` - Disable a task
 
 **System**:
 - `/system` - Show system stats (CPU, memory, temp, uptime)
@@ -231,8 +412,13 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 - `heartbeat.enable_mood_behaviors`: Mood-driven actions (default true)
 - `heartbeat.enable_time_behaviors`: Time-based greetings (default true)
 - `heartbeat.quiet_hours_start/end`: Suppress spontaneous messages (default 23-7)
-- `mcp.enabled`: Enable Model Context Protocol servers (default false)
-- `mcp.servers.*`: Configure MCP servers (tasks, filesystem, etc.)
+- `scheduler.enabled`: Enable cron-style scheduled tasks (default true)
+- `scheduler.tasks`: List of scheduled tasks with name, schedule, action, enabled
+- `mcp.enabled`: Enable Model Context Protocol servers (default true)
+- `mcp.max_tools`: Maximum tools to load (default 20, OpenAI limit 128)
+- `mcp.servers.*`: Configure MCP servers (tasks, system, filesystem, etc.)
+- `network.ngrok.enabled`: Enable ngrok tunnel for remote access (default false)
+- `network.ngrok.auth_token`: Ngrok auth token for custom domains (optional)
 
 **Web UI Settings** (`http://localhost:8081/settings`):
 - **Instant Apply** (no restart): Device name, personality traits (6 sliders), color theme
@@ -248,12 +434,16 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 | `core/progression.py` | XP & leveling | `Progression`, `XPSource` enum, achievements |
 | `core/tasks.py` | Task management | `TaskManager`, `Task` dataclass, CRUD operations |
 | `core/heartbeat.py` | Autonomous behaviors | `Heartbeat` class, tick cycle, behavior triggers |
+| `core/scheduler.py` | Cron-style scheduling | `ScheduledTaskManager`, time-based task execution |
 | `core/mcp_client.py` | MCP tool integration | `MCPClient`, tool discovery, async tool calls |
 | `core/display.py` | E-ink abstraction | `DisplayManager`, V3/V4/Mock drivers |
 | `core/ui.py` | Display layout | `HeaderBar`, `MessagePanel`, `FooterBar`, `PwnagotchiUI` |
 | `core/crypto.py` | Identity (unused) | `Identity`, Ed25519 keypair - legacy from removed social features |
 | `core/memory.py` | Conversation memory | Summarization, context pruning |
 | `core/commands.py` | Slash commands | `COMMANDS` dict, command metadata |
+| `core/storage.py` | Storage detection | SD card detection, storage availability checks |
+| `mcp_servers/system.py` | System tools MCP | curl, df, free, uptime, ps, ping utilities |
+| `mcp_servers/filesystem.py` | Filesystem MCP | File operations (list, read, write, search, info) |
 
 ## Database Schema
 

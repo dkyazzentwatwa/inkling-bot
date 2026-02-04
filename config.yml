@@ -80,6 +80,46 @@ heartbeat:
   quiet_hours_start: 23  # 11 PM
   quiet_hours_end: 7     # 7 AM
 
+# Scheduler - Cron-style task scheduling
+# Runs tasks at exact times (checked every 60 seconds via Heartbeat)
+scheduler:
+  enabled: true  # Set to false to disable all scheduled tasks
+
+  # Scheduled tasks
+  # Format: schedule uses Python schedule library syntax
+  # Examples:
+  #   "every().day.at('14:30')" - Daily at 2:30 PM
+  #   "every().hour"            - Every hour
+  #   "every().monday.at('09:00')" - Every Monday at 9 AM
+  #   "every(5).minutes"        - Every 5 minutes
+  tasks:
+    # Daily task summary at 8 AM
+    - name: "morning_summary"
+      schedule: "every().day.at('08:00')"
+      action: "daily_summary"
+      enabled: true
+
+    # Weekly cleanup every Sunday at 2 AM
+    - name: "weekly_cleanup"
+      schedule: "every().sunday.at('02:00')"
+      action: "weekly_cleanup"
+      enabled: true
+
+    # Example: Hourly reminder (disabled by default)
+    # - name: "hourly_ping"
+    #   schedule: "every().hour"
+    #   action: "test_greeting"
+    #   enabled: false
+
+# Storage Configuration
+# Multiple storage locations for user files
+storage:
+  # SD card configuration (Raspberry Pi)
+  sd_card:
+    enabled: false  # Set to true when SD card is inserted
+    path: "auto"    # "auto" to detect first SD, or specific path like "/media/pi/SD_CARD"
+    # Auto-detection searches: /media/pi/*, /mnt/*
+
 # Web UI Configuration
 web:
   port: 8081  # Web server port (default: 8081, avoid 8080 if nginx is running)
@@ -99,12 +139,25 @@ mcp:
       command: "python"
       args: ["mcp_servers/tasks.py"]
 
-    # Filesystem Access (built-in, Python)
-    # AI can list, read, write, and search files
-    # Uncomment to enable (restricted to /home/pi for security)
-    # filesystem:
+    # System Tools (built-in)
+    # AI can use curl, df, free, uptime, ps, ping
+    system:
+      command: "python"
+      args: ["mcp_servers/system.py"]
+
+    # Filesystem Access - Inkling Data Directory (built-in, Python)
+    # AI can list, read, write, and search files in ~/.inkling/
+    # Uncomment to enable
+    # filesystem-inkling:
     #   command: "python"
-    #   args: ["mcp_servers/filesystem.py", "/home/pi"]
+    #   args: ["mcp_servers/filesystem.py", "/home/pi/.inkling"]
+
+    # Filesystem Access - SD Card (built-in, Python)
+    # AI can list, read, write, and search files on SD card
+    # Uncomment when SD card is inserted and configured in storage.sd_card
+    # filesystem-sd:
+    #   command: "python"
+    #   args: ["mcp_servers/filesystem.py", "/media/pi/SD_CARD"]
 
     # Composio MCP Gateway (500+ app integrations)
     # Provides access to Google Calendar, Gmail, GitHub, Slack, Notion, etc.

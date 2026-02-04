@@ -178,6 +178,20 @@ class Inkling:
         print("  - Initializing task manager...")
         self.task_manager = TaskManager()
 
+        # Scheduler (cron-style task scheduling)
+        scheduler_config_data = self.config.get("scheduler", {})
+        scheduler_enabled = scheduler_config_data.get("enabled", True)
+
+        if scheduler_enabled:
+            print("  - Starting scheduler...")
+            from core.scheduler import ScheduledTaskManager
+            self.scheduler = ScheduledTaskManager()
+            self.scheduler.load_from_config(scheduler_config_data)
+            print(f"    Scheduled tasks: {len(self.scheduler.tasks)}")
+        else:
+            self.scheduler = None
+            print("  - Scheduler disabled")
+
         # Heartbeat (proactive behaviors)
         heartbeat_config_data = self.config.get("heartbeat", {})
         heartbeat_enabled = heartbeat_config_data.get("enabled", True)
@@ -200,6 +214,7 @@ class Inkling:
                 api_client=None,
                 brain=self.brain,
                 task_manager=self.task_manager,
+                scheduler=self.scheduler,
                 config=heartbeat_config,
             )
 
@@ -273,6 +288,7 @@ class Inkling:
                     display=self.display,
                     personality=self.personality,
                     task_manager=self.task_manager,
+                    scheduler=self.scheduler,
                 )
                 await self._mode.run()
 
@@ -282,6 +298,7 @@ class Inkling:
                     display=self.display,
                     personality=self.personality,
                     task_manager=self.task_manager,
+                    scheduler=self.scheduler,
                     identity=self.identity,
                     config=self.config,
                     port=self.config.get("web", {}).get("port", 8081),

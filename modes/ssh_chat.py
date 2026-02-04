@@ -84,11 +84,13 @@ class SSHChatMode:
         display: DisplayManager,
         personality: Personality,
         task_manager: Optional[TaskManager] = None,
+        scheduler=None,
     ):
         self.brain = brain
         self.display = display
         self.personality = personality
         self.task_manager = task_manager
+        self.scheduler = scheduler
         self._running = False
 
         # Set display mode
@@ -1088,3 +1090,89 @@ class SSHChatMode:
         level = self.personality.progression.level
         xp = self.personality.progression.xp
         print(f"\n{Colors.DIM}Level {level} | {xp} XP from tasks{Colors.RESET}")
+
+    # Scheduler Commands
+    # ================
+
+    async def cmd_schedule(self, args: str = "") -> None:
+        """Manage scheduled tasks."""
+        if not hasattr(self, 'scheduler') or not self.scheduler:
+            print(f"{Colors.ERROR}Scheduler not available.{Colors.RESET}")
+            print("Enable in config.yml under 'scheduler.enabled: true'")
+            return
+
+        if not args:
+            # List all scheduled tasks
+            tasks = self.scheduler.list_tasks()
+
+            if not tasks:
+                print(f"\n{Colors.INFO}No scheduled tasks configured.{Colors.RESET}")
+                print("\nAdd tasks in config.yml under 'scheduler.tasks'")
+                return
+
+            print(f"\n{Colors.HEADER}═══ SCHEDULED TASKS ═══{Colors.RESET}\n")
+
+            next_runs = self.scheduler.get_next_run_times()
+
+            for task in tasks:
+                status_icon = "✓" if task.enabled else "✗"
+                status_color = Colors.SUCCESS if task.enabled else Colors.DIM
+
+                print(f"{status_color}{status_icon} {task.name}{Colors.RESET}")
+                print(f"   Schedule: {task.schedule_expr}")
+                print(f"   Action:   {task.action}")
+
+                if task.enabled:
+                    next_run = next_runs.get(task.name, "Unknown")
+                    print(f"   Next run: {Colors.INFO}{next_run}{Colors.RESET}")
+
+                if task.last_run > 0:
+                    import time
+                    from datetime import datetime
+                    last_run_dt = datetime.fromtimestamp(task.last_run)
+                    print(f"   Last run: {last_run_dt.strftime('%Y-%m-%d %H:%M:%S')} ({task.run_count} times)")
+
+                if task.last_error:
+                    print(f"   {Colors.ERROR}Error: {task.last_error}{Colors.RESET}")
+
+                print()
+
+            return
+
+        # Parse subcommands
+        parts = args.split(maxsplit=1)
+        subcmd = parts[0].lower()
+
+        if subcmd == "list":
+            # Redirect to list (same as no args)
+            await self.cmd_schedule()
+
+        elif subcmd == "enable":
+            if len(parts) < 2:
+                print(f"{Colors.ERROR}Usage: /schedule enable <task_name>{Colors.RESET}")
+                return
+
+            task_name = parts[1]
+            if self.scheduler.enable_task(task_name):
+                print(f"{Colors.SUCCESS}✓ Enabled: {task_name}{Colors.RESET}")
+            else:
+                print(f"{Colors.ERROR}Task not found: {task_name}{Colors.RESET}")
+
+        elif subcmd == "disable":
+            if len(parts) < 2:
+                print(f"{Colors.ERROR}Usage: /schedule disable <task_name>{Colors.RESET}")
+                return
+
+            task_name = parts[1]
+            if self.scheduler.disable_task(task_name):
+                print(f"{Colors.SUCCESS}✓ Disabled: {task_name}{Colors.RESET}")
+            else:
+                print(f"{Colors.ERROR}Task not found: {task_name}{Colors.RESET}")
+
+        else:
+            print(f"{Colors.ERROR}Unknown subcommand: {subcmd}{Colors.RESET}")
+            print("\nAvailable commands:")
+            print("  /schedule           - List all scheduled tasks")
+            print("  /schedule list      - List all scheduled tasks")
+            print("  /schedule enable <name>  - Enable a task")
+            print("  /schedule disable <name> - Disable a task")
