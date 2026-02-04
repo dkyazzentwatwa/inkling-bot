@@ -521,12 +521,25 @@ class SSHChatMode:
                 user_message=message
             )
 
-            # Display response
-            await self.display.update(
-                face=self.personality.face,
-                text=result.content,
-                mood_text=self.personality.mood.current.value.title(),
-            )
+            # Display response (with pagination for long messages)
+            # Check if message needs pagination (> 6 lines worth of text)
+            from core.ui import word_wrap
+            lines = word_wrap(result.content, 40)
+            if len(lines) > 6:
+                # Use paginated display for long responses
+                pages = await self.display.show_message_paginated(
+                    text=result.content,
+                    face=self.personality.face,
+                    page_delay=3.0,
+                )
+                print(f"{Colors.DIM}  (Displayed {pages} pages on e-ink){Colors.RESET}")
+            else:
+                # Single page display
+                await self.display.update(
+                    face=self.personality.face,
+                    text=result.content,
+                    mood_text=self.personality.mood.current.value.title(),
+                )
 
             # Print styled response to terminal
             face_str = UNICODE_FACES.get(

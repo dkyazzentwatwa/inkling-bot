@@ -3291,15 +3291,29 @@ class WebChatMode:
 
             self.personality.on_success(0.5)
 
-            # Update display with Pwnagotchi UI
-            asyncio.run_coroutine_threadsafe(
-                self.display.update(
-                    face=self.personality.face,
-                    text=result.content,
-                    mood_text=self.personality.mood.current.value.title(),
-                ),
-                self._loop
-            )
+            # Update display with Pwnagotchi UI (with pagination for long messages)
+            from core.ui import word_wrap
+            lines = word_wrap(result.content, 40)
+            if len(lines) > 6:
+                # Use paginated display for long responses
+                asyncio.run_coroutine_threadsafe(
+                    self.display.show_message_paginated(
+                        text=result.content,
+                        face=self.personality.face,
+                        page_delay=3.0,
+                    ),
+                    self._loop
+                )
+            else:
+                # Single page display
+                asyncio.run_coroutine_threadsafe(
+                    self.display.update(
+                        face=self.personality.face,
+                        text=result.content,
+                        mood_text=self.personality.mood.current.value.title(),
+                    ),
+                    self._loop
+                )
 
             return {
                 "response": result.content,

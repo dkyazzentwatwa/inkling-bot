@@ -8,16 +8,14 @@ Pwnagotchi-inspired UI components for the e-ink display:
 
 Layout (250x122 pixels):
 ┌─────────────────────────────────────────────────────┐
-│ inkling>█              Curious          UP 00:15:32 │  <- Header (12px)
+│ inkling>█              Curious          UP 00:15:32 │  <- Header (14px)
 ├─────────────────────────────────────────────────────┤
-│ Hey there! I'm feeling   │ mem  cpu  temp       │
-│ pretty curious about     │ 42%  18%   41°       │  <- Main (70px)
-│ the world today. What's  │                      │
-│ on your mind?            │ DRM 5    TLG 2       │
-├──────────────────────────┴──────────────────────────┤
-│                     (  ◉  ‿  ◉  )                   │  <- Face (20px)
+│                                                     │
+│  Hey there! I'm feeling pretty curious about       │  <- Message (86px)
+│  the world today. What's on your mind?             │
+│                                                     │
 ├─────────────────────────────────────────────────────┤
-│ ♥ friend nearby │ CHAT 142 │                   AUTO │  <- Footer (12px)
+│ (^_^) │ L1 NEWB │ 54%mem 1%cpu 43° │ CHAT3 │ SSH  │  <- Footer (22px)
 └─────────────────────────────────────────────────────┘
 """
 
@@ -121,13 +119,11 @@ DISPLAY_HEIGHT = 122
 
 # Region heights
 HEADER_HEIGHT = 14
-FOOTER_HEIGHT = 14
-MESSAGE_HEIGHT = 18
-MAIN_HEIGHT = DISPLAY_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT - MESSAGE_HEIGHT - 4  # 72px
+FOOTER_HEIGHT = 22  # Larger footer with all stats + face
+MESSAGE_HEIGHT = DISPLAY_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT - 2  # Full height message (86px)
 
-# Divider positions
-STATS_PANEL_WIDTH = 70  # Right panel width for stats
-MESSAGE_PANEL_WIDTH = DISPLAY_WIDTH - STATS_PANEL_WIDTH - 2  # Left panel width for messages (178px)
+# Full-width message panel (no side stats panel anymore)
+MESSAGE_PANEL_WIDTH = DISPLAY_WIDTH - 4  # Full width with small margins
 
 
 @dataclass
@@ -360,18 +356,18 @@ class MessagePanel:
 
     def __init__(self, fonts: Fonts):
         self.fonts = fonts
-        self.x = 0
+        self.x = 2  # Small margin
         self.y = HEADER_HEIGHT
         self.width = MESSAGE_PANEL_WIDTH
-        self.height = MAIN_HEIGHT
+        self.height = MESSAGE_HEIGHT
 
     def render(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> None:
         """Render the message panel with word-wrapped text."""
         if not ctx.message:
             return
 
-        # Word wrap to fit panel (approx 28 chars per line at font size 11)
-        max_chars_per_line = 28
+        # Word wrap to fit panel (approx 40 chars per line at font size 11, full width)
+        max_chars_per_line = 40
         lines = word_wrap(ctx.message, max_chars_per_line)
 
         # Calculate starting Y to vertically center text block
@@ -381,7 +377,7 @@ class MessagePanel:
 
         # Draw each line centered horizontally
         text_y = start_y
-        for line in lines[:5]:  # Max 5 lines to fit in panel
+        for line in lines[:6]:  # Max 6 lines to fit in larger panel
             # Calculate width of this line to center it
             bbox = draw.textbbox((0, 0), line, font=self.fonts.normal)
             text_width = bbox[2] - bbox[0]
@@ -391,134 +387,31 @@ class MessagePanel:
             text_y += line_height
 
 
-class StatsPanel:
-    """
-    Right panel showing system and social stats.
+# NOTE: StatsPanel and FaceBox are no longer used in the new layout.
+# All stats and face are now rendered in the compact FooterBar.
+# Keeping these commented out for reference.
 
-    Layout:
-        mem  cpu  temp
-        42%  18%   41°
+# class StatsPanel:
+#     """
+#     Right panel showing system and social stats.
+#     DEPRECATED: Functionality moved to FooterBar in new layout.
+#     """
+#     pass
 
-        DRM 5    TLG 2
-    """
-
-    def __init__(self, fonts: Fonts):
-        self.fonts = fonts
-        self.x = MESSAGE_PANEL_WIDTH + 1
-        self.y = HEADER_HEIGHT
-        self.width = STATS_PANEL_WIDTH
-        self.height = MAIN_HEIGHT
-
-    def render(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> None:
-        """Render the stats panel."""
-        # Vertical separator
-        draw_vline(draw, self.x, self.y, self.height, color=0)
-
-        # System stats section (compact layout for narrower panel)
-        stats_x = self.x + 3
-        stats_y = self.y + 4
-
-        # Labels row (tighter spacing for 70px width)
-        draw.text((stats_x, stats_y), "mem", font=self.fonts.tiny, fill=0)
-        draw.text((stats_x + 22, stats_y), "cpu", font=self.fonts.tiny, fill=0)
-        draw.text((stats_x + 44, stats_y), "tmp", font=self.fonts.tiny, fill=0)
-
-        # Values row
-        stats_y += 10
-        mem_str = f"{ctx.memory_percent}%"
-        cpu_str = f"{ctx.cpu_percent}%"
-        temp_str = f"{ctx.temperature}°" if ctx.temperature > 0 else "--°"
-
-        draw.text((stats_x, stats_y), mem_str, font=self.fonts.small, fill=0)
-        draw.text((stats_x + 22, stats_y), cpu_str, font=self.fonts.small, fill=0)
-        draw.text((stats_x + 44, stats_y), temp_str, font=self.fonts.small, fill=0)
-
-        # Level section (middle area)
-        level_y = self.y + 30
-
-        # Level badge
-        level_display = f"L{ctx.level}"
-        if ctx.prestige > 0:
-            stars = "⭐" * min(ctx.prestige, 3)  # Max 3 stars to fit
-            level_display = f"L{ctx.level} {stars}"
-
-        draw.text((stats_x, level_y), level_display, font=self.fonts.small, fill=0)
-
-        # Level name (abbreviated)
-        level_name_short = ctx.level_name.split()[0][:4].upper()  # "NEWB", "CURI", "CHAT", "WISE", "SAGE", "ANCI", "LEGE"
-        draw.text((stats_x, level_y + 11), level_name_short, font=self.fonts.tiny, fill=0)
-
-        # XP progress bar (60px wide, 4px tall)
-        bar_width = 60
-        bar_height = 4
-        bar_x = stats_x
-        bar_y = level_y + 22
-
-        # Draw bar outline
-        draw.rectangle(
-            [bar_x, bar_y, bar_x + bar_width - 1, bar_y + bar_height - 1],
-            fill=255,
-            outline=0,
-            width=1
-        )
-
-        # Draw progress fill
-        fill_width = int((bar_width - 2) * ctx.xp_progress)
-        if fill_width > 0:
-            draw.rectangle(
-                [bar_x + 1, bar_y + 1, bar_x + 1 + fill_width, bar_y + bar_height - 2],
-                fill=0
-            )
-
-        # Social stats section (bottom)
-        social_y = self.y + self.height - 14
-
-        # Dream count
-        drm_str = f"DRM {ctx.dream_count}"
-        draw.text((stats_x, social_y), drm_str, font=self.fonts.tiny, fill=0)
-
-        # Telegram count (below dreams)
-        tlg_str = f"TLG {ctx.telegram_count}"
-        draw.text((stats_x + 34, social_y), tlg_str, font=self.fonts.tiny, fill=0)
-
-
-class FaceBox:
-    """
-    Face expression area (was MessageBox).
-
-    Shows the face expression centered in the bottom bar.
-    """
-
-    def __init__(self, fonts: Fonts):
-        self.fonts = fonts
-        self.y = HEADER_HEIGHT + MAIN_HEIGHT
-        self.height = MESSAGE_HEIGHT
-
-    def render(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> None:
-        """Render the face box."""
-        # Separator line
-        draw_hline(draw, 0, self.y, DISPLAY_WIDTH, color=0)
-
-        # Draw face centered using the larger face font
-        if ctx.face_str:
-            face_text = ctx.face_str
-            # Use face font for better rendering (38px)
-            bbox = draw.textbbox((0, 0), face_text, font=self.fonts.face)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-
-            # Center horizontally and vertically in the face box
-            face_x = (DISPLAY_WIDTH - text_width) // 2
-            face_y = self.y + (self.height - text_height) // 2
-
-            draw.text((face_x, face_y), face_text, font=self.fonts.face, fill=0)
+# class FaceBox:
+#     """
+#     Face expression area (was MessageBox).
+#     DEPRECATED: Face now shown in FooterBar in new layout.
+#     """
+#     pass
 
 
 class FooterBar:
     """
-    Bottom footer bar with friend indicator, lifetime stats, and mode.
+    Bottom footer bar with all stats in compact format.
 
-    Format: "♥ friend nearby | CHAT 142 |              AUTO"
+    Format: "(^_^) | L1 NEWB | 54%mem 1%cpu 43° | CHAT3 | SSH"
+    All elements separated by vertical bars, centered in footer.
     """
 
     def __init__(self, fonts: Fonts):
@@ -526,36 +419,45 @@ class FooterBar:
         self.y = DISPLAY_HEIGHT - FOOTER_HEIGHT
 
     def render(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> None:
-        """Render the footer bar."""
+        """Render the footer bar with compact stats."""
         # Top separator
         draw_hline(draw, 0, self.y, DISPLAY_WIDTH, color=0)
 
-        footer_y = self.y + 3
+        footer_y = self.y + 6  # Center vertically in 22px footer
 
-        # Friend indicator (left)
-        if ctx.friend_nearby:
-            friend_text = "* friend nearby"
-        else:
-            friend_text = ""
-        draw.text((4, footer_y), friend_text, font=self.fonts.tiny, fill=0)
+        # Build footer components
+        parts = []
 
-        # Lifetime chat count (center)
-        chat_text = f"CHAT {ctx.chat_count}"
-        bbox = draw.textbbox((0, 0), chat_text, font=self.fonts.tiny)
-        chat_width = bbox[2] - bbox[0]
-        chat_x = (DISPLAY_WIDTH - chat_width) // 2
-        draw.text((chat_x, footer_y), chat_text, font=self.fonts.tiny, fill=0)
+        # 1. Face
+        parts.append(ctx.face_str)
 
-        # Mode indicator (right)
-        mode_text = ctx.mode
-        bbox = draw.textbbox((0, 0), mode_text, font=self.fonts.tiny)
-        mode_width = bbox[2] - bbox[0]
-        draw.text(
-            (DISPLAY_WIDTH - mode_width - 4, footer_y),
-            mode_text,
-            font=self.fonts.tiny,
-            fill=0,
-        )
+        # 2. Level and rank
+        level_name_short = ctx.level_name.split()[0][:4].upper()  # "NEWB", "CURI", etc.
+        level_str = f"L{ctx.level}"
+        if ctx.prestige > 0:
+            level_str += "*" * min(ctx.prestige, 3)
+        parts.append(f"{level_str} {level_name_short}")
+
+        # 3. System stats (memory, cpu, temp)
+        temp_str = f"{ctx.temperature}°" if ctx.temperature > 0 else "--°"
+        parts.append(f"{ctx.memory_percent}%mem {ctx.cpu_percent}%cpu {temp_str}")
+
+        # 4. Chat count
+        parts.append(f"CH{ctx.chat_count}")
+
+        # 5. Mode
+        parts.append(ctx.mode)
+
+        # Join with vertical bar separator
+        footer_text = " | ".join(parts)
+
+        # Calculate width to center the entire footer
+        bbox = draw.textbbox((0, 0), footer_text, font=self.fonts.small)
+        text_width = bbox[2] - bbox[0]
+        footer_x = (DISPLAY_WIDTH - text_width) // 2
+
+        # Draw centered footer text
+        draw.text((footer_x, footer_y), footer_text, font=self.fonts.small, fill=0)
 
 
 class PwnagotchiUI:
@@ -563,14 +465,13 @@ class PwnagotchiUI:
     Complete Pwnagotchi-style UI renderer.
 
     Combines all components into a single render call.
+    New layout: Full-width message area with compact footer containing all stats.
     """
 
     def __init__(self):
         self.fonts = Fonts.load()
         self.header = HeaderBar(self.fonts)
         self.message_panel = MessagePanel(self.fonts)
-        self.stats_panel = StatsPanel(self.fonts)
-        self.face_box = FaceBox(self.fonts)
         self.footer = FooterBar(self.fonts)
 
     def render(self, ctx: DisplayContext) -> Image.Image:
@@ -593,8 +494,6 @@ class PwnagotchiUI:
         # Render all components
         self.header.render(draw, ctx)
         self.message_panel.render(draw, ctx)
-        self.stats_panel.render(draw, ctx)
-        self.face_box.render(draw, ctx)
         self.footer.render(draw, ctx)
 
         return image

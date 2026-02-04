@@ -597,6 +597,57 @@ class DisplayManager:
         """Convenience method to display a message."""
         return await self.update(face=face, text=text)
 
+    async def show_message_paginated(
+        self,
+        text: str,
+        face: str = "default",
+        page_delay: float = 3.0,
+        lines_per_page: int = 6,
+        chars_per_line: int = 40,
+    ) -> int:
+        """
+        Display a long message across multiple pages with auto-scroll.
+
+        Splits the message into pages that fit the display, then shows each page
+        with a delay between transitions.
+
+        Args:
+            text: Message text to display
+            face: Face expression to show
+            page_delay: Seconds to wait between pages (default: 3.0)
+            lines_per_page: Maximum lines per page (default: 6)
+            chars_per_line: Maximum characters per line (default: 40)
+
+        Returns:
+            Number of pages displayed
+        """
+        from .ui import word_wrap
+
+        # Word wrap the entire message
+        all_lines = word_wrap(text, chars_per_line)
+
+        # If message fits on one page, just show it normally
+        if len(all_lines) <= lines_per_page:
+            await self.update(face=face, text=text)
+            return 1
+
+        # Split into pages
+        pages = []
+        for i in range(0, len(all_lines), lines_per_page):
+            page_lines = all_lines[i:i + lines_per_page]
+            page_text = " ".join(page_lines)  # Rejoin lines with spaces
+            pages.append(page_text)
+
+        # Display each page with delay
+        for i, page_text in enumerate(pages):
+            await self.update(face=face, text=page_text, force=True)
+
+            # Don't wait after the last page
+            if i < len(pages) - 1:
+                await asyncio.sleep(page_delay)
+
+        return len(pages)
+
     # ========================================================================
     # Auto-Refresh Loop
     # ========================================================================
