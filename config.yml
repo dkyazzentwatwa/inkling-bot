@@ -91,6 +91,7 @@ web:
 # Gives Inkling access to external tools
 mcp:
   enabled: true  # Enable for AI-driven task management
+  max_tools: 50  # Maximum number of tools to load (prevents overwhelming the AI)
   servers:
     # Task Management (built-in)
     # AI can create, list, complete, update, and delete tasks

@@ -602,17 +602,21 @@ class Brain:
 
                 except RateLimitError as e:
                     last_error = e
+                    print(f"[Brain] {provider.__class__.__name__} rate limited, retrying in {(2 ** attempt) + (0.1 * attempt):.1f}s...")
                     # Exponential backoff
                     wait_time = (2 ** attempt) + (0.1 * attempt)
                     await asyncio.sleep(wait_time)
                     continue
 
-                except QuotaExceededError:
+                except QuotaExceededError as e:
+                    last_error = e
+                    print(f"[Brain] {provider.__class__.__name__} quota exceeded, trying next provider...")
                     # Skip to next provider
                     break
 
                 except ProviderError as e:
                     last_error = e
+                    print(f"[Brain] {provider.__class__.__name__} error: {str(e)[:100]}")
                     # Brief pause before retry
                     await asyncio.sleep(0.5)
                     continue

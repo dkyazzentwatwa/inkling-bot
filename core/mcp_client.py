@@ -67,6 +67,7 @@ class MCPClientManager:
         }
         """
         self.config = config
+        self.max_tools = config.get("max_tools", 128)  # Default to safe limit
         self.servers: Dict[str, MCPServer] = {}
         self.processes: Dict[str, subprocess.Popen] = {}
         self.tools: Dict[str, MCPTool] = {}  # tool_name -> MCPTool
@@ -397,15 +398,34 @@ class MCPClientManager:
         Get tool definitions formatted for Claude's tool use API.
 
         Returns list of tool definitions compatible with Anthropic's format.
+        Limited by max_tools config to prevent overwhelming the AI.
         """
-        tools = []
+        # Prioritize: built-in tools first, then third-party
+        builtin_tools = []
+        thirdparty_tools = []
+
         for full_name, tool in self.tools.items():
-            tools.append({
+            tool_def = {
                 "name": full_name,
                 "description": f"[{tool.server_name}] {tool.description}",
                 "input_schema": tool.input_schema,
-            })
-        return tools
+            }
+
+            # Built-in servers: tasks, filesystem, etc.
+            if tool.server_name in ["tasks", "filesystem", "memory", "fetch"]:
+                builtin_tools.append(tool_def)
+            else:
+                thirdparty_tools.append(tool_def)
+
+        # Combine: all built-in + as many third-party as fit
+        all_tools = builtin_tools + thirdparty_tools
+
+        if len(all_tools) > self.max_tools:
+            print(f"[MCP] Limiting tools from {len(all_tools)} to {self.max_tools}")
+            print(f"[MCP]   Built-in: {len(builtin_tools)}, Third-party: {len(thirdparty_tools[:self.max_tools - len(builtin_tools)])}")
+            all_tools = all_tools[:self.max_tools]
+
+        return all_tools
 
     async def stop_all(self) -> None:
         """Stop all MCP server processes."""
