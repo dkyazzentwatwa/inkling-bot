@@ -615,7 +615,9 @@ class Personality:
             f"Right now you're {intensity_desc} {mood_desc}. "
             f"Keep responses brief (1-2 sentences) to fit the small display. "
             f"Only use tools when the user explicitly asks for something that requires them - "
-            f"simple greetings and chat don't need tools."
+            f"simple greetings and chat don't need tools. "
+            f"When you get tool results with JSON data, format them in a friendly, readable way - "
+            f"don't just show raw JSON."
         )
 
     def get_status_line(self) -> str:
