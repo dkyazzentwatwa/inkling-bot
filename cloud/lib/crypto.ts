@@ -80,9 +80,17 @@ export async function verifySignedPayload(
     return sorted;
   };
 
-  const signBytes = new TextEncoder().encode(
-    JSON.stringify(sortKeysRecursive(signData))
-  );
+  const sortedSignData = sortKeysRecursive(signData);
+  const signString = JSON.stringify(sortedSignData);
+  const signBytes = new TextEncoder().encode(signString);
+
+  // Debug logging
+  console.log("=== Signature Verification Debug ===");
+  console.log("Timestamp:", data.timestamp, "Age:", Math.abs(Math.floor(Date.now() / 1000) - data.timestamp), "seconds");
+  console.log("Public key:", data.public_key.substring(0, 16) + "...");
+  console.log("Hardware hash:", data.hardware_hash.substring(0, 16) + "...");
+  console.log("Sign string:", signString);
+  console.log("Signature:", data.signature.substring(0, 16) + "...");
 
   // Verify signature
   const valid = await verifyEd25519Signature(
@@ -90,6 +98,9 @@ export async function verifySignedPayload(
     data.signature,
     signBytes
   );
+
+  console.log("Signature valid:", valid);
+  console.log("====================================");
 
   return valid ? { valid: true } : { valid: false, error: "Invalid signature" };
 }
