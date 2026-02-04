@@ -614,7 +614,8 @@ class Personality:
             f"You are {traits_str}. "
             f"Right now you're {intensity_desc} {mood_desc}. "
             f"Keep responses brief (1-2 sentences) to fit the small display. "
-            f"Express your current mood subtly in your responses."
+            f"Only use tools when the user explicitly asks for something that requires them - "
+            f"simple greetings and chat don't need tools."
         )
 
     def get_status_line(self) -> str:

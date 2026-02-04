@@ -67,7 +67,7 @@ class MCPClientManager:
         }
         """
         self.config = config
-        self.max_tools = config.get("max_tools", 128)  # Default to safe limit
+        self.max_tools = config.get("max_tools", 20)  # Default to conservative limit
         self.servers: Dict[str, MCPServer] = {}
         self.processes: Dict[str, subprocess.Popen] = {}
         self.tools: Dict[str, MCPTool] = {}  # tool_name -> MCPTool
