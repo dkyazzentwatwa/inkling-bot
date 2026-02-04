@@ -20,6 +20,7 @@ zeroconf>=0.131.0
 
 # Configuration
 pyyaml>=6.0
+python-dotenv>=1.0.0
 
 # Web Server (Phase 2)
 bottle>=0.12.25

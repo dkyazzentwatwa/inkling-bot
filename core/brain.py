@@ -484,6 +484,10 @@ class Brain:
         openai_key = openai_config.get("api_key") or os.environ.get("OPENAI_API_KEY")
         gemini_key = gemini_config.get("api_key") or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
+        # Debug output
+        print(f"[Brain] Primary provider: {primary}")
+        print(f"[Brain] API keys detected: Anthropic={bool(anthropic_key)}, OpenAI={bool(openai_key)}, Gemini={bool(gemini_key)}")
+
         # Build provider list with primary first
         if primary == "anthropic" and anthropic_key:
             self.providers.append(AnthropicProvider(

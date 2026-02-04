@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
+from dotenv import load_dotenv
 
 from core.brain import Brain
 from core.crypto import Identity
@@ -392,6 +393,9 @@ class Inkling:
 
 async def main():
     """Main entry point."""
+    # Load environment variables from .env file
+    load_dotenv()
+
     parser = argparse.ArgumentParser(
         description="Project Inkling - AI Companion Device",
         formatter_class=argparse.RawDescriptionHelpFormatter,

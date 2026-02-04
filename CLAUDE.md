@@ -45,12 +45,38 @@ python -m py_compile <file>.py
 ```
 
 ### Environment Variables
+
+**Option 1: Use .env file (Recommended)**
+
+Create a `.env` file in the project directory:
+
 ```bash
-ANTHROPIC_API_KEY=sk-ant-...   # Required for AI (or set in config.local.yml)
-OPENAI_API_KEY=sk-...          # Optional fallback
-GOOGLE_API_KEY=...             # For Gemini
-INKLING_DEBUG=1                # Enable detailed logging
-COMPOSIO_API_KEY=...           # For Composio MCP integration (optional)
+cp .env.example .env
+nano .env
+```
+
+Then add your keys:
+
+```bash
+# AI Provider API Keys
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+OPENAI_API_KEY=sk-your-key-here
+GOOGLE_API_KEY=your-google-api-key-here
+
+# Optional
+COMPOSIO_API_KEY=your-composio-key-here
+SERVER_PW=your-web-password-here
+INKLING_DEBUG=1  # Enable debug logging
+```
+
+**Option 2: Export manually**
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export OPENAI_API_KEY=sk-...
+export GOOGLE_API_KEY=...
+export COMPOSIO_API_KEY=...
+INKLING_DEBUG=1  # Enable detailed logging
 ```
 
 ## Architecture
