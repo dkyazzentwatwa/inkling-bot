@@ -436,8 +436,8 @@ HTML_TEMPLATE = """
         }
 
         function updateState(data) {
-            if (data.face) faceEl.textContent = data.face;
-            if (data.status) statusEl.textContent = data.status;
+            if (data.face && faceEl) faceEl.textContent = data.face;
+            if (data.status && statusEl) statusEl.textContent = data.status;
         }
 
         function escapeHtml(text) {
