@@ -34,6 +34,7 @@ psutil>=5.9.0
 requests>=2.31.0
 
 # E-ink Display (Pi only)
+# waveshare-epd>=1.0.0  # Uncomment on Raspberry Pi for e-ink support
 # spidev>=3.6  # Uncomment on Raspberry Pi
 # RPi.GPIO>=0.7.1  # Uncomment on Raspberry Pi
 
