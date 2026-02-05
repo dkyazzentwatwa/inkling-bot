@@ -1,0 +1,24 @@
+#!/bin/bash
+# Project Inkling startup script for Raspberry Pi
+
+cd /home/pi/cypher/inkling-bot
+source venv/bin/activate
+
+# Python path for system packages (dbus, gi, etc.)
+export PYTHONPATH=/usr/lib/python3/dist-packages:/usr/lib/python3.13/dist-packages
+
+# API Keys (load from .env file or set here)
+# Uncomment and set your keys:
+# export ANTHROPIC_API_KEY=sk-ant-your-key-here
+# export OPENAI_API_KEY=sk-your-key-here
+# export GOOGLE_API_KEY=your-google-key-here
+
+# Optional: Server password for web UI
+# export SERVER_PW=your-password-here
+
+# Debug/logging options
+# export INKLING_DEBUG=1  # Enable debug logging
+export INKLING_NO_DISPLAY_ECHO=1  # Disable ASCII display output in logs
+
+# Start Inkling in web mode
+exec python main.py --mode web
