@@ -3128,7 +3128,7 @@ class WebChatMode:
                 "error": True
             }
 
-        from core.tasks import TaskStatus
+        from core.tasks import TaskStatus, Priority
 
         # Parse arguments for filters
         status_filter = None
@@ -3153,12 +3153,32 @@ class WebChatMode:
                 "status": self.personality.get_status_line(),
             }
 
+        # Priority icons
+        priority_icons = {
+            Priority.LOW: "○",
+            Priority.MEDIUM: "●",
+            Priority.HIGH: "●●",
+            Priority.URGENT: "‼",
+        }
+
         # Format tasks list
         response = "TASKS\n\n"
         for task in tasks:
-            status_emoji = "⏳" if task.status == TaskStatus.PENDING else "🔄" if task.status == TaskStatus.IN_PROGRESS else "✅"
-            priority_str = "!" * task.priority if task.priority > 0 else ""
-            response += f"{status_emoji} {task.id[:8]} {priority_str} {task.title}\n"
+            # Status emoji
+            if task.status == TaskStatus.COMPLETED:
+                status_emoji = "✅"
+            elif task.status == TaskStatus.IN_PROGRESS:
+                status_emoji = "⏳"
+            else:
+                status_emoji = "□"
+
+            # Priority icon
+            priority_icon = priority_icons.get(task.priority, "●")
+
+            # Overdue indicator
+            overdue = " [OVERDUE]" if task.is_overdue else ""
+
+            response += f"{status_emoji} {priority_icon} [{task.id[:8]}] {task.title}{overdue}\n"
             if task.description:
                 response += f"   {task.description[:60]}{'...' if len(task.description) > 60 else ''}\n"
 
