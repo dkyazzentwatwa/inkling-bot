@@ -3215,12 +3215,22 @@ class WebChatMode:
         if stats['due_soon'] > 0:
             response += f"  ⏰ Due soon (3d): {stats['due_soon']}\n"
 
-        if stats['completed'] > 0:
-            response += f"\nCompletion rate: {stats['completion_rate']:.0%}\n"
+        # 30-day completion rate
+        completion_rate = stats['completion_rate_30d'] * 100
+        response += f"\n30-Day Performance:\n"
+        response += f"  Completion rate: {completion_rate:.0f}%\n"
 
-        if stats['current_streak'] > 0:
-            streak_emoji = "🔥" if stats['current_streak'] >= 7 else "✨"
-            response += f"{streak_emoji} {stats['current_streak']} day streak\n"
+        # Level and XP info
+        level = self.personality.progression.level
+        xp = self.personality.progression.xp
+        streak = self.personality.progression.current_streak
+
+        response += f"\nProgression:\n"
+        response += f"  Level {level} | {xp} XP\n"
+
+        if streak > 0:
+            streak_emoji = "🔥" if streak >= 7 else "✨"
+            response += f"  {streak_emoji} {streak} day streak\n"
 
         return {
             "response": response,
