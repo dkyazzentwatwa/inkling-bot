@@ -110,6 +110,13 @@ def get_default_config() -> dict:
             "cheerfulness": 0.6,
             "verbosity": 0.5,
         },
+        "ble": {
+            "enabled": False,
+            "device_name": "Inkling BLE",
+            "allow_bash": True,
+            "command_timeout_seconds": 8,
+            "max_output_bytes": 8192,
+        },
     }
 
 
@@ -132,6 +139,7 @@ class Inkling:
         self.mcp_client: Optional[MCPClientManager] = None
         self.heartbeat: Optional[Heartbeat] = None
         self.task_manager: Optional[TaskManager] = None
+        self._ble_transport = None
 
         # Current mode
         self._mode = None
@@ -292,7 +300,9 @@ class Inkling:
                     personality=self.personality,
                     task_manager=self.task_manager,
                     scheduler=self.scheduler,
+                    config=self.config,
                 )
+                self._start_ble_transport_if_enabled()
                 await self._mode.run()
 
             elif mode == "web":
@@ -306,6 +316,7 @@ class Inkling:
                     config=self.config,
                     port=self.config.get("web", {}).get("port", 8081),
                 )
+                self._start_ble_transport_if_enabled()
                 await self._mode.run()
 
             elif mode == "demo":
@@ -399,6 +410,13 @@ class Inkling:
         if self._mode:
             self._mode.stop()
 
+        if self._ble_transport:
+            try:
+                self._ble_transport.stop()
+            except Exception:
+                pass
+            self._ble_transport = None
+
         if self.mcp_client:
             await self.mcp_client.stop_all()
 
@@ -409,6 +427,36 @@ class Inkling:
         gc.collect()
 
         print("Goodbye!")
+
+    def _start_ble_transport_if_enabled(self) -> None:
+        ble_config = self.config.get("ble", {})
+        if not ble_config.get("enabled", False):
+            return
+
+        try:
+            from core.mode_bridge import InklingModeBridge
+            from modes.ble_transport import BleTransport
+        except Exception as exc:
+            print(f"[BLE] Failed to import BLE transport: {exc}")
+            return
+
+        device_name = ble_config.get("device_name") or f"{self.personality.name} BLE"
+        bridge = InklingModeBridge(
+            mode=self._mode,
+            loop=asyncio.get_event_loop(),
+            allow_bash=ble_config.get("allow_bash", True),
+            bash_timeout_seconds=ble_config.get("command_timeout_seconds", 8),
+            max_output_bytes=ble_config.get("max_output_bytes", 8192),
+        )
+        self._ble_transport = BleTransport(
+            bridge=bridge,
+            device_name=device_name,
+        )
+        try:
+            self._ble_transport.start()
+            print(f"[BLE] Enabled as '{device_name}'")
+        except Exception as exc:
+            print(f"[BLE] Failed to start: {exc}")
 
 
 async def main():

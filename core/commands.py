@@ -36,6 +36,7 @@ COMMANDS: List[Command] = [
     # System commands
     Command("system", "Show system stats", "cmd_system", "system"),
     Command("config", "Show AI configuration", "cmd_config", "system", requires_brain=True),
+    Command("bash", "Run a shell command", "cmd_bash", "system"),
 
     # Display commands
     Command("face", "Test a face expression", "cmd_face", "display"),

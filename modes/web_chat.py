@@ -3061,7 +3061,7 @@ class WebChatMode:
                 response_lines.append(f"\n{category_titles.get(cat_key, cat_key.title())}:")
                 for cmd in categories[cat_key]:
                     usage = f"/{cmd.name}"
-                    if cmd.name in ("face", "ask", "task", "done", "cancel", "delete", "schedule"):
+                    if cmd.name in ("face", "ask", "task", "done", "cancel", "delete", "schedule", "bash"):
                         usage += " <arg>"
                     response_lines.append(f"  {usage} - {cmd.description}")
 
@@ -3532,6 +3532,13 @@ class WebChatMode:
 
         return self._handle_chat_sync(args)
 
+    def _cmd_bash(self, args: str) -> Dict[str, Any]:
+        """Disable bash execution in web UI."""
+        return {
+            "response": "The /bash command is disabled in the web UI.",
+            "error": True,
+        }
+
     def _handle_command_sync(self, command: str) -> Dict[str, Any]:
         """Handle slash commands (sync wrapper)."""
         parts = command.split(maxsplit=1)
@@ -3557,7 +3564,7 @@ class WebChatMode:
             return {"response": f"Command handler not implemented: {cmd_obj.name}", "error": True}
 
         # Call handler with args if needed
-        if cmd_obj.name in ("face", "dream", "ask", "schedule"):
+        if cmd_obj.name in ("face", "dream", "ask", "schedule", "bash"):
             return handler(args)
         else:
             return handler()

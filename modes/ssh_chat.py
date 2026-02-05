@@ -16,6 +16,7 @@ from core.personality import Personality
 from core.ui import FACES, UNICODE_FACES
 from core.commands import COMMANDS, get_command, get_commands_by_category
 from core.tasks import TaskManager, Task, TaskStatus, Priority
+from core.shell_utils import run_bash_command
 
 
 class Colors:
@@ -85,6 +86,7 @@ class SSHChatMode:
         personality: Personality,
         task_manager: Optional[TaskManager] = None,
         scheduler=None,
+        config: Optional[dict] = None,
     ):
         self.brain = brain
         self.display = display
@@ -92,6 +94,10 @@ class SSHChatMode:
         self.task_manager = task_manager
         self.scheduler = scheduler
         self._running = False
+        self._config = config or {}
+        self._allow_bash = self._config.get("ble", {}).get("allow_bash", True)
+        self._bash_timeout_seconds = self._config.get("ble", {}).get("command_timeout_seconds", 8)
+        self._bash_max_output_bytes = self._config.get("ble", {}).get("max_output_bytes", 8192)
 
         # Set display mode
         self.display.set_mode("SSH")
@@ -207,7 +213,7 @@ class SSHChatMode:
 
         print(f"\n{self.personality.name} says: {goodbye_text}")
 
-    async def _handle_command(self, command: str) -> None:
+    async def _handle_command(self, command: str) -> bool:
         """Handle slash commands."""
         parts = command.split(maxsplit=1)
         cmd = parts[0].lower()
@@ -216,25 +222,25 @@ class SSHChatMode:
         # Handle quit commands (not in registry)
         if cmd in ("/quit", "/exit", "/q"):
             self._running = False
-            return
+            return True
 
         # Look up command in registry
         cmd_obj = get_command(cmd)
         if not cmd_obj:
             print(f"Unknown command: {cmd}")
             print("Type /help for available commands.")
-            return
+            return False
 
         # Check requirements
         if cmd_obj.requires_brain and not self.brain:
             print("This command requires AI features to be enabled.")
-            return
+            return False
 
         # Get handler method
         handler = getattr(self, cmd_obj.handler, None)
         if not handler:
             print(f"Command handler not implemented: {cmd_obj.handler}")
-            return
+            return False
 
         # Call handler with args if needed (auto-detect using inspect)
         sig = inspect.signature(handler)
@@ -252,6 +258,7 @@ class SSHChatMode:
             await handler(args)
         else:
             await handler()
+        return True
 
     async def cmd_help(self) -> None:
         """Print categorized help message."""
@@ -278,7 +285,7 @@ class SSHChatMode:
                 print(f"{Colors.BOLD}{category_titles.get(cat_key, cat_key.title())}:{Colors.RESET}")
                 for cmd in categories[cat_key]:
                     usage = f"/{cmd.name}"
-                    if cmd.name in ("face", "ask", "task", "done", "cancel", "delete"):
+                    if cmd.name in ("face", "ask", "task", "done", "cancel", "delete", "schedule", "bash"):
                         usage += " <arg>"
                     print(f"  {usage:14} {cmd.description}")
                 print()
@@ -316,6 +323,29 @@ class SSHChatMode:
     async def cmd_prestige(self) -> None:
         """Handle prestige reset."""
         await self._handle_prestige()
+
+    async def cmd_bash(self, args: str) -> None:
+        """Run a shell command."""
+        if not self._allow_bash:
+            print("bash is disabled.")
+            return
+        if not args:
+            print("Usage: /bash <command>")
+            return
+
+        try:
+            exit_code, output = run_bash_command(
+                args,
+                timeout_seconds=self._bash_timeout_seconds,
+                max_output_bytes=self._bash_max_output_bytes,
+            )
+        except Exception as exc:
+            print(f"Error: {exc}")
+            return
+
+        if output:
+            print(output.rstrip("\n"))
+        print(f"[exit {exit_code}]")
 
     async def cmd_face(self, args: str) -> None:
         """Test a face expression."""
@@ -465,7 +495,7 @@ class SSHChatMode:
         stats = self.brain.get_stats()
         print(f"\n{Colors.DIM}Budget: {stats['tokens_used_today']}/{stats['daily_limit']} tokens today{Colors.RESET}")
 
-    async def _handle_message(self, message: str) -> None:
+    async def _handle_message(self, message: str) -> bool:
         """Process a chat message."""
         # Increment chat count
         self.display.increment_chat_count()
@@ -544,6 +574,7 @@ class SSHChatMode:
                 print(f"{Colors.DIM}  {token_info} • {Colors.SUCCESS}{xp_info}{Colors.RESET}")
             else:
                 print(f"{Colors.DIM}  {token_info}{Colors.RESET}")
+            return True
 
         except QuotaExceededError as e:
             self.personality.on_failure(0.7)
@@ -557,6 +588,7 @@ class SSHChatMode:
             print(f"\n{Colors.FACE}(;_;){Colors.RESET} {Colors.BOLD}{self.personality.name}{Colors.RESET}")
             print(f"{Colors.SAD}{error_msg}{Colors.RESET}")
             print(f"{Colors.ERROR}  Error: {e}{Colors.RESET}")
+            return False
 
         except AllProvidersExhaustedError as e:
             self.personality.on_failure(0.8)
@@ -570,6 +602,7 @@ class SSHChatMode:
             print(f"\n{Colors.FACE}(?_?){Colors.RESET} {Colors.BOLD}{self.personality.name}{Colors.RESET}")
             print(f"{Colors.BORED}{error_msg}{Colors.RESET}")
             print(f"{Colors.ERROR}  Error: {e}{Colors.RESET}")
+            return False
 
         except Exception as e:
             self.personality.on_failure(0.5)
@@ -583,6 +616,7 @@ class SSHChatMode:
             print(f"\n{Colors.FACE}(;_;){Colors.RESET} {Colors.BOLD}{self.personality.name}{Colors.RESET}")
             print(f"{Colors.SAD}{error_msg}{Colors.RESET}")
             print(f"{Colors.ERROR}  Error: {type(e).__name__}: {e}{Colors.RESET}")
+            return False
 
     def _print_progression(self) -> None:
         """Print progression stats (XP, level, badges)."""

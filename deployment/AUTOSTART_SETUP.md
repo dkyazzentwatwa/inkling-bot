@@ -86,6 +86,36 @@ sudo systemctl disable inkling-web.service
 sudo systemctl status inkling-web.service
 ```
 
+## Enabling BLE Terminal (Optional)
+
+BLE runs inside the Inkling process. To enable it:
+
+1. Install dependencies:
+
+```bash
+sudo apt update
+sudo apt install -y bluez python3-bluezero
+```
+
+2. Set in `config.local.yml`:
+
+```yaml
+ble:
+  enabled: true
+  device_name: "Inkling BLE"
+  allow_bash: true
+  command_timeout_seconds: 8
+  max_output_bytes: 8192
+```
+
+3. Restart Inkling:
+
+```bash
+sudo systemctl restart inkling-web.service
+```
+
+See `docs/guides/BLE_TERMINAL.md` for pairing steps.
+
 ## Switching Modes
 
 To switch from web to SSH mode (or vice versa):
