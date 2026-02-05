@@ -509,7 +509,8 @@ class SSHChatMode:
                 pages = await self.display.show_message_paginated(
                     text=result.content,
                     face=self.personality.face,
-                    page_delay=3.0,
+                    page_delay=5.0,
+                    loop=True,
                 )
                 print(f"{Colors.DIM}  (Displayed {pages} pages on e-ink){Colors.RESET}")
             else:

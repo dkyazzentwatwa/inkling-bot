@@ -302,6 +302,9 @@ class DisplayManager:
         # V4 safety: minimum full refresh interval (seconds)
         self._full_refresh_min_seconds = 5.0
 
+        # Paginated message loop state
+        self._page_loop_task: Optional[asyncio.Task] = None
+
         # Track current display state for auto-refresh
         self._current_face: str = "default"
         self._current_text: str = ""
@@ -554,6 +557,7 @@ class DisplayManager:
         status: str = "",
         force: bool = False,
         mood_text: Optional[str] = None,
+        cancel_page_loop: bool = True,
     ) -> bool:
         """
         Update the display asynchronously.
@@ -564,11 +568,16 @@ class DisplayManager:
             status: Status/mode indicator
             force: Bypass rate limiting (use sparingly)
             mood_text: Optional mood text override for header
+            cancel_page_loop: Stop any active paginated loop (default: True)
 
         Returns:
             True if display was updated, False if rate-limited
         """
         async with self._lock:
+            if cancel_page_loop and self._page_loop_task:
+                if asyncio.current_task() is not self._page_loop_task:
+                    await self.stop_page_loop()
+
             # Store state for auto-refresh (always, even if rate-limited)
             self._current_face = face
             self._current_text = text
@@ -607,6 +616,7 @@ class DisplayManager:
         page_delay: float = 3.0,
         lines_per_page: int = 6,
         chars_per_line: int = 40,
+        loop: bool = False,
     ) -> int:
         """
         Display a long message across multiple pages with auto-scroll.
@@ -620,6 +630,7 @@ class DisplayManager:
             page_delay: Seconds to wait between pages (default: 3.0)
             lines_per_page: Maximum lines per page (default: 6)
             chars_per_line: Maximum characters per line (default: 40)
+            loop: If True, keep cycling pages in the background
 
         Returns:
             Number of pages displayed
@@ -641,6 +652,14 @@ class DisplayManager:
             page_text = " ".join(page_lines)  # Rejoin lines with spaces
             pages.append(page_text)
 
+        if loop:
+            if not (self._driver and self._driver.supports_partial):
+                # V4/full refresh: show once and return (no looping)
+                await self.update(face=face, text=pages[0])
+                return len(pages)
+            await self.start_page_loop(pages, face=face, page_delay=page_delay)
+            return len(pages)
+
         # Display each page with delay
         for i, page_text in enumerate(pages):
             await self.update(face=face, text=page_text, force=True)
@@ -650,6 +669,39 @@ class DisplayManager:
                 await asyncio.sleep(page_delay)
 
         return len(pages)
+
+    async def start_page_loop(
+        self,
+        pages: list,
+        face: str = "default",
+        page_delay: float = 5.0,
+    ) -> None:
+        """Start a background loop cycling through message pages."""
+        await self.stop_page_loop()
+
+        async def _loop() -> None:
+            idx = 0
+            while True:
+                await self.update(
+                    face=face,
+                    text=pages[idx],
+                    force=True,
+                    cancel_page_loop=False,
+                )
+                idx = (idx + 1) % len(pages)
+                await asyncio.sleep(page_delay)
+
+        self._page_loop_task = asyncio.create_task(_loop())
+
+    async def stop_page_loop(self) -> None:
+        """Stop any active paginated message loop."""
+        if self._page_loop_task:
+            self._page_loop_task.cancel()
+            try:
+                await self._page_loop_task
+            except asyncio.CancelledError:
+                pass
+            self._page_loop_task = None
 
     # ========================================================================
     # Auto-Refresh Loop
@@ -684,6 +736,7 @@ class DisplayManager:
                     face=self._current_face,
                     text=self._current_text,
                     mood_text=self._current_mood,
+                    cancel_page_loop=False,
                 )
 
     def clear(self) -> None:

@@ -3591,7 +3591,8 @@ class WebChatMode:
                     self.display.show_message_paginated(
                         text=result.content,
                         face=self.personality.face,
-                        page_delay=3.0,
+                        page_delay=5.0,
+                        loop=True,
                     ),
                     self._loop
                 )
