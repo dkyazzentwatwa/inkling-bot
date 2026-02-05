@@ -233,7 +233,7 @@ Note: The demo server may have rate limits and no SLA.
 # Display settings
 display:
   type: auto          # auto, v3, v4, or mock
-  min_refresh_interval: 5  # Seconds between updates
+  min_refresh_interval: 1  # Seconds between updates (V4 clamps to >= 5s)
   orientation: 0      # 0, 90, 180, or 270
 
 # AI settings

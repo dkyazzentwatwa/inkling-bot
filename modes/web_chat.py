@@ -3675,6 +3675,7 @@ class WebChatMode:
             text=display_text,
             mood_text="Excited",
         )
+        await self.display.start_auto_refresh()
 
         print(f"\nWeb UI available at http://{self.host}:{self.port}")
         if ngrok_url:
@@ -3700,6 +3701,7 @@ class WebChatMode:
                 await asyncio.sleep(1)
                 self.personality.update()
         finally:
+            await self.display.stop_auto_refresh()
             # Disconnect ngrok tunnel on exit
             if ngrok_tunnel:
                 try:

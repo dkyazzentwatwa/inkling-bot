@@ -50,7 +50,7 @@ display:
   height: 122
 
   # Refresh settings
-  min_refresh_interval: 5.0  # seconds (V4 safety)
+  min_refresh_interval: 1.0  # seconds (V4 clamps to >= 5s)
   partial_refresh: true      # V3 only
 
 # Personality Configuration

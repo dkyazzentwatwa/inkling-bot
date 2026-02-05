@@ -62,6 +62,7 @@ Common issues and solutions for Inkling.
    display:
      min_refresh_interval: 10  # Increase to 10 seconds
    ```
+   - Note: V4 full refresh is clamped to >= 5s for safety
 
 2. **Clear display:**
    ```python
@@ -96,7 +97,8 @@ Common issues and solutions for Inkling.
 
 - This is normal for e-ink! Updates take 1-3 seconds.
 - V3 partial refresh is faster than V4 full refresh
-- Minimum safe interval is 5 seconds to prevent damage
+- V3/mock can safely run at ~1s refresh for live stats
+- V4 full refresh is clamped to a minimum of 5 seconds to prevent damage
 
 ---
 
@@ -463,7 +465,7 @@ Common issues and solutions for Inkling.
 1. **Reduce display updates:**
    ```yaml
    display:
-     min_refresh_interval: 30  # Less frequent updates
+     min_refresh_interval: 30  # Less frequent updates (V4 clamps to >= 5s)
    ```
 
 2. **Disable WiFi when not needed:**

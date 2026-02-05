@@ -102,7 +102,7 @@ def get_default_config() -> dict:
             "type": "mock",
             "width": 250,
             "height": 122,
-            "min_refresh_interval": 5.0,
+            "min_refresh_interval": 1.0,
         },
         "personality": {
             "curiosity": 0.7,

@@ -297,9 +297,10 @@ class DisplayManager:
 
         # Auto-refresh state
         self._refresh_task: Optional[asyncio.Task] = None
-        self._auto_refresh_interval = 1.0  # seconds between auto-refreshes
-        self._partial_refresh_interval = 0.5  # V3: fast partial updates
-        self._full_refresh_interval = 5.0  # V4: conservative full updates
+        self._auto_refresh_interval = max(0.0, self.min_refresh_interval)
+
+        # V4 safety: minimum full refresh interval (seconds)
+        self._full_refresh_min_seconds = 5.0
 
         # Track current display state for auto-refresh
         self._current_face: str = "default"
@@ -312,6 +313,9 @@ class DisplayManager:
         self._driver.init()
         self._load_fonts()
         self._ui = PwnagotchiUI()
+        # Align auto-refresh to configured interval for partial refresh displays
+        if self._driver.supports_partial:
+            self._auto_refresh_interval = max(0.0, self.min_refresh_interval)
 
     def _create_driver(self) -> DisplayDriver:
         """Create appropriate display driver based on type."""
@@ -400,23 +404,22 @@ class DisplayManager:
         self._font_face = ImageFont.load_default()
         self._font_text = ImageFont.load_default()
 
+    def _get_refresh_interval(self) -> float:
+        """Get the effective refresh interval based on display capabilities."""
+        base_interval = max(0.0, self.min_refresh_interval)
+        if self._driver and not self._driver.supports_partial:
+            return max(self._full_refresh_min_seconds, base_interval)
+        return base_interval
+
     def _can_refresh(self) -> bool:
         """Check refresh timing based on display capabilities."""
         elapsed = time.time() - self._last_refresh
-        # Use faster interval for displays that support partial refresh
-        if self._driver and self._driver.supports_partial:
-            return elapsed >= self._partial_refresh_interval
-        return elapsed >= self._full_refresh_interval
+        return elapsed >= self._get_refresh_interval()
 
     def _wait_for_refresh(self) -> float:
         """Get seconds to wait before next refresh is allowed."""
         elapsed = time.time() - self._last_refresh
-        # Use appropriate interval based on display type
-        if self._driver and self._driver.supports_partial:
-            interval = self._partial_refresh_interval
-        else:
-            interval = self._full_refresh_interval
-        remaining = interval - elapsed
+        remaining = self._get_refresh_interval() - elapsed
         return max(0, remaining)
 
     def render_frame(
@@ -677,14 +680,11 @@ class DisplayManager:
             # V4 full refresh is too slow and wears the display
             if self._driver and self._driver.supports_partial:
                 # Re-render with updated stats (uptime, CPU, etc.)
-                image = self.render_frame(
+                await self.update(
                     face=self._current_face,
                     text=self._current_text,
                     mood_text=self._current_mood,
                 )
-                # Use partial refresh directly (bypass rate limiting for auto-refresh)
-                self._driver.display_partial(image)
-                self._refresh_count += 1
 
     def clear(self) -> None:
         """Clear the display."""
