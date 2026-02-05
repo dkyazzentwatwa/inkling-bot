@@ -113,6 +113,28 @@ HTML_TEMPLATE = """
             --muted: #50638f;
             --accent: #8ba3ff;
         }
+        /* Dark Mode Themes */
+        [data-theme="dark"] {
+            --bg: #1a1a1a;
+            --text: #e5e5e5;
+            --border: #444;
+            --muted: #888;
+            --accent: #6ab0f3;
+        }
+        [data-theme="midnight"] {
+            --bg: #0d1117;
+            --text: #c9d1d9;
+            --border: #30363d;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+        }
+        [data-theme="charcoal"] {
+            --bg: #2b2b2b;
+            --text: #e8e6e3;
+            --border: #555;
+            --muted: #999;
+            --accent: #ffa657;
+        }
         @media (prefers-color-scheme: dark) {
             :root {
                 --bg: #1a1a1a;
@@ -547,6 +569,28 @@ SETTINGS_TEMPLATE = """
             --muted: #50638f;
             --accent: #8ba3ff;
         }
+        /* Dark Mode Themes */
+        [data-theme="dark"] {
+            --bg: #1a1a1a;
+            --text: #e5e5e5;
+            --border: #444;
+            --muted: #888;
+            --accent: #6ab0f3;
+        }
+        [data-theme="midnight"] {
+            --bg: #0d1117;
+            --text: #c9d1d9;
+            --border: #30363d;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+        }
+        [data-theme="charcoal"] {
+            --bg: #2b2b2b;
+            --text: #e8e6e3;
+            --border: #555;
+            --muted: #999;
+            --accent: #ffa657;
+        }
         @media (prefers-color-scheme: dark) {
             :root {
                 --bg: #1a1a1a;
@@ -704,6 +748,9 @@ SETTINGS_TEMPLATE = """
                 <option value="rose">Rose</option>
                 <option value="sage">Sage</option>
                 <option value="periwinkle">Periwinkle</option>
+                <option value="dark">Dark Mode</option>
+                <option value="midnight">Midnight Blue</option>
+                <option value="charcoal">Charcoal</option>
             </select>
         </div>
 
