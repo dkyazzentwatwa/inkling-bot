@@ -165,9 +165,17 @@ class BleTransport:
             except Exception as e:
                 print(f"[BLE] ERROR: Failed to decode: {e}")
                 text = ""
-            response = self._bridge.handle_line(text)
-            print(f"[BLE] Bridge returned {len(response)} bytes: {response[:100]!r}")
-            self._send_response(response)
+
+            try:
+                response = self._bridge.handle_line(text)
+                print(f"[BLE] Bridge returned {len(response)} bytes: {response[:100]!r}")
+                self._send_response(response)
+            except Exception as e:
+                print(f"[BLE] ERROR: Bridge failed: {e}")
+                import traceback
+                traceback.print_exc()
+                error_response = f"ERR 1\nInternal error: {e}\n<END>\n"
+                self._send_response(error_response)
 
     def _send_response(self, response: str) -> None:
         if not response:
