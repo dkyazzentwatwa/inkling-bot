@@ -156,39 +156,56 @@ class BleTransport:
             self._tx_char = None
 
     def _on_rx_write(self, value, options=None, *args, **kwargs) -> None:  # type: ignore[override]
-        # Guard against writes before initialization completes
-        if not self._ready.is_set():
-            print("[BLE] WARNING: Received write before initialization complete, ignoring")
-            return
-
         try:
-            data = bytes(value)
-            print(f"[BLE] RX received {len(data)} bytes: {data!r}")
+            print(f"[BLE] _on_rx_write called with value type: {type(value)}")
+
+            # Guard against writes before initialization completes
+            if not self._ready.is_set():
+                print("[BLE] WARNING: Received write before initialization complete, ignoring")
+                return
+
+            try:
+                data = bytes(value)
+                print(f"[BLE] RX received {len(data)} bytes: {data!r}")
+            except Exception as e:
+                print(f"[BLE] ERROR: Failed to convert RX data: {e}")
+                return
         except Exception as e:
-            print(f"[BLE] ERROR: Failed to convert RX data: {e}")
+            print(f"[BLE] FATAL ERROR in _on_rx_write: {e}")
+            import traceback
+            traceback.print_exc()
             return
 
-        self._rx_buffer.extend(data)
-        while b"\n" in self._rx_buffer:
-            line, _, rest = self._rx_buffer.partition(b"\n")
-            self._rx_buffer = bytearray(rest)
             try:
-                text = line.decode("utf-8", errors="replace")
-                print(f"[BLE] Processing command: {text!r}")
-            except Exception as e:
-                print(f"[BLE] ERROR: Failed to decode: {e}")
-                text = ""
+                print(f"[BLE] Extending buffer with {len(data)} bytes")
+                self._rx_buffer.extend(data)
+                print(f"[BLE] Buffer now contains {len(self._rx_buffer)} bytes")
 
-            try:
-                response = self._bridge.handle_line(text)
-                print(f"[BLE] Bridge returned {len(response)} bytes: {response[:100]!r}")
-                self._send_response(response)
+                while b"\n" in self._rx_buffer:
+                    print("[BLE] Found newline in buffer, processing...")
+                    line, _, rest = self._rx_buffer.partition(b"\n")
+                    self._rx_buffer = bytearray(rest)
+                    try:
+                        text = line.decode("utf-8", errors="replace")
+                        print(f"[BLE] Processing command: {text!r}")
+                    except Exception as e:
+                        print(f"[BLE] ERROR: Failed to decode: {e}")
+                        text = ""
+
+                    try:
+                        response = self._bridge.handle_line(text)
+                        print(f"[BLE] Bridge returned {len(response)} bytes: {response[:100]!r}")
+                        self._send_response(response)
+                    except Exception as e:
+                        print(f"[BLE] ERROR: Bridge failed: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        error_response = f"ERR 1\nInternal error: {e}\n<END>\n"
+                        self._send_response(error_response)
             except Exception as e:
-                print(f"[BLE] ERROR: Bridge failed: {e}")
+                print(f"[BLE] ERROR: Buffer processing failed: {e}")
                 import traceback
                 traceback.print_exc()
-                error_response = f"ERR 1\nInternal error: {e}\n<END>\n"
-                self._send_response(error_response)
 
     def _send_response(self, response: str) -> None:
         if not response:
