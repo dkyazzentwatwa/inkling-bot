@@ -6,6 +6,7 @@ Uses BlueZ via bluezero to expose a Nordic UART-style service.
 
 from __future__ import annotations
 
+import queue
 import threading
 import time
 from typing import Optional
@@ -40,9 +41,11 @@ class BleTransport:
         self._max_chunk_bytes = max_chunk_bytes
 
         self._thread: Optional[threading.Thread] = None
+        self._processing_thread: Optional[threading.Thread] = None
         self._running = threading.Event()
         self._ready = threading.Event()  # Signals BLE is fully initialized
         self._init_error: Optional[Exception] = None  # Stores initialization errors
+        self._rx_queue: queue.Queue = queue.Queue()  # Thread-safe queue for BLE data
         self._rx_buffer = bytearray()
 
         self._ble = None
@@ -50,6 +53,45 @@ class BleTransport:
         self._service_id = 1
         self._rx_char_id = 1
         self._tx_char_id = 2
+
+    def _process_rx_data(self) -> None:
+        """Process RX data from queue in separate thread (not GLib thread)."""
+        print("[BLE] RX processing thread started")
+        while self._running.is_set():
+            try:
+                # Wait for data with timeout so we can check _running
+                data = self._rx_queue.get(timeout=0.5)
+                print(f"[BLE] Processing {len(data)} bytes from queue")
+
+                self._rx_buffer.extend(data)
+                while b"\n" in self._rx_buffer:
+                    line, _, rest = self._rx_buffer.partition(b"\n")
+                    self._rx_buffer = bytearray(rest)
+                    try:
+                        text = line.decode("utf-8", errors="replace")
+                        print(f"[BLE] Processing command: {text!r}")
+                    except Exception as e:
+                        print(f"[BLE] ERROR: Failed to decode: {e}")
+                        text = ""
+
+                    try:
+                        response = self._bridge.handle_line(text)
+                        print(f"[BLE] Bridge returned {len(response)} bytes: {response[:100]!r}")
+                        self._send_response(response)
+                    except Exception as e:
+                        print(f"[BLE] ERROR: Bridge failed: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        error_response = f"ERR 1\nInternal error: {e}\n<END>\n"
+                        self._send_response(error_response)
+
+            except queue.Empty:
+                continue
+            except Exception as e:
+                print(f"[BLE] ERROR in processing thread: {e}")
+                import traceback
+                traceback.print_exc()
+        print("[BLE] RX processing thread stopped")
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -63,6 +105,12 @@ class BleTransport:
         if not self._adapter_addr:
             raise RuntimeError("No Bluetooth adapter found")
         self._running.set()
+
+        # Start processing thread first
+        self._processing_thread = threading.Thread(target=self._process_rx_data, name="ble-rx-processor", daemon=True)
+        self._processing_thread.start()
+
+        # Start BLE thread
         self._thread = threading.Thread(target=self._run, name="ble-transport", daemon=True)
         self._thread.start()
 
@@ -156,56 +204,20 @@ class BleTransport:
             self._tx_char = None
 
     def _on_rx_write(self, value, options=None, *args, **kwargs) -> None:  # type: ignore[override]
+        """BLE write callback - runs in GLib thread, just queue the data."""
         try:
-            print(f"[BLE] _on_rx_write called with value type: {type(value)}")
-
-            # Guard against writes before initialization completes
             if not self._ready.is_set():
                 print("[BLE] WARNING: Received write before initialization complete, ignoring")
                 return
 
-            try:
-                data = bytes(value)
-                print(f"[BLE] RX received {len(data)} bytes: {data!r}")
-            except Exception as e:
-                print(f"[BLE] ERROR: Failed to convert RX data: {e}")
-                return
+            data = bytes(value)
+            print(f"[BLE] RX received {len(data)} bytes (queuing for processing): {data!r}")
+            # Put in queue for processing thread - this is thread-safe
+            self._rx_queue.put(data)
         except Exception as e:
-            print(f"[BLE] FATAL ERROR in _on_rx_write: {e}")
+            print(f"[BLE] ERROR in _on_rx_write: {e}")
             import traceback
             traceback.print_exc()
-            return
-
-            try:
-                print(f"[BLE] Extending buffer with {len(data)} bytes")
-                self._rx_buffer.extend(data)
-                print(f"[BLE] Buffer now contains {len(self._rx_buffer)} bytes")
-
-                while b"\n" in self._rx_buffer:
-                    print("[BLE] Found newline in buffer, processing...")
-                    line, _, rest = self._rx_buffer.partition(b"\n")
-                    self._rx_buffer = bytearray(rest)
-                    try:
-                        text = line.decode("utf-8", errors="replace")
-                        print(f"[BLE] Processing command: {text!r}")
-                    except Exception as e:
-                        print(f"[BLE] ERROR: Failed to decode: {e}")
-                        text = ""
-
-                    try:
-                        response = self._bridge.handle_line(text)
-                        print(f"[BLE] Bridge returned {len(response)} bytes: {response[:100]!r}")
-                        self._send_response(response)
-                    except Exception as e:
-                        print(f"[BLE] ERROR: Bridge failed: {e}")
-                        import traceback
-                        traceback.print_exc()
-                        error_response = f"ERR 1\nInternal error: {e}\n<END>\n"
-                        self._send_response(error_response)
-            except Exception as e:
-                print(f"[BLE] ERROR: Buffer processing failed: {e}")
-                import traceback
-                traceback.print_exc()
 
     def _send_response(self, response: str) -> None:
         if not response:
