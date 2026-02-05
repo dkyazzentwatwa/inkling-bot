@@ -3120,6 +3120,94 @@ class WebChatMode:
             "status": self.personality.get_status_line(),
         }
 
+    def _cmd_tasks(self, args: str = "") -> Dict[str, Any]:
+        """List tasks with optional filters."""
+        if not self.task_manager:
+            return {
+                "response": "Task manager not available.",
+                "error": True
+            }
+
+        from core.tasks import TaskStatus
+
+        # Parse arguments for filters
+        status_filter = None
+        if args:
+            args_lower = args.lower()
+            if "pending" in args_lower:
+                status_filter = TaskStatus.PENDING
+            elif "progress" in args_lower or "in-progress" in args_lower:
+                status_filter = TaskStatus.IN_PROGRESS
+            elif "done" in args_lower or "completed" in args_lower:
+                status_filter = TaskStatus.COMPLETED
+
+        # Get tasks
+        tasks = self.task_manager.list_tasks(
+            status=status_filter
+        )
+
+        if not tasks:
+            return {
+                "response": "No tasks found. Use the Tasks page to create tasks, or /task <title> to create via chat.",
+                "face": self._get_face_str(),
+                "status": self.personality.get_status_line(),
+            }
+
+        # Format tasks list
+        response = "TASKS\n\n"
+        for task in tasks:
+            status_emoji = "⏳" if task.status == TaskStatus.PENDING else "🔄" if task.status == TaskStatus.IN_PROGRESS else "✅"
+            priority_str = "!" * task.priority if task.priority > 0 else ""
+            response += f"{status_emoji} {task.id[:8]} {priority_str} {task.title}\n"
+            if task.description:
+                response += f"   {task.description[:60]}{'...' if len(task.description) > 60 else ''}\n"
+
+        response += f"\nTotal: {len(tasks)} tasks"
+        if status_filter:
+            response += f" ({status_filter.value})"
+
+        return {
+            "response": response,
+            "face": self._get_face_str(),
+            "status": self.personality.get_status_line(),
+        }
+
+    def _cmd_taskstats(self) -> Dict[str, Any]:
+        """Show task statistics."""
+        if not self.task_manager:
+            return {
+                "response": "Task manager not available.",
+                "error": True
+            }
+
+        stats = self.task_manager.get_stats()
+
+        response = "TASK STATISTICS\n\n"
+        response += f"Overview:\n"
+        response += f"  Total tasks:     {stats['total']}\n"
+        response += f"  Pending:         {stats['pending']}\n"
+        response += f"  In Progress:     {stats['in_progress']}\n"
+        response += f"  Completed:       {stats['completed']}\n"
+
+        if stats['overdue'] > 0:
+            response += f"  ⚠️ Overdue:       {stats['overdue']}\n"
+
+        if stats['due_soon'] > 0:
+            response += f"  ⏰ Due soon (3d): {stats['due_soon']}\n"
+
+        if stats['completed'] > 0:
+            response += f"\nCompletion rate: {stats['completion_rate']:.0%}\n"
+
+        if stats['current_streak'] > 0:
+            streak_emoji = "🔥" if stats['current_streak'] >= 7 else "✨"
+            response += f"{streak_emoji} {stats['current_streak']} day streak\n"
+
+        return {
+            "response": response,
+            "face": self._get_face_str(),
+            "status": self.personality.get_status_line(),
+        }
+
     def _cmd_system(self) -> Dict[str, Any]:
         """Show system stats."""
         from core import system_stats
