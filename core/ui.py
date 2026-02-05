@@ -357,6 +357,7 @@ class HeaderBar:
         uptime_y = self.y + 3
         draw_text_bold(draw, (uptime_x, uptime_y), uptime_prefix, font=self.fonts.tiny, fill=0)
         draw_text_bold(
+            draw,
             (uptime_x + text_width(draw, uptime_prefix, self.fonts.tiny), uptime_y),
             uptime_suffix,
             font=self.fonts.tiny,
