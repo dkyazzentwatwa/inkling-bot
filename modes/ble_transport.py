@@ -126,23 +126,21 @@ class BleTransport:
                 flags=["notify"],
             )
 
-            print("[BLE] Publishing service...")
+            # Signal ready BEFORE publish() since all characteristics are created
+            # publish() will block and enter the mainloop
+            print("[BLE] Service ready, publishing...")
+            self._ready.set()
+
+            # This call blocks and runs the GLib mainloop
             self._ble.publish()
-            print("[BLE] Service published and ready")
 
         except Exception as e:
             print(f"[BLE] ERROR during initialization: {e}")
             import traceback
             traceback.print_exc()
             self._init_error = e
-        finally:
-            # Always signal ready so start() doesn't hang
+            # Signal ready even on error so start() doesn't hang forever
             self._ready.set()
-
-        # Keep thread alive if initialization succeeded
-        if self._init_error is None:
-            while self._running.is_set():
-                time.sleep(0.2)
 
     def _on_rx_write(self, value, options=None, *args, **kwargs) -> None:  # type: ignore[override]
         # Guard against writes before initialization completes
