@@ -474,7 +474,7 @@ class FooterBar:
         line2.append(ctx.clock_time)
 
         # Join with vertical bar separator (render separators in bold)
-        separator = "  |  "
+        separator = "   |   "
         line1_segments = interleave_with_separator(line1, separator)
         line2_segments = interleave_with_separator(line2, separator)
 
@@ -488,23 +488,14 @@ class FooterBar:
 
         # Draw line 1
         x = line1_x
-        for idx, seg in enumerate(line1_segments):
-            if seg.bold:
-                draw_text_bold(draw, (x, line1_y), seg.text, font=self.fonts.small, fill=0)
-            else:
-                if idx in (0, 2):
-                    draw_text_bold(draw, (x, line1_y), seg.text, font=self.fonts.small, fill=0)
-                else:
-                    draw.text((x, line1_y), seg.text, font=self.fonts.small, fill=0)
+        for seg in line1_segments:
+            draw_text_bold(draw, (x, line1_y), seg.text, font=self.fonts.small, fill=0)
             x += text_width(draw, seg.text, self.fonts.small)
 
         # Draw line 2
         x = line2_x
         for seg in line2_segments:
-            if seg.bold:
-                draw_text_bold(draw, (x, line2_y), seg.text, font=self.fonts.small, fill=0)
-            else:
-                draw.text((x, line2_y), seg.text, font=self.fonts.small, fill=0)
+            draw_text_bold(draw, (x, line2_y), seg.text, font=self.fonts.small, fill=0)
             x += text_width(draw, seg.text, self.fonts.small)
 
 
