@@ -353,10 +353,10 @@ class HeaderBar:
         uptime_prefix = "UP"
         uptime_suffix = f" {ctx.uptime}"
         uptime_width = text_width(draw, uptime_prefix + uptime_suffix, self.fonts.tiny)
-        uptime_x = DISPLAY_WIDTH - uptime_width - 3
+        uptime_x = DISPLAY_WIDTH - uptime_width - 6
         uptime_y = self.y + 3
         draw_text_bold(draw, (uptime_x, uptime_y), uptime_prefix, font=self.fonts.tiny, fill=0)
-        draw.text(
+        draw_text_bold(
             (uptime_x + text_width(draw, uptime_prefix, self.fonts.tiny), uptime_y),
             uptime_suffix,
             font=self.fonts.tiny,
