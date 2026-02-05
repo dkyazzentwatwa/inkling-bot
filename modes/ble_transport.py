@@ -41,6 +41,7 @@ class BleTransport:
 
         self._thread: Optional[threading.Thread] = None
         self._running = threading.Event()
+        self._ready = threading.Event()  # Signals BLE is fully initialized
         self._rx_buffer = bytearray()
 
         self._ble = None
@@ -63,6 +64,11 @@ class BleTransport:
         self._running.set()
         self._thread = threading.Thread(target=self._run, name="ble-transport", daemon=True)
         self._thread.start()
+
+        # Wait for BLE to be fully initialized (with timeout)
+        if not self._ready.wait(timeout=5.0):
+            raise RuntimeError("BLE initialization timed out")
+        print("[BLE] Initialization complete")
 
     def stop(self) -> None:
         self._running.clear()
@@ -104,11 +110,18 @@ class BleTransport:
         )
 
         self._ble.publish()
+        self._ready.set()  # Signal that BLE is fully ready
+        print(f"[BLE] Service published and ready")
 
         while self._running.is_set():
             time.sleep(0.2)
 
     def _on_rx_write(self, value, options=None, *args, **kwargs) -> None:  # type: ignore[override]
+        # Guard against writes before initialization completes
+        if not self._ready.is_set():
+            print("[BLE] WARNING: Received write before initialization complete, ignoring")
+            return
+
         try:
             data = bytes(value)
             print(f"[BLE] RX received {len(data)} bytes: {data!r}")
@@ -141,7 +154,11 @@ class BleTransport:
 
     def _notify(self, chunk: bytes) -> None:
         if self._tx_char is None:
-            print("[BLE] ERROR: _tx_char is None")
+            if self._ready.is_set():
+                # This should never happen if initialization worked correctly
+                print("[BLE] CRITICAL ERROR: _tx_char is None after initialization!")
+            else:
+                print("[BLE] WARNING: Notification attempted before initialization")
             return
         value = list(chunk)
         print(f"[BLE] Attempting to notify {len(value)} bytes: {chunk[:50]!r}")
