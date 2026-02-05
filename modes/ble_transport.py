@@ -125,6 +125,8 @@ class BleTransport:
                 notifying=True,
                 flags=["notify"],
             )
+            print(f"[BLE] TX characteristic object: {self._tx_char!r}")
+            print(f"[BLE] TX characteristic type: {type(self._tx_char)}")
 
             # Signal ready BEFORE publish() since all characteristics are created
             # publish() will block and enter the mainloop
@@ -187,10 +189,12 @@ class BleTransport:
             time.sleep(0.01)
 
     def _notify(self, chunk: bytes) -> None:
+        print(f"[BLE] _notify called: _tx_char={self._tx_char!r}, _ble={self._ble!r}")
         if self._tx_char is None:
             if self._ready.is_set():
                 # This should never happen if initialization worked correctly
                 print("[BLE] CRITICAL ERROR: _tx_char is None after initialization!")
+                print(f"[BLE] Debug: _ble type={type(self._ble)}, _ble={self._ble}")
             else:
                 print("[BLE] WARNING: Notification attempted before initialization")
             return
