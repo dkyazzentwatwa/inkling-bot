@@ -46,7 +46,6 @@ class BleTransport:
         self._rx_buffer = bytearray()
 
         self._ble = None
-        self._tx_char = None
         self._service_id = 1
         self._rx_char_id = 1
         self._tx_char_id = 2
@@ -117,7 +116,8 @@ class BleTransport:
             )
 
             print("[BLE] Adding TX characteristic...")
-            self._tx_char = self._ble.add_characteristic(
+            # Note: add_characteristic() returns None, we'll use peripheral methods directly
+            self._ble.add_characteristic(
                 srv_id=self._service_id,
                 chr_id=self._tx_char_id,
                 uuid=UART_TX_UUID,
@@ -125,8 +125,7 @@ class BleTransport:
                 notifying=True,
                 flags=["notify"],
             )
-            print(f"[BLE] TX characteristic object: {self._tx_char!r}")
-            print(f"[BLE] TX characteristic type: {type(self._tx_char)}")
+            print("[BLE] TX characteristic added (will use peripheral methods for notify)")
 
             # Signal ready BEFORE publish() since all characteristics are created
             # publish() will block and enter the mainloop
@@ -189,53 +188,49 @@ class BleTransport:
             time.sleep(0.01)
 
     def _notify(self, chunk: bytes) -> None:
-        print(f"[BLE] _notify called: _tx_char={self._tx_char!r}, _ble={self._ble!r}")
-        if self._tx_char is None:
-            if self._ready.is_set():
-                # This should never happen if initialization worked correctly
-                print("[BLE] CRITICAL ERROR: _tx_char is None after initialization!")
-                print(f"[BLE] Debug: _ble type={type(self._ble)}, _ble={self._ble}")
-            else:
-                print("[BLE] WARNING: Notification attempted before initialization")
+        if not self._ble:
+            print("[BLE] ERROR: Peripheral not initialized")
             return
+
         value = list(chunk)
-        print(f"[BLE] Attempting to notify {len(value)} bytes: {chunk[:50]!r}")
+        print(f"[BLE] Notifying {len(value)} bytes: {chunk[:50]!r}")
 
-        # Try common bluezero APIs
-        if hasattr(self._tx_char, "set_value"):
-            try:
-                self._tx_char.set_value(value)
-                print("[BLE] ✓ set_value() succeeded")
-            except Exception as e:
-                print(f"[BLE] ✗ set_value() failed: {e}")
+        # Use peripheral's update/notify methods with service and characteristic IDs
+        # Try method 1: Update value then notify
+        try:
+            if hasattr(self._ble, "update_value"):
+                self._ble.update_value(self._service_id, self._tx_char_id, value)
+                print("[BLE] ✓ update_value() succeeded")
+        except Exception as e:
+            print(f"[BLE] ✗ update_value() failed: {e}")
 
-        if hasattr(self._tx_char, "value"):
-            try:
-                self._tx_char.value = value
-                print("[BLE] ✓ value property succeeded")
-            except Exception as e:
-                print(f"[BLE] ✗ value property failed: {e}")
+        # Try method 2: Set value using characteristic access
+        try:
+            if hasattr(self._ble, "set_characteristic_value"):
+                self._ble.set_characteristic_value(self._service_id, self._tx_char_id, value)
+                print("[BLE] ✓ set_characteristic_value() succeeded")
+        except Exception as e:
+            print(f"[BLE] ✗ set_characteristic_value() failed: {e}")
 
-        if hasattr(self._tx_char, "notify"):
-            try:
-                self._tx_char.notify()
-                print("[BLE] ✓ notify() succeeded")
+        # Try method 3: Direct notify call
+        try:
+            if hasattr(self._ble, "notify"):
+                self._ble.notify(self._service_id, self._tx_char_id, value)
+                print("[BLE] ✓ notify(srv, chr, value) succeeded")
                 return
-            except Exception as e:
-                print(f"[BLE] ✗ notify() failed: {e}")
-                try:
-                    self._tx_char.notify(value)
-                    print("[BLE] ✓ notify(value) succeeded")
-                    return
-                except Exception as e2:
-                    print(f"[BLE] ✗ notify(value) failed: {e2}")
+        except Exception as e:
+            print(f"[BLE] ✗ notify(srv, chr, value) failed: {e}")
 
-        if hasattr(self._ble, "notify"):
-            try:
+        # Try method 4: Notify without value (assumes value already set)
+        try:
+            if hasattr(self._ble, "notify"):
                 self._ble.notify(self._service_id, self._tx_char_id)
-                print("[BLE] ✓ _ble.notify() succeeded")
-            except Exception as e:
-                print(f"[BLE] ✗ _ble.notify() failed: {e}")
+                print("[BLE] ✓ notify(srv, chr) succeeded")
+                return
+        except Exception as e:
+            print(f"[BLE] ✗ notify(srv, chr) failed: {e}")
+
+        print("[BLE] ERROR: All notification methods failed!")
 
     def _get_default_adapter_addr(self) -> Optional[str]:
         if adapter is None:
