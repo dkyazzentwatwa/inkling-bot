@@ -20,7 +20,7 @@ Layout (250x122 pixels):
 """
 
 from dataclasses import dataclass
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Sequence
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -331,20 +331,34 @@ class HeaderBar:
         draw_box(draw, 0, self.y, DISPLAY_WIDTH, self.height, fill=255, outline=0)
 
         # Name prompt with cursor
-        prompt = f"{ctx.name[:8]}>_"
-        draw.text((3, self.y + 2), prompt, font=self.fonts.small, fill=0)
+        name_text = ctx.name[:8]
+        cursor_text = ">_"
+        name_x = 3
+        name_y = self.y + 2
+        draw_text_bold(draw, (name_x, name_y), name_text, font=self.fonts.small, fill=0)
+        cursor_x = name_x + text_width(draw, name_text, self.fonts.small)
+        draw.text((cursor_x, name_y), cursor_text, font=self.fonts.small, fill=0)
 
         # Mood text (centered-ish)
         mood_x = 80
-        draw.text((mood_x, self.y + 2), ctx.mood_text[:12], font=self.fonts.small, fill=0)
+        draw_text_bold(
+            draw,
+            (mood_x, self.y + 2),
+            ctx.mood_text[:12],
+            font=self.fonts.small,
+            fill=0,
+        )
 
         # Uptime (right-aligned)
-        uptime_text = f"UP {ctx.uptime}"
-        bbox = draw.textbbox((0, 0), uptime_text, font=self.fonts.tiny)
-        uptime_width = bbox[2] - bbox[0]
+        uptime_prefix = "UP"
+        uptime_suffix = f" {ctx.uptime}"
+        uptime_width = text_width(draw, uptime_prefix + uptime_suffix, self.fonts.tiny)
+        uptime_x = DISPLAY_WIDTH - uptime_width - 3
+        uptime_y = self.y + 3
+        draw_text_bold(draw, (uptime_x, uptime_y), uptime_prefix, font=self.fonts.tiny, fill=0)
         draw.text(
-            (DISPLAY_WIDTH - uptime_width - 3, self.y + 3),
-            uptime_text,
+            (uptime_x + text_width(draw, uptime_prefix, self.fonts.tiny), uptime_y),
+            uptime_suffix,
             font=self.fonts.tiny,
             fill=0,
         )
@@ -459,23 +473,35 @@ class FooterBar:
         # 3. Clock
         line2.append(ctx.clock_time)
 
-        # Join with vertical bar separator
-        line1_text = " | ".join(line1)
-        line2_text = " | ".join(line2)
+        # Join with vertical bar separator (render separators in bold)
+        line1_segments = interleave_with_separator(line1, " | ")
+        line2_segments = interleave_with_separator(line2, " | ")
 
         # Center line 1
-        bbox1 = draw.textbbox((0, 0), line1_text, font=self.fonts.small)
-        text_width1 = bbox1[2] - bbox1[0]
-        line1_x = (DISPLAY_WIDTH - text_width1) // 2
+        line1_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line1_segments)
+        line1_x = (DISPLAY_WIDTH - line1_width) // 2
 
         # Center line 2
-        bbox2 = draw.textbbox((0, 0), line2_text, font=self.fonts.small)
-        text_width2 = bbox2[2] - bbox2[0]
-        line2_x = (DISPLAY_WIDTH - text_width2) // 2
+        line2_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_segments)
+        line2_x = (DISPLAY_WIDTH - line2_width) // 2
 
-        # Draw lines
-        draw.text((line1_x, line1_y), line1_text, font=self.fonts.small, fill=0)
-        draw.text((line2_x, line2_y), line2_text, font=self.fonts.small, fill=0)
+        # Draw line 1
+        x = line1_x
+        for seg in line1_segments:
+            if seg.bold:
+                draw_text_bold(draw, (x, line1_y), seg.text, font=self.fonts.small, fill=0)
+            else:
+                draw.text((x, line1_y), seg.text, font=self.fonts.small, fill=0)
+            x += text_width(draw, seg.text, self.fonts.small)
+
+        # Draw line 2
+        x = line2_x
+        for seg in line2_segments:
+            if seg.bold:
+                draw_text_bold(draw, (x, line2_y), seg.text, font=self.fonts.small, fill=0)
+            else:
+                draw.text((x, line2_y), seg.text, font=self.fonts.small, fill=0)
+            x += text_width(draw, seg.text, self.fonts.small)
 
 
 class PwnagotchiUI:
@@ -548,3 +574,42 @@ def word_wrap(text: str, max_chars: int = 35) -> List[str]:
         lines.append(current_line)
 
     return lines
+
+
+def text_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> int:
+    """Measure text width in pixels for a given font."""
+    if not text:
+        return 0
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[2] - bbox[0]
+
+
+def draw_text_bold(
+    draw: ImageDraw.ImageDraw,
+    position: Tuple[int, int],
+    text: str,
+    font: ImageFont.ImageFont,
+    fill: int = 0,
+) -> None:
+    """Simulate bold text by drawing twice with a 1px offset."""
+    x, y = position
+    draw.text((x, y), text, font=font, fill=fill)
+    draw.text((x + 1, y), text, font=font, fill=fill)
+
+
+class TextSegment:
+    """Segment of text with an optional bold flag."""
+
+    def __init__(self, text: str, bold: bool = False):
+        self.text = text
+        self.bold = bold
+
+
+def interleave_with_separator(parts: Sequence[str], sep: str) -> List[TextSegment]:
+    """Interleave parts with a bold separator segment."""
+    segments: List[TextSegment] = []
+    for idx, part in enumerate(parts):
+        if idx > 0:
+            segments.append(TextSegment(sep, bold=True))
+        segments.append(TextSegment(part, bold=False))
+    return segments
