@@ -9,6 +9,7 @@ Handles the Waveshare 2.13" e-ink display with support for:
 """
 
 import asyncio
+import os
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -18,6 +19,9 @@ from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 
 from .ui import PwnagotchiUI, DisplayContext, FACES, UNICODE_FACES
+
+# Environment variable to disable terminal rendering
+DISABLE_DISPLAY_ECHO = os.getenv("INKLING_NO_DISPLAY_ECHO", "").lower() in ("1", "true", "yes")
 from . import system_stats
 
 
@@ -120,6 +124,9 @@ class MockDisplay(DisplayDriver):
 
     def _render_to_terminal(self, image: Image.Image) -> None:
         """Render image as ASCII art in terminal."""
+        if DISABLE_DISPLAY_ECHO:
+            return
+
         # Convert to 1-bit if needed
         if image.mode != "1":
             image = image.convert("1")

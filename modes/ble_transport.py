@@ -111,7 +111,9 @@ class BleTransport:
     def _on_rx_write(self, value, options=None, *args, **kwargs) -> None:  # type: ignore[override]
         try:
             data = bytes(value)
-        except Exception:
+            print(f"[BLE] RX received {len(data)} bytes: {data!r}")
+        except Exception as e:
+            print(f"[BLE] ERROR: Failed to convert RX data: {e}")
             return
 
         self._rx_buffer.extend(data)
@@ -120,9 +122,12 @@ class BleTransport:
             self._rx_buffer = bytearray(rest)
             try:
                 text = line.decode("utf-8", errors="replace")
-            except Exception:
+                print(f"[BLE] Processing command: {text!r}")
+            except Exception as e:
+                print(f"[BLE] ERROR: Failed to decode: {e}")
                 text = ""
             response = self._bridge.handle_line(text)
+            print(f"[BLE] Bridge returned {len(response)} bytes: {response[:100]!r}")
             self._send_response(response)
 
     def _send_response(self, response: str) -> None:
@@ -136,34 +141,46 @@ class BleTransport:
 
     def _notify(self, chunk: bytes) -> None:
         if self._tx_char is None:
+            print("[BLE] ERROR: _tx_char is None")
             return
         value = list(chunk)
+        print(f"[BLE] Attempting to notify {len(value)} bytes: {chunk[:50]!r}")
+
         # Try common bluezero APIs
         if hasattr(self._tx_char, "set_value"):
             try:
                 self._tx_char.set_value(value)
-            except Exception:
-                pass
+                print("[BLE] ✓ set_value() succeeded")
+            except Exception as e:
+                print(f"[BLE] ✗ set_value() failed: {e}")
+
         if hasattr(self._tx_char, "value"):
             try:
                 self._tx_char.value = value
-            except Exception:
-                pass
+                print("[BLE] ✓ value property succeeded")
+            except Exception as e:
+                print(f"[BLE] ✗ value property failed: {e}")
+
         if hasattr(self._tx_char, "notify"):
             try:
                 self._tx_char.notify()
+                print("[BLE] ✓ notify() succeeded")
                 return
-            except Exception:
+            except Exception as e:
+                print(f"[BLE] ✗ notify() failed: {e}")
                 try:
                     self._tx_char.notify(value)
+                    print("[BLE] ✓ notify(value) succeeded")
                     return
-                except Exception:
-                    pass
+                except Exception as e2:
+                    print(f"[BLE] ✗ notify(value) failed: {e2}")
+
         if hasattr(self._ble, "notify"):
             try:
                 self._ble.notify(self._service_id, self._tx_char_id)
-            except Exception:
-                pass
+                print("[BLE] ✓ _ble.notify() succeeded")
+            except Exception as e:
+                print(f"[BLE] ✗ _ble.notify() failed: {e}")
 
     def _get_default_adapter_addr(self) -> Optional[str]:
         if adapter is None:

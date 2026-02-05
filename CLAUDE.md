@@ -70,6 +70,7 @@ GOOGLE_API_KEY=your-google-api-key-here
 COMPOSIO_API_KEY=your-composio-key-here
 SERVER_PW=your-web-password-here
 INKLING_DEBUG=1  # Enable debug logging
+INKLING_NO_DISPLAY_ECHO=1  # Disable ASCII display output in terminal/logs
 ```
 
 **Option 2: Export manually**
@@ -79,7 +80,8 @@ export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
 export GOOGLE_API_KEY=...
 export COMPOSIO_API_KEY=...
-INKLING_DEBUG=1  # Enable detailed logging
+export INKLING_DEBUG=1  # Enable detailed logging
+export INKLING_NO_DISPLAY_ECHO=1  # Disable ASCII display output in terminal/logs
 ```
 
 ## Architecture
