@@ -42,6 +42,7 @@ class BleTransport:
         self._thread: Optional[threading.Thread] = None
         self._running = threading.Event()
         self._ready = threading.Event()  # Signals BLE is fully initialized
+        self._init_error: Optional[Exception] = None  # Stores initialization errors
         self._rx_buffer = bytearray()
 
         self._ble = None
@@ -67,7 +68,15 @@ class BleTransport:
 
         # Wait for BLE to be fully initialized (with timeout)
         if not self._ready.wait(timeout=5.0):
-            raise RuntimeError("BLE initialization timed out")
+            error_msg = "BLE initialization timed out"
+            if self._init_error:
+                error_msg += f": {self._init_error}"
+            raise RuntimeError(error_msg)
+
+        # Check if initialization failed with an error
+        if self._init_error:
+            raise RuntimeError(f"BLE initialization failed: {self._init_error}")
+
         print("[BLE] Initialization complete")
 
     def stop(self) -> None:
@@ -85,36 +94,55 @@ class BleTransport:
     def _run(self) -> None:
         adapter_addr = self._adapter_addr
         if not adapter_addr:
+            self._init_error = RuntimeError("No adapter address")
+            self._ready.set()
             return
 
-        self._ble = peripheral.Peripheral(adapter_addr, local_name=self._device_name)
-        self._ble.add_service(srv_id=self._service_id, uuid=UART_SERVICE_UUID, primary=True)
+        try:
+            print("[BLE] Creating peripheral...")
+            self._ble = peripheral.Peripheral(adapter_addr, local_name=self._device_name)
 
-        self._ble.add_characteristic(
-            srv_id=self._service_id,
-            chr_id=self._rx_char_id,
-            uuid=UART_RX_UUID,
-            value=[],
-            notifying=False,
-            flags=["write", "write-without-response"],
-            write_callback=self._on_rx_write,
-        )
+            print("[BLE] Adding service...")
+            self._ble.add_service(srv_id=self._service_id, uuid=UART_SERVICE_UUID, primary=True)
 
-        self._tx_char = self._ble.add_characteristic(
-            srv_id=self._service_id,
-            chr_id=self._tx_char_id,
-            uuid=UART_TX_UUID,
-            value=[],
-            notifying=True,
-            flags=["notify"],
-        )
+            print("[BLE] Adding RX characteristic...")
+            self._ble.add_characteristic(
+                srv_id=self._service_id,
+                chr_id=self._rx_char_id,
+                uuid=UART_RX_UUID,
+                value=[],
+                notifying=False,
+                flags=["write", "write-without-response"],
+                write_callback=self._on_rx_write,
+            )
 
-        self._ble.publish()
-        self._ready.set()  # Signal that BLE is fully ready
-        print(f"[BLE] Service published and ready")
+            print("[BLE] Adding TX characteristic...")
+            self._tx_char = self._ble.add_characteristic(
+                srv_id=self._service_id,
+                chr_id=self._tx_char_id,
+                uuid=UART_TX_UUID,
+                value=[],
+                notifying=True,
+                flags=["notify"],
+            )
 
-        while self._running.is_set():
-            time.sleep(0.2)
+            print("[BLE] Publishing service...")
+            self._ble.publish()
+            print("[BLE] Service published and ready")
+
+        except Exception as e:
+            print(f"[BLE] ERROR during initialization: {e}")
+            import traceback
+            traceback.print_exc()
+            self._init_error = e
+        finally:
+            # Always signal ready so start() doesn't hang
+            self._ready.set()
+
+        # Keep thread alive if initialization succeeded
+        if self._init_error is None:
+            while self._running.is_set():
+                time.sleep(0.2)
 
     def _on_rx_write(self, value, options=None, *args, **kwargs) -> None:  # type: ignore[override]
         # Guard against writes before initialization completes
