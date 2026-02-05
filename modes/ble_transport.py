@@ -54,7 +54,7 @@ class BleTransport:
             return
         if peripheral is None:
             raise RuntimeError(
-                "bluezero is not installed. Install with: sudo apt install -y bluez python3-bluezero"
+                "bluezero is not installed. Install with: pip install bluezero (requires bluez system package)"
             )
         if not self._adapter_addr:
             self._adapter_addr = self._get_default_adapter_addr()

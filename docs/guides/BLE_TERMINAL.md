@@ -4,9 +4,22 @@ This guide enables a BLE command terminal that accepts the same slash-commands a
 
 ## Requirements
 
+### System packages (Raspberry Pi OS)
 ```bash
 sudo apt update
-sudo apt install -y bluez python3-bluezero
+sudo apt install -y bluez python3-dbus python3-gi
+```
+
+### Python package
+```bash
+# Activate venv first
+source .venv/bin/activate
+pip install bluezero
+```
+
+Or add to requirements.txt and reinstall:
+```bash
+pip install -r requirements.txt
 ```
 
 ## Enable BLE in config

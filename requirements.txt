@@ -37,6 +37,9 @@ requests>=2.31.0
 # spidev>=3.6  # Uncomment on Raspberry Pi
 # RPi.GPIO>=0.7.1  # Uncomment on Raspberry Pi
 
+# BLE/Bluetooth (Pi only, optional)
+bluezero>=0.7.0  # BLE GATT transport
+
 # Development
 pytest>=7.4.0
 pytest-asyncio>=0.21.0

@@ -16,7 +16,7 @@ from typing import Any, Optional, Tuple
 from core.shell_utils import run_bash_command
 
 
-ANSI_ESCAPE_RE = re.compile(r"\x1b\\[[0-9;]*[A-Za-z]")
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 class InklingModeBridge:
