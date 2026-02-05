@@ -502,14 +502,14 @@ class SSHChatMode:
 
             # Display response (with pagination for long messages)
             # Check if message needs pagination (> 6 lines worth of text)
-            from core.ui import word_wrap
+            from core.ui import word_wrap, MESSAGE_MAX_LINES
             lines = word_wrap(result.content, 40)
-            if len(lines) > 6:
+            if len(lines) > MESSAGE_MAX_LINES:
                 # Use paginated display for long responses
                 pages = await self.display.show_message_paginated(
                     text=result.content,
                     face=self.personality.face,
-                    page_delay=5.0,
+                    page_delay=self.display.pagination_loop_seconds,
                     loop=True,
                 )
                 print(f"{Colors.DIM}  (Displayed {pages} pages on e-ink){Colors.RESET}")

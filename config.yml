@@ -3,6 +3,7 @@
 
 device:
   name: "Inkling"  # Your device's name
+  timezone: "America/Los_Angeles"  # IANA timezone (e.g., America/Los_Angeles)
 
 # AI Provider Configuration
 # Set API keys via environment variables or here
@@ -52,6 +53,7 @@ display:
   # Refresh settings
   min_refresh_interval: 1.0  # seconds (V4 clamps to >= 5s)
   partial_refresh: true      # V3 only
+  pagination_loop_seconds: 5.0  # seconds between paginated pages
 
 # Personality Configuration
 personality:

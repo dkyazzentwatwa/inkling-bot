@@ -82,7 +82,7 @@ def load_config(config_path: str = "config.yml") -> dict:
 def get_default_config() -> dict:
     """Return default configuration."""
     return {
-        "device": {"name": "Inkling"},
+        "device": {"name": "Inkling", "timezone": "America/Los_Angeles"},
         "ai": {
             "primary": "anthropic",
             "anthropic": {
@@ -103,6 +103,7 @@ def get_default_config() -> dict:
             "width": 250,
             "height": 122,
             "min_refresh_interval": 1.0,
+            "pagination_loop_seconds": 5.0,
         },
         "personality": {
             "curiosity": 0.7,
@@ -165,8 +166,10 @@ class Inkling:
             width=display_config.get("width", 250),
             height=display_config.get("height", 122),
             min_refresh_interval=display_config.get("min_refresh_interval", 5.0),
+            pagination_loop_seconds=display_config.get("pagination_loop_seconds", 5.0),
             device_name=device_name.lower()[:8],  # Truncate for header
             personality=self.personality,
+            timezone=self.config.get("device", {}).get("timezone"),
         )
         self.display.init()
 

@@ -12,7 +12,13 @@ Works on Raspberry Pi and gracefully degrades on other systems.
 
 import os
 import time
+from datetime import datetime
 from typing import Optional
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover - fallback for older Python
+    ZoneInfo = None
 
 # Track when the application started for uptime calculation
 _start_time: float = time.time()
@@ -205,3 +211,24 @@ def get_all_stats() -> dict:
         "temperature": get_temperature(),
         "uptime": get_uptime(),
     }
+
+
+def get_local_time(timezone: Optional[str] = None) -> str:
+    """
+    Get local time as HH:MM.
+
+    Args:
+        timezone: Optional IANA timezone (e.g., "America/Los_Angeles")
+
+    Returns:
+        Time string in "HH:MM" 24-hour format
+    """
+    if timezone and ZoneInfo:
+        try:
+            tz = ZoneInfo(timezone)
+            return datetime.now(tz).strftime("%H:%M")
+        except Exception:
+            pass
+
+    # Fall back to system local time
+    return time.strftime("%H:%M")

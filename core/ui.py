@@ -119,11 +119,13 @@ DISPLAY_HEIGHT = 122
 
 # Region heights
 HEADER_HEIGHT = 14
-FOOTER_HEIGHT = 22  # Larger footer with all stats + face
-MESSAGE_HEIGHT = DISPLAY_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT - 2  # Full height message (86px)
+FOOTER_HEIGHT = 30  # Taller footer for less crowded stats + clock
+MESSAGE_HEIGHT = DISPLAY_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT - 2
 
 # Full-width message panel (no side stats panel anymore)
 MESSAGE_PANEL_WIDTH = DISPLAY_WIDTH - 4  # Full width with small margins
+MESSAGE_LINE_HEIGHT = 13
+MESSAGE_MAX_LINES = max(1, MESSAGE_HEIGHT // MESSAGE_LINE_HEIGHT)
 
 
 @dataclass
@@ -290,6 +292,7 @@ class DisplayContext:
     memory_percent: int = 0
     cpu_percent: int = 0
     temperature: int = 0
+    clock_time: str = "--:--"
 
     # Social stats
     dream_count: int = 0
@@ -371,13 +374,13 @@ class MessagePanel:
         lines = word_wrap(ctx.message, max_chars_per_line)
 
         # Calculate starting Y to vertically center text block
-        line_height = 13
+        line_height = MESSAGE_LINE_HEIGHT
         total_text_height = len(lines) * line_height
         start_y = self.y + (self.height - total_text_height) // 2
 
         # Draw each line centered horizontally
         text_y = start_y
-        for line in lines[:6]:  # Max 6 lines to fit in larger panel
+        for line in lines[:MESSAGE_MAX_LINES]:
             # Calculate width of this line to center it
             bbox = draw.textbbox((0, 0), line, font=self.fonts.normal)
             text_width = bbox[2] - bbox[0]
@@ -410,8 +413,9 @@ class FooterBar:
     """
     Bottom footer bar with all stats in compact format.
 
-    Format: "(^_^) | L1 NEWB | 54%mem 1%cpu 43° | CHAT3 | SSH"
-    All elements separated by vertical bars, centered in footer.
+    Two-line format to reduce crowding:
+    Line 1: "(^_^) | L1 NEWB | SSH"
+    Line 2: "54%mem 1%cpu 43° | CH3 | 10:42"
     """
 
     def __init__(self, fonts: Fonts):
@@ -423,41 +427,55 @@ class FooterBar:
         # Top separator
         draw_hline(draw, 0, self.y, DISPLAY_WIDTH, color=0)
 
-        footer_y = self.y + 6  # Center vertically in 22px footer
+        line1_y = self.y + 3
+        line2_y = self.y + 16
 
-        # Build footer components
-        parts = []
+        # Line 1 components
+        line1 = []
 
         # 1. Face
-        parts.append(ctx.face_str)
+        line1.append(ctx.face_str)
 
         # 2. Level and rank
         level_name_short = ctx.level_name.split()[0][:4].upper()  # "NEWB", "CURI", etc.
         level_str = f"L{ctx.level}"
         if ctx.prestige > 0:
             level_str += "*" * min(ctx.prestige, 3)
-        parts.append(f"{level_str} {level_name_short}")
+        line1.append(f"{level_str} {level_name_short}")
 
-        # 3. System stats (memory, cpu, temp)
+        # 3. Mode
+        line1.append(ctx.mode)
+
+        # Line 2 components
+        line2 = []
+
+        # 1. System stats (memory, cpu, temp)
         temp_str = f"{ctx.temperature}°" if ctx.temperature > 0 else "--°"
-        parts.append(f"{ctx.memory_percent}%mem {ctx.cpu_percent}%cpu {temp_str}")
+        line2.append(f"{ctx.memory_percent}%mem {ctx.cpu_percent}%cpu {temp_str}")
 
-        # 4. Chat count
-        parts.append(f"CH{ctx.chat_count}")
+        # 2. Chat count
+        line2.append(f"CH{ctx.chat_count}")
 
-        # 5. Mode
-        parts.append(ctx.mode)
+        # 3. Clock
+        line2.append(ctx.clock_time)
 
         # Join with vertical bar separator
-        footer_text = " | ".join(parts)
+        line1_text = " | ".join(line1)
+        line2_text = " | ".join(line2)
 
-        # Calculate width to center the entire footer
-        bbox = draw.textbbox((0, 0), footer_text, font=self.fonts.small)
-        text_width = bbox[2] - bbox[0]
-        footer_x = (DISPLAY_WIDTH - text_width) // 2
+        # Center line 1
+        bbox1 = draw.textbbox((0, 0), line1_text, font=self.fonts.small)
+        text_width1 = bbox1[2] - bbox1[0]
+        line1_x = (DISPLAY_WIDTH - text_width1) // 2
 
-        # Draw centered footer text
-        draw.text((footer_x, footer_y), footer_text, font=self.fonts.small, fill=0)
+        # Center line 2
+        bbox2 = draw.textbbox((0, 0), line2_text, font=self.fonts.small)
+        text_width2 = bbox2[2] - bbox2[0]
+        line2_x = (DISPLAY_WIDTH - text_width2) // 2
+
+        # Draw lines
+        draw.text((line1_x, line1_y), line1_text, font=self.fonts.small, fill=0)
+        draw.text((line2_x, line2_y), line2_text, font=self.fonts.small, fill=0)
 
 
 class PwnagotchiUI:

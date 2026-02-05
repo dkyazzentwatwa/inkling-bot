@@ -261,15 +261,19 @@ class DisplayManager:
         width: int = 250,
         height: int = 122,
         min_refresh_interval: float = 5.0,
+        pagination_loop_seconds: float = 5.0,
         device_name: str = "inkling",
         personality=None,
+        timezone: Optional[str] = None,
         prefer_ascii_faces: Optional[bool] = None,
     ):
         self.width = width
         self.height = height
         self.min_refresh_interval = min_refresh_interval
+        self.pagination_loop_seconds = pagination_loop_seconds
         self.device_name = device_name
         self.personality = personality
+        self.timezone = timezone
 
         self._driver: Optional[DisplayDriver] = None
         self._display_type = display_type
@@ -458,6 +462,7 @@ class DisplayManager:
 
         # Get system stats
         stats = system_stats.get_all_stats()
+        clock_time = system_stats.get_local_time(self.timezone)
 
         # Get progression data
         level = 1
@@ -482,6 +487,7 @@ class DisplayManager:
             memory_percent=stats["memory"],
             cpu_percent=stats["cpu"],
             temperature=stats["temperature"],
+            clock_time=clock_time,
             dream_count=self._dream_count,
             telegram_count=self._telegram_count,
             chat_count=self._chat_count,
@@ -614,7 +620,7 @@ class DisplayManager:
         text: str,
         face: str = "default",
         page_delay: float = 3.0,
-        lines_per_page: int = 6,
+        lines_per_page: int = 0,
         chars_per_line: int = 40,
         loop: bool = False,
     ) -> int:
@@ -635,10 +641,13 @@ class DisplayManager:
         Returns:
             Number of pages displayed
         """
-        from .ui import word_wrap
+        from .ui import word_wrap, MESSAGE_MAX_LINES
 
         # Word wrap the entire message
         all_lines = word_wrap(text, chars_per_line)
+
+        if lines_per_page <= 0:
+            lines_per_page = MESSAGE_MAX_LINES
 
         # If message fits on one page, just show it normally
         if len(all_lines) <= lines_per_page:

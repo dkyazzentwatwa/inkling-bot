@@ -3583,15 +3583,15 @@ class WebChatMode:
             self.personality.on_success(0.5)
 
             # Update display with Pwnagotchi UI (with pagination for long messages)
-            from core.ui import word_wrap
+            from core.ui import word_wrap, MESSAGE_MAX_LINES
             lines = word_wrap(result.content, 40)
-            if len(lines) > 6:
+            if len(lines) > MESSAGE_MAX_LINES:
                 # Use paginated display for long responses
                 asyncio.run_coroutine_threadsafe(
                     self.display.show_message_paginated(
                         text=result.content,
                         face=self.personality.face,
-                        page_delay=5.0,
+                        page_delay=self.display.pagination_loop_seconds,
                         loop=True,
                     ),
                     self._loop

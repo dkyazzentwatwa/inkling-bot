@@ -234,6 +234,7 @@ Note: The demo server may have rate limits and no SLA.
 display:
   type: auto          # auto, v3, v4, or mock
   min_refresh_interval: 1  # Seconds between updates (V4 clamps to >= 5s)
+  pagination_loop_seconds: 5  # Seconds between paginated pages
   orientation: 0      # 0, 90, 180, or 270
 
 # AI settings
@@ -266,6 +267,10 @@ personality:
 identity:
   name: "My Inkling"
   data_dir: "~/.inkling"
+
+# Device time (optional)
+device:
+  timezone: "America/Los_Angeles"  # IANA timezone (e.g., America/Los_Angeles)
 ```
 
 ### Environment Variables
