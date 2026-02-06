@@ -8,7 +8,7 @@ device:
 # AI Provider Configuration
 # Set API keys via environment variables or here
 ai:
-  # Primary provider (anthropic, openai, or gemini)
+  # Primary provider (anthropic, openai, gemini, or ollama)
   primary: "anthropic"
 
   # Anthropic settings
@@ -35,6 +35,14 @@ ai:
     api_key: ${GOOGLE_API_KEY}
     model: "gemini-2.0-flash-exp"
     max_tokens: 150
+
+  # Ollama cloud settings
+  ollama:
+    api_key: ${OLLAMA_API_KEY}
+    model: "qwen3-coder-next"
+    max_tokens: 150
+    base_url: "https://ollama.com/api"  # Ollama cloud API
+    # For local Ollama: base_url: "http://localhost:11434/v1"
 
   # Token budgets
   budget:
