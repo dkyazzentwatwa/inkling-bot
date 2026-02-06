@@ -261,7 +261,7 @@ class Inkling:
             print(f"    Providers: {', '.join(self.brain.available_providers)}")
         else:
             print("    Warning: No AI providers configured!")
-            print("    Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variables.")
+            print("    Set ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, or OLLAMA_API_KEY environment variables.")
 
         print("Initialization complete!")
 

@@ -431,6 +431,115 @@ class GeminiProvider(AIProvider):
         return gemini_tools
 
 
+class OllamaProvider(AIProvider):
+    """Ollama cloud provider.
+
+    Uses Ollama's cloud API (OpenAI-compatible) at https://api.ollama.com/v1.
+    Supports models like llama3.3, qwen2.5, mistral, gemma2, phi4, deepseek-r1, etc.
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "llama3.3",
+        max_tokens: int = 150,
+        base_url: str = "https://api.ollama.com/v1",
+    ):
+        super().__init__(api_key, model, max_tokens)
+        self._client = None
+        self.base_url = base_url
+
+    @property
+    def name(self) -> str:
+        return "ollama"
+
+    def _get_client(self):
+        """Lazy-load the OpenAI-compatible client for Ollama."""
+        if self._client is None:
+            import openai
+            self._client = openai.AsyncOpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+            )
+        return self._client
+
+    async def generate(
+        self,
+        system_prompt: str,
+        messages: List[Message],
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> ThinkResult:
+        """Generate using Ollama cloud, with optional tool use."""
+        client = self._get_client()
+
+        # Convert messages to OpenAI format (with system message)
+        api_messages = [{"role": "system", "content": system_prompt}]
+        api_messages.extend([
+            {"role": m.role, "content": m.content}
+            for m in messages
+        ])
+
+        try:
+            kwargs = {
+                "model": self.model,
+                "messages": api_messages,
+                "max_completion_tokens": self.max_tokens,
+            }
+
+            # Convert tools to OpenAI format
+            if tools:
+                kwargs["tools"] = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": t["name"],
+                            "description": t.get("description", ""),
+                            "parameters": t.get("input_schema", {}),
+                        }
+                    }
+                    for t in tools
+                ]
+
+            response = await client.chat.completions.create(**kwargs)
+
+            # Debug: Print raw response structure
+            if os.environ.get("INKLING_DEBUG"):
+                print(f"[Ollama] Raw response: {response}")
+
+            message = response.choices[0].message
+            content = message.content or ""
+            tokens = response.usage.total_tokens if response.usage else 0
+
+            # Parse tool calls
+            tool_calls = []
+            if message.tool_calls:
+                for tc in message.tool_calls:
+                    tool_calls.append(ToolCall(
+                        id=tc.id,
+                        name=tc.function.name,
+                        arguments=json.loads(tc.function.arguments) if tc.function.arguments else {},
+                    ))
+
+            is_tool_use = len(tool_calls) > 0
+
+            return ThinkResult(
+                content=content,
+                tokens_used=tokens,
+                provider=self.name,
+                model=self.model,
+                tool_calls=tool_calls,
+                is_tool_use=is_tool_use,
+            )
+
+        except Exception as e:
+            error_str = str(e).lower()
+            if "rate" in error_str or "429" in error_str:
+                raise RateLimitError(f"Ollama rate limit: {e}")
+            if "quota" in error_str or "insufficient" in error_str:
+                raise QuotaExceededError(f"Ollama quota: {e}")
+            raise ProviderError(f"Ollama error: {e}")
+
+
 class Brain:
     """
     Multi-provider AI brain for Inkling.
@@ -451,7 +560,8 @@ class Brain:
         - anthropic: {api_key, model, max_tokens}
         - openai: {api_key, model, max_tokens}
         - gemini: {api_key, model, max_tokens}
-        - primary: "anthropic", "openai", or "gemini"
+        - ollama: {api_key, model, max_tokens, base_url}
+        - primary: "anthropic", "openai", "gemini", or "ollama"
         - budget: {daily_tokens, per_request_max}
 
         Args:
@@ -484,14 +594,16 @@ class Brain:
         anthropic_config = self.config.get("anthropic", {})
         openai_config = self.config.get("openai", {})
         gemini_config = self.config.get("gemini", {})
+        ollama_config = self.config.get("ollama", {})
 
         anthropic_key = anthropic_config.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
         openai_key = openai_config.get("api_key") or os.environ.get("OPENAI_API_KEY")
         gemini_key = gemini_config.get("api_key") or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        ollama_key = ollama_config.get("api_key") or os.environ.get("OLLAMA_API_KEY")
 
         # Debug output
         print(f"[Brain] Primary provider: {primary}")
-        print(f"[Brain] API keys detected: Anthropic={bool(anthropic_key)}, OpenAI={bool(openai_key)}, Gemini={bool(gemini_key)}")
+        print(f"[Brain] API keys detected: Anthropic={bool(anthropic_key)}, OpenAI={bool(openai_key)}, Gemini={bool(gemini_key)}, Ollama={bool(ollama_key)}")
 
         # Build provider list with primary first
         if primary == "anthropic" and anthropic_key:
@@ -506,6 +618,13 @@ class Brain:
                 model=gemini_config.get("model", "gemini-2.5-flash"),
                 max_tokens=gemini_config.get("max_tokens", 150),
             ))
+        elif primary == "ollama" and ollama_key:
+            self.providers.append(OllamaProvider(
+                api_key=ollama_key,
+                model=ollama_config.get("model", "llama3.3"),
+                max_tokens=ollama_config.get("max_tokens", 150),
+                base_url=ollama_config.get("base_url", "https://api.ollama.com/v1"),
+            ))
 
         if openai_key:
             self.providers.append(OpenAIProvider(
@@ -513,6 +632,15 @@ class Brain:
                 model=openai_config.get("model", "gpt-5-mini"),
                 max_tokens=openai_config.get("max_tokens", 150),
                 base_url=openai_config.get("base_url"),
+            ))
+
+        # Add ollama as fallback if not primary
+        if primary != "ollama" and ollama_key:
+            self.providers.append(OllamaProvider(
+                api_key=ollama_key,
+                model=ollama_config.get("model", "llama3.3"),
+                max_tokens=ollama_config.get("max_tokens", 150),
+                base_url=ollama_config.get("base_url", "https://api.ollama.com/v1"),
             ))
 
         # Add gemini as fallback if not primary

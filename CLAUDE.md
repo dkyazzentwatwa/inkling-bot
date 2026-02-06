@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Project Inkling is a **fully local** AI companion device for Raspberry Pi Zero 2W with e-ink display. It combines:
 - Pwnagotchi-style personality/mood system with XP/leveling
-- Local AI assistant via Anthropic/OpenAI/Gemini APIs with automatic fallback
+- Local AI assistant via Anthropic/OpenAI/Gemini/Ollama APIs with automatic fallback
 - Task management with AI integration via MCP
 - Scheduler for cron-style automated tasks
 - Model Context Protocol (MCP) for tool extensibility
@@ -67,6 +67,7 @@ Then add your keys:
 ANTHROPIC_API_KEY=sk-ant-your-key-here
 OPENAI_API_KEY=sk-your-key-here
 GOOGLE_API_KEY=your-google-api-key-here
+OLLAMA_API_KEY=your-ollama-api-key-here
 
 # Optional
 COMPOSIO_API_KEY=your-composio-key-here
@@ -81,6 +82,7 @@ INKLING_NO_DISPLAY_ECHO=1  # Disable ASCII display output in terminal/logs
 export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
 export GOOGLE_API_KEY=...
+export OLLAMA_API_KEY=...
 export COMPOSIO_API_KEY=...
 export INKLING_DEBUG=1  # Enable detailed logging
 export INKLING_NO_DISPLAY_ECHO=1  # Disable ASCII display output in terminal/logs
@@ -117,7 +119,7 @@ mcp_servers/
 - `Identity` class (core/crypto.py) still exists but is unused
 - Focus is now entirely on local AI companion functionality
 
-**Multi-provider AI**: `Brain` tries Anthropic first, falls back to OpenAI or Gemini. All use async clients with retry logic and token budgeting.
+**Multi-provider AI**: `Brain` tries Anthropic first, falls back to OpenAI, Ollama, or Gemini. All use async clients with retry logic and token budgeting.
 
 **Conversation Persistence**: `Brain` automatically saves conversation history to `~/.inkling/conversation.json`:
 - Saves after each message exchange
@@ -421,10 +423,12 @@ All commands defined in `core/commands.py` and available in both SSH and web mod
 Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 - `device.name`: Device name (editable via web UI)
 - `display.type`: `auto`, `v3`, `v4`, or `mock`
-- `ai.primary`: `anthropic`, `openai`, or `gemini`
+- `ai.primary`: `anthropic`, `openai`, `gemini`, or `ollama`
 - `ai.anthropic.model`: Model selection (claude-haiku-4-5/claude-sonnet-4-5/claude-opus-4-5)
 - `ai.openai.model`: Model selection (gpt-5-mini/gpt-5.2)
 - `ai.gemini.model`: Model selection (gemini-2.0-flash-exp/gemini-1.5-flash/gemini-1.5-pro)
+- `ai.ollama.model`: Model selection (llama3.3/llama3.1/qwen2.5/mistral/gemma2/phi4/deepseek-r1)
+- `ai.ollama.base_url`: Ollama API URL (default: https://api.ollama.com/v1)
 - `ai.budget.daily_tokens`: Daily token limit (default 10000)
 - `ai.budget.per_request_max`: Max tokens per request (default 500)
 - `personality.*`: Base trait values (curiosity, cheerfulness, verbosity, playfulness, empathy, independence - 0.0-1.0)

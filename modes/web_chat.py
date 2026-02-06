@@ -817,6 +817,7 @@ SETTINGS_TEMPLATE = """
                 <option value="anthropic">Anthropic (Claude)</option>
                 <option value="openai">OpenAI (GPT)</option>
                 <option value="gemini">Google (Gemini)</option>
+                <option value="ollama">Ollama Cloud</option>
             </select>
         </div>
 
@@ -843,6 +844,19 @@ SETTINGS_TEMPLATE = """
             <select id="gemini-model" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
                 <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (Fast)</option>
                 <option value="gemini-1.5-pro">Gemini 1.5 Pro (Capable)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label for="ollama-model">Ollama Model</label>
+            <select id="ollama-model" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
+                <option value="llama3.3">Llama 3.3 (Balanced)</option>
+                <option value="llama3.1">Llama 3.1 (Capable)</option>
+                <option value="qwen2.5">Qwen 2.5 (Multilingual)</option>
+                <option value="mistral">Mistral (Fast)</option>
+                <option value="gemma2">Gemma 2 (Compact)</option>
+                <option value="phi4">Phi 4 (Efficient)</option>
+                <option value="deepseek-r1">DeepSeek R1 (Reasoning)</option>
             </select>
         </div>
 
@@ -889,6 +903,7 @@ SETTINGS_TEMPLATE = """
                     document.getElementById('anthropic-model').value = data.ai.anthropic?.model || 'claude-3-haiku-20240307';
                     document.getElementById('openai-model').value = data.ai.openai?.model || 'gpt-4o-mini';
                     document.getElementById('gemini-model').value = data.ai.gemini?.model || 'gemini-2.0-flash-exp';
+                    document.getElementById('ollama-model').value = data.ai.ollama?.model || 'llama3.3';
                     document.getElementById('max-tokens').value = data.ai.budget?.max_tokens || 150;
                     document.getElementById('daily-tokens').value = data.ai.budget?.daily_tokens || 10000;
                 }
@@ -928,6 +943,9 @@ SETTINGS_TEMPLATE = """
                     },
                     gemini: {
                         model: document.getElementById('gemini-model').value,
+                    },
+                    ollama: {
+                        model: document.getElementById('ollama-model').value,
                     },
                     budget: {
                         daily_tokens: parseInt(document.getElementById('daily-tokens').value),
@@ -2556,6 +2574,9 @@ class WebChatMode:
                 "gemini": {
                     "model": self.brain.config.get("gemini", {}).get("model", "gemini-2.0-flash-exp"),
                 },
+                "ollama": {
+                    "model": self.brain.config.get("ollama", {}).get("model", "llama3.3"),
+                },
                 "budget": {
                     "daily_tokens": self.brain.budget.daily_limit,
                     "max_tokens": self.brain.config.get("budget", {}).get("per_request_max", 150),
@@ -3036,7 +3057,7 @@ class WebChatMode:
                 config["ai"]["primary"] = ai_settings["primary"]
 
             # Update provider-specific settings
-            for provider in ["anthropic", "openai", "gemini"]:
+            for provider in ["anthropic", "openai", "gemini", "ollama"]:
                 if provider in ai_settings:
                     if provider not in config["ai"]:
                         config["ai"][provider] = {}
