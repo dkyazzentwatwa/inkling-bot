@@ -15,17 +15,17 @@ ai:
   anthropic:
     api_key: ${ANTHROPIC_API_KEY}
     model: "claude-haiku-4-5"
-    max_tokens: 150
+    max_tokens: 1500
 
   # OpenAI settings (also works with compatible APIs)
   openai:
-    api_key: ${OPENAI_API_KEY}
+    api_key: ${OPENAI_API_KEY}  # For Ollama Cloud use ${OLLAMA_API_KEY}; for Groq use ${GROQ_API_KEY}
     model: "gpt-5-mini"
-    max_tokens: 150
+    max_tokens: 1500
     # base_url: null  # Default: OpenAI API
     #
     # Examples for OpenAI-compatible providers:
-    # Ollama (local): base_url: "http://localhost:11434/v1"
+    # Ollama Cloud:   base_url: "https://ollama.com/v1"
     # Together AI:    base_url: "https://api.together.xyz/v1"
     # Groq:           base_url: "https://api.groq.com/openai/v1"
     # OpenRouter:     base_url: "https://openrouter.ai/api/v1"
@@ -33,8 +33,8 @@ ai:
   # Gemini settings (fallback)
   gemini:
     api_key: ${GOOGLE_API_KEY}
-    model: "gemini-2.0-flash-exp"
-    max_tokens: 150
+    model: "gemini-2.5-flash"
+    max_tokens: 1500
 
   # Ollama cloud settings
   ollama:
@@ -46,8 +46,8 @@ ai:
 
   # Token budgets
   budget:
-    daily_tokens: 10000  # ~$0.03/day with Haiku
-    per_request_max: 500
+    daily_tokens: 100000  # ~$0.03/day with Haiku
+    per_request_max: 5000
 
 # Display Configuration
 display:
@@ -158,9 +158,9 @@ mcp:
     # Filesystem Access - Inkling Data Directory (built-in, Python)
     # AI can list, read, write, and search files in ~/.inkling/
     # Uncomment to enable
-    # filesystem-inkling:
-    #   command: "python"
-    #   args: ["mcp_servers/filesystem.py", "/home/pi/.inkling"]
+    filesystem-inkling:
+      command: "python"
+      args: ["mcp_servers/filesystem.py", "/home/pi/.inkling"]
 
     # Filesystem Access - SD Card (built-in, Python)
     # AI can list, read, write, and search files on SD card

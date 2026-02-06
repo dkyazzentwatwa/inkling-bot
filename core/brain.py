@@ -246,6 +246,12 @@ class OpenAIProvider(AIProvider):
             )
         return self._client
 
+    def _is_ollama_cloud(self) -> bool:
+        """Return True if base_url points to Ollama Cloud."""
+        if not self.base_url:
+            return False
+        return "ollama.com" in self.base_url.lower()
+
     async def generate(
         self,
         system_prompt: str,
@@ -266,8 +272,11 @@ class OpenAIProvider(AIProvider):
             kwargs = {
                 "model": self.model,
                 "messages": api_messages,
-                "max_completion_tokens": self.max_tokens,
             }
+            if self._is_ollama_cloud():
+                kwargs["max_tokens"] = self.max_tokens
+            else:
+                kwargs["max_completion_tokens"] = self.max_tokens
 
             # Convert tools to OpenAI format
             if tools:
@@ -597,13 +606,29 @@ class Brain:
         ollama_config = self.config.get("ollama", {})
 
         anthropic_key = anthropic_config.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
-        openai_key = openai_config.get("api_key") or os.environ.get("OPENAI_API_KEY")
-        gemini_key = gemini_config.get("api_key") or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        openai_base_url = openai_config.get("base_url")
+        ollama_cloud = bool(openai_base_url and "ollama.com" in openai_base_url.lower())
+        groq_cloud = bool(openai_base_url and "api.groq.com" in openai_base_url.lower())
+        if ollama_cloud:
+            openai_key = openai_config.get("api_key") or os.environ.get("OLLAMA_API_KEY")
+        elif groq_cloud:
+            openai_key = openai_config.get("api_key") or os.environ.get("GROQ_API_KEY")
+        else:
+            openai_key = openai_config.get("api_key") or os.environ.get("OPENAI_API_KEY")
+        gemini_key = (
+            gemini_config.get("api_key")
+            or os.environ.get("GOOGLE_API_KEY")
+            or os.environ.get("GEMINI_API_KEY")
+        )
         ollama_key = ollama_config.get("api_key") or os.environ.get("OLLAMA_API_KEY")
 
         # Debug output
         print(f"[Brain] Primary provider: {primary}")
-        print(f"[Brain] API keys detected: Anthropic={bool(anthropic_key)}, OpenAI={bool(openai_key)}, Gemini={bool(gemini_key)}, Ollama={bool(ollama_key)}")
+        print(
+            "[Brain] API keys detected: Anthropic="
+            f"{bool(anthropic_key)}, OpenAI={bool(openai_key)}, "
+            f"Gemini={bool(gemini_key)}, Ollama={bool(ollama_key)}"
+        )
 
         # Build provider list with primary first
         if primary == "anthropic" and anthropic_key:
@@ -631,8 +656,18 @@ class Brain:
                 api_key=openai_key,
                 model=openai_config.get("model", "gpt-5-mini"),
                 max_tokens=openai_config.get("max_tokens", 150),
-                base_url=openai_config.get("base_url"),
+                base_url=openai_base_url,
             ))
+        elif ollama_cloud:
+            print(
+                "[Brain] Warning: Ollama Cloud base_url set but no OLLAMA_API_KEY or "
+                "openai.api_key configured; skipping OpenAI provider."
+            )
+        elif groq_cloud:
+            print(
+                "[Brain] Warning: Groq base_url set but no GROQ_API_KEY or "
+                "openai.api_key configured; skipping OpenAI provider."
+            )
 
         # Add ollama as fallback if not primary
         if primary != "ollama" and ollama_key:

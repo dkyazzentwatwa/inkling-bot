@@ -9,7 +9,8 @@ This guide covers how to configure AI providers for your Inkling device.
 3. [Getting API Keys](#getting-api-keys)
 4. [Configuration Methods](#configuration-methods)
 5. [Provider-Specific Setup](#provider-specific-setup)
-6. [Using Local Models](#using-local-models)
+6. [Using Ollama Cloud](#using-ollama-cloud)
+7. [Groq (OpenAI-Compatible)](#groq-openai-compatible)
 7. [Troubleshooting](#troubleshooting)
 
 ---
@@ -37,7 +38,7 @@ That's it! Inkling will use Claude by default.
 | **Anthropic (Claude)** | Cloud | Pay-per-token | Primary use, best quality |
 | **OpenAI (GPT)** | Cloud | Pay-per-token | Fallback option |
 | **Google (Gemini)** | Cloud | Free tier available | Budget-conscious |
-| **Ollama** | Local | Free | Privacy, offline use |
+| **Ollama** | Cloud | API key required | Hosted models via Ollama Cloud |
 | **Groq** | Cloud | Free tier | Fast inference |
 | **Together AI** | Cloud | Pay-per-token | Open-source models |
 | **OpenRouter** | Cloud | Pay-per-token | Model variety |
@@ -217,6 +218,7 @@ pip install google-genai
 ### Groq (OpenAI-Compatible)
 
 Groq provides extremely fast inference using their custom LPU hardware.
+Set `GROQ_API_KEY` and use the OpenAI-compatible base URL.
 
 ```yaml
 ai:
@@ -262,70 +264,34 @@ ai:
 
 ---
 
-## Using Local Models
+## Using Ollama Cloud
 
-### Ollama (Recommended for Local)
+### Ollama Cloud (Recommended)
 
-[Ollama](https://ollama.ai) runs open-source models locally. Great for privacy and offline use.
+[Ollama Cloud](https://ollama.com) provides hosted models behind an OpenAI-compatible API.
+It requires an API key and a cloud base URL.
 
-#### 1. Install Ollama
+#### 1. Create an API Key
 
-```bash
-# Linux/WSL
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# macOS
-brew install ollama
-```
-
-#### 2. Pull a Model
+1. Go to [ollama.com](https://ollama.com)
+2. Create an API key
+3. Set it as an environment variable:
 
 ```bash
-# Small and fast (good for Pi)
-ollama pull llama3.2:1b
-
-# Better quality (needs more RAM)
-ollama pull llama3.2:3b
-
-# Best quality (needs 8GB+ RAM)
-ollama pull llama3.2
+export OLLAMA_API_KEY="your_ollama_cloud_key"
 ```
 
-#### 3. Start Ollama Server
-
-```bash
-ollama serve
-```
-
-#### 4. Configure Inkling
+#### 2. Configure Inkling
 
 ```yaml
 ai:
   primary: "openai"
 
   openai:
-    api_key: "ollama"  # Ollama doesn't check this
-    base_url: "http://localhost:11434/v1"
-    model: "llama3.2:1b"
+    api_key: ${OLLAMA_API_KEY}
+    base_url: "https://ollama.com/v1"
+    model: "gpt-oss:20b"
     max_tokens: 150
-```
-
-#### Running Ollama on Pi
-
-The Pi Zero 2W has limited RAM (512MB). For best results:
-
-```bash
-# Use the smallest model
-ollama pull llama3.2:1b
-
-# Or try TinyLlama
-ollama pull tinyllama
-```
-
-Consider running Ollama on a separate machine and pointing to it:
-```yaml
-openai:
-  base_url: "http://192.168.1.100:11434/v1"  # Another machine
 ```
 
 ---
@@ -413,17 +379,12 @@ Install the Gemini SDK:
 pip install google-genai
 ```
 
-### Ollama Connection Refused
+### Ollama Cloud Auth Error
 
-Make sure Ollama is running:
-```bash
-ollama serve
-```
-
-Check it's accessible:
-```bash
-curl http://localhost:11434/v1/models
-```
+If you see authentication errors, verify:
+1. `OLLAMA_API_KEY` is set in your environment
+2. `openai.base_url` is `https://ollama.com/v1`
+3. Your key is active on ollama.com
 
 ### OpenAI-Compatible Provider Errors
 
@@ -436,7 +397,7 @@ Some providers need specific headers. Check their documentation for requirements
 | Use Case | Recommended | Why |
 |----------|-------------|-----|
 | **Daily use** | Claude Haiku | Best quality/cost ratio |
-| **Offline/Privacy** | Ollama + Llama3.2:1b | Runs locally |
+| **Hosted open models** | Ollama Cloud | OpenAI-compatible hosted models |
 | **Free tier** | Groq + Llama 3.3 | Generous free tier |
 | **Fastest** | Groq | Custom LPU hardware |
 | **Budget** | Gemini Flash | Free tier available |
