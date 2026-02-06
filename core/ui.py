@@ -384,9 +384,9 @@ class MessagePanel:
         if not ctx.message:
             return
 
-        # Word wrap to fit panel (approx 40 chars per line at font size 11, full width)
-        max_chars_per_line = 40
-        lines = word_wrap(ctx.message, max_chars_per_line)
+        # Pixel-based word wrap with actual font measurement
+        max_width = self.width - 10  # Leave some margin
+        lines = word_wrap_pixels(ctx.message, max_width, self.fonts.normal, draw)
 
         # Calculate starting Y to vertically center text block
         line_height = MESSAGE_LINE_HEIGHT
@@ -547,6 +547,9 @@ def word_wrap(text: str, max_chars: int = 35) -> List[str]:
     """
     Wrap text to fit within max_chars per line.
 
+    DEPRECATED: Use word_wrap_pixels() for pixel-accurate wrapping.
+    This is kept for backward compatibility with non-display uses (terminal output, etc).
+
     Args:
         text: Text to wrap
         max_chars: Maximum characters per line
@@ -565,6 +568,69 @@ def word_wrap(text: str, max_chars: int = 35) -> List[str]:
             if current_line:
                 lines.append(current_line)
             current_line = word[:max_chars]
+
+    if current_line:
+        lines.append(current_line)
+
+    return lines
+
+
+def word_wrap_pixels(
+    text: str,
+    max_width: int,
+    font: ImageFont.ImageFont,
+    draw: ImageDraw.ImageDraw
+) -> List[str]:
+    """
+    Wrap text based on actual pixel width using the given font.
+
+    This is the preferred method for display text wrapping as it handles
+    variable-width fonts correctly and prevents text cutoff.
+
+    Args:
+        text: Text to wrap
+        max_width: Maximum width in pixels
+        font: Font to use for measuring
+        draw: ImageDraw object for text measurement
+
+    Returns:
+        List of wrapped lines
+    """
+    words = text.split()
+    lines = []
+    current_line = ""
+
+    for word in words:
+        # Measure width of current line + new word
+        test_line = current_line + (" " if current_line else "") + word
+        bbox = draw.textbbox((0, 0), test_line, font=font)
+        width = bbox[2] - bbox[0]
+
+        if width <= max_width:
+            # Fits on current line
+            current_line = test_line
+        else:
+            # Doesn't fit - start new line
+            if current_line:
+                lines.append(current_line)
+
+            # Check if single word is too long
+            bbox = draw.textbbox((0, 0), word, font=font)
+            word_width = bbox[2] - bbox[0]
+
+            if word_width > max_width:
+                # Word is too long - break it with hyphen
+                current_line = ""
+                for i in range(len(word)):
+                    test = current_line + word[i]
+                    bbox = draw.textbbox((0, 0), test + "-", font=font)
+                    if bbox[2] - bbox[0] > max_width and current_line:
+                        lines.append(current_line + "-")
+                        current_line = word[i]
+                    else:
+                        current_line = test
+            else:
+                current_line = word
 
     if current_line:
         lines.append(current_line)

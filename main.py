@@ -423,6 +423,14 @@ class Inkling:
             except Exception as e:
                 print(f"[Personality] Failed to save state: {e}")
 
+        # Save conversation history
+        if self.brain:
+            try:
+                self.brain.save_messages()
+                print("[Brain] Conversation saved")
+            except Exception as e:
+                print(f"[Brain] Failed to save conversation: {e}")
+
         if self.display:
             self.display.sleep()
 

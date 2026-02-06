@@ -993,10 +993,19 @@ TASKS_TEMPLATE = """
         }
 
         /* Theme support */
+        [data-theme="cream"] { --bg: #f5f5f0; --text: #1a1a1a; --border: #333; --muted: #666; --accent: #4a90d9; }
         [data-theme="pink"] { --bg: #ffe4e9; --text: #4a1a28; --border: #d4758f; --accent: #ff6b9d; }
         [data-theme="mint"] { --bg: #e0f5f0; --text: #1a3a33; --border: #6eb5a3; --accent: #52d9a6; }
         [data-theme="lavender"] { --bg: #f0e9ff; --text: #2a1a4a; --border: #9d85d4; --accent: #a78bfa; }
         [data-theme="peach"] { --bg: #ffe9dc; --text: #4a2a1a; --border: #d49675; --accent: #ffab7a; }
+        [data-theme="sky"] { --bg: #e0f0ff; --text: #1a2e4a; --border: #6ba3d4; --accent: #5eb3ff; }
+        [data-theme="butter"] { --bg: #fff9e0; --text: #4a3f1a; --border: #d4c175; --accent: #ffd952; }
+        [data-theme="rose"] { --bg: #fff0f3; --text: #4a1a2a; --border: #d47590; --accent: #ff9eb8; }
+        [data-theme="sage"] { --bg: #e8f5e8; --text: #1a3a1a; --border: #75a375; --accent: #6dbf6d; }
+        [data-theme="periwinkle"] { --bg: #e8e8ff; --text: #1a1a4a; --border: #7575d4; --accent: #8c8cff; }
+        [data-theme="dark"] { --bg: #1a1a1a; --text: #e5e5e5; --border: #444; --muted: #888; --accent: #6ab0f3; }
+        [data-theme="midnight"] { --bg: #0d1117; --text: #c9d1d9; --border: #30363d; --muted: #8b949e; --accent: #58a6ff; }
+        [data-theme="charcoal"] { --bg: #2b2b2b; --text: #e8e6e3; --border: #555; --muted: #999; --accent: #ffa657; }
 
         * {
             margin: 0;
@@ -1834,6 +1843,9 @@ FILES_TEMPLATE = """
         [data-theme="rose"] { --bg: #fff0f3; --text: #4a1a2a; --border: #d47590; --muted: #8f5068; --accent: #ff9eb8; }
         [data-theme="sage"] { --bg: #e8f5e8; --text: #1a3a1a; --border: #75a375; --muted: #507050; --accent: #6dbf6d; }
         [data-theme="periwinkle"] { --bg: #e8e8ff; --text: #1a1a4a; --border: #7575d4; --muted: #505068; --accent: #8c8cff; }
+        [data-theme="dark"] { --bg: #1a1a1a; --text: #e5e5e5; --border: #444; --muted: #888; --accent: #6ab0f3; }
+        [data-theme="midnight"] { --bg: #0d1117; --text: #c9d1d9; --border: #30363d; --muted: #8b949e; --accent: #58a6ff; }
+        [data-theme="charcoal"] { --bg: #2b2b2b; --text: #e8e6e3; --border: #555; --muted: #999; --accent: #ffa657; }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1854,17 +1866,19 @@ FILES_TEMPLATE = """
             border-bottom: 2px solid var(--border);
             padding-bottom: 1rem;
             margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         h1 {
             font-size: 1.8rem;
-            margin-bottom: 0.5rem;
+            margin: 0;
         }
 
         .nav {
             display: flex;
             gap: 1rem;
-            margin-top: 0.5rem;
         }
 
         .nav a {

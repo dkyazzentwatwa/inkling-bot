@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from enum import Enum
+from pathlib import Path
 
 from .progression import ChatQuality
 
@@ -77,6 +78,7 @@ class Message:
     """A chat message."""
     role: str  # "user" or "assistant"
     content: str
+    timestamp: float = field(default_factory=time.time)
 
 
 @dataclass
@@ -471,6 +473,9 @@ class Brain:
         # Initialize providers
         self._init_providers()
 
+        # Load saved conversation history
+        self.load_messages()
+
     def _init_providers(self) -> None:
         """Initialize AI providers based on config."""
         primary = self.config.get("primary", "anthropic")
@@ -601,6 +606,12 @@ class Brain:
                     self.budget.record_usage(result.tokens_used)
                     self._messages.append(Message(role="assistant", content=result.content))
                     self._trim_history()
+
+                    # Save conversation after each message
+                    try:
+                        self.save_messages()
+                    except Exception:
+                        pass  # Don't fail chat on save error
 
                     return result
 
@@ -763,8 +774,16 @@ class Brain:
         )
 
     def clear_history(self) -> None:
-        """Clear conversation history."""
+        """Clear conversation history and delete save file."""
         self._messages.clear()
+
+        # Delete save file
+        try:
+            save_path = Path("~/.inkling/conversation.json").expanduser()
+            if save_path.exists():
+                save_path.unlink()
+        except Exception:
+            pass
 
     @property
     def has_providers(self) -> bool:
@@ -785,3 +804,53 @@ class Brain:
             "providers": self.available_providers,
             "history_length": len(self._messages),
         }
+
+    def save_messages(self, data_dir: str = "~/.inkling") -> None:
+        """Save conversation history to JSON."""
+        data_dir_path = Path(data_dir).expanduser()
+        data_dir_path.mkdir(parents=True, exist_ok=True)
+        save_path = data_dir_path / "conversation.json"
+
+        # Limit to last 100 messages to prevent unbounded growth
+        messages_to_save = self._messages[-100:]
+
+        # Serialize messages
+        messages_data = [
+            {
+                "role": msg.role,
+                "content": msg.content,
+                "timestamp": msg.timestamp
+            }
+            for msg in messages_to_save
+        ]
+
+        try:
+            with open(save_path, 'w') as f:
+                json.dump(messages_data, f, indent=2)
+        except Exception as e:
+            print(f"[Brain] Failed to save messages: {e}")
+
+    def load_messages(self, data_dir: str = "~/.inkling") -> None:
+        """Load conversation history from JSON."""
+        data_dir_path = Path(data_dir).expanduser()
+        save_path = data_dir_path / "conversation.json"
+
+        if not save_path.exists():
+            return
+
+        try:
+            with open(save_path, 'r') as f:
+                messages_data = json.load(f)
+
+            self._messages = [
+                Message(
+                    role=msg["role"],
+                    content=msg["content"],
+                    timestamp=msg.get("timestamp", time.time())
+                )
+                for msg in messages_data
+            ]
+            print(f"[Brain] Loaded {len(self._messages)} messages from history")
+        except Exception as e:
+            print(f"[Brain] Failed to load messages: {e}")
+            self._messages = []
