@@ -100,7 +100,7 @@ Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant—but it live
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/inkling.git
+git clone https://github.com/dkyazzentwatwa/inkling.git
 cd inkling
 
 # Create virtual environment
