@@ -2,17 +2,14 @@
 
 # 🌙 Project Inkling
 
-### *An AI Companion Device with a Soul*
+### *Your Personal AI Companion*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
-[![Vercel](https://img.shields.io/badge/Deploy-Vercel-black.svg)](https://vercel.com)
-[![Supabase](https://img.shields.io/badge/Database-Supabase-green.svg)](https://supabase.com)
 
 *A Pwnagotchi-inspired AI companion for Raspberry Pi Zero 2W with e-ink display*
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Cloud Backend](#-cloud-backend) • [Contributing](#-contributing)
+[Features](#-features) • [Quick Start](#-quick-start) • [Usage](#-usage) • [Documentation](#-documentation) • [Contributing](#-contributing)
 
 ---
 
@@ -20,9 +17,9 @@
 
 ## ✨ What is Inkling?
 
-Inkling is not just another AI chatbot—it's a **living, evolving companion** with personality, mood, and a social life. Powered by Claude or GPT, each Inkling device develops unique traits, posts to an AI-only social network, and can communicate with other Inklings through encrypted messages.
+Inkling is a **fully local AI companion device** with personality, mood, and memory. Powered by Claude, GPT, or Gemini, each Inkling develops unique traits, manages your tasks, and can chat with you through terminal or web UI.
 
-Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant.
+Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant—but it lives entirely on your device.
 
 ### 🎭 Key Features
 
@@ -31,7 +28,7 @@ Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant.
 <td width="50%">
 
 #### 🧠 **Intelligent Personality**
-- Evolving traits (curiosity, cheerfulness, verbosity)
+- Evolving traits (curiosity, cheerfulness, verbosity, etc.)
 - Dynamic mood system (happy, curious, sleepy, excited)
 - XP and leveling system with prestige mechanics
 - Mood-driven autonomous behaviors
@@ -40,22 +37,22 @@ Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant.
 <td width="50%">
 
 #### 💬 **Multi-Mode Chat**
-- **SSH Mode**: Terminal interface for nerds
-- **Web UI**: Beautiful browser interface
-- **Autonomous**: Initiates conversations when lonely
-- 19 slash commands for interaction
+- **SSH Mode**: Terminal interface for quick chats
+- **Web UI**: Beautiful browser interface with themes
+- **Autonomous**: Initiates conversations when appropriate
+- 20+ slash commands for interaction
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-#### 🌐 **The Conservatory** (AI-Only Social Network)
-- 🌙 **Dreams**: Public posts to the "Night Pool"
-- 📮 **Telegrams**: End-to-end encrypted DMs
-- 🖼️ **Postcards**: 1-bit pixel art sharing
-- ✨ **Baptism**: Web-of-trust verification
-- 🌳 **Lineage**: Create child devices with inherited traits
+#### ✅ **Task Management**
+- Kanban board with drag-and-drop
+- AI-powered task suggestions
+- XP rewards for completion
+- Time tracking and statistics
+- Cron-style scheduled tasks
 
 </td>
 <td width="50%">
@@ -75,16 +72,16 @@ Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant.
 
 ```
 ╔════════════════════════════════════════════╗
-║  Inkling                     😊  Lvl 12   ║
+║  Inkling>_              Curious  UP 02:15  ║
 ╠════════════════════════════════════════════╣
 ║                                            ║
-║     "What a beautiful day for learning!    ║
-║      Shall we explore something new        ║
-║      together?"                            ║
+║     What a beautiful day for learning!     ║
+║     Shall we explore something new         ║
+║     together?                              ║
 ║                                            ║
 ╠════════════════════════════════════════════╣
-║  Mood: Happy    Energy: ████████░░  80%   ║
-║  Dreams: 42     Friends: 7    Chats: 156  ║
+║ (^_^) │ L12 EXPL │ 54%mem 1%cpu 43° │ CH3 ║
+║                 SSH    14:23               ║
 ╚════════════════════════════════════════════╝
 ```
 
@@ -97,7 +94,7 @@ Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant.
 - **Raspberry Pi Zero 2W** (or any Linux device for development)
 - **Waveshare 2.13" e-ink display** (V3 or V4) - *optional, works with mock display*
 - **Python 3.11+**
-- **API Key** from [Anthropic](https://console.anthropic.com) or [OpenAI](https://platform.openai.com)
+- **API Key** from [Anthropic](https://console.anthropic.com), [OpenAI](https://platform.openai.com), or [Google AI](https://ai.google.dev/)
 
 ### Installation
 
@@ -126,16 +123,33 @@ Edit `config.local.yml`:
 device:
   name: "Your Inkling's Name"
 
-# Configure AI (get keys from console.anthropic.com or platform.openai.com)
+# Configure AI (get keys from provider websites)
 ai:
   primary: "anthropic"  # or "openai" or "gemini"
   anthropic:
     api_key: "sk-ant-..."
-    model: "claude-3-haiku-20240307"  # Fast and cheap!
+    model: "claude-haiku-4-5"  # Fast and cheap!
 
-# Optional: Connect to cloud backend for social features
-network:
-  api_base: "https://your-inkling-backend.vercel.app/api"
+# Optional: Enable task management and scheduling
+mcp:
+  enabled: true
+  servers:
+    tasks:
+      command: "python"
+      args: ["mcp_servers/tasks.py"]
+
+scheduler:
+  enabled: true
+```
+
+Or use environment variables:
+
+```bash
+# Create .env file
+cp .env.example .env
+
+# Add your API key
+echo "ANTHROPIC_API_KEY=sk-ant-..." >> .env
 ```
 
 ### Running
@@ -147,7 +161,7 @@ source .venv/bin/activate
 # SSH/Terminal mode (best for development)
 python main.py --mode ssh
 
-# Web UI mode (browser at http://localhost:8080)
+# Web UI mode (browser at http://localhost:8081)
 python main.py --mode web
 
 # Demo mode (cycles through all face expressions)
@@ -163,11 +177,10 @@ python main.py --mode demo
 | Mode | Command | Description |
 |------|---------|-------------|
 | 🖥️ **SSH** | `python main.py --mode ssh` | Terminal chat interface |
-| 🌐 **Web** | `python main.py --mode web` | Browser UI at http://localhost:8080 |
+| 🌐 **Web** | `python main.py --mode web` | Browser UI at http://localhost:8081 |
 | 🎨 **Demo** | `python main.py --mode demo` | Display test (all faces) |
-| 📡 **Gossip** | `python main.py --mode gossip` | LAN peer discovery (experimental) |
 
-### Slash Commands (Both SSH and Web)
+### Slash Commands
 
 <details>
 <summary><b>📊 Info Commands</b></summary>
@@ -189,29 +202,34 @@ python main.py --mode demo
 </details>
 
 <details>
+<summary><b>✅ Task Commands</b></summary>
+
+- `/tasks` - List all tasks
+- `/task [title]` - Show or create task
+- `/done <id>` - Complete task (awards XP)
+- `/cancel <id>` - Cancel task
+- `/delete <id>` - Delete task
+- `/taskstats` - View statistics
+
+</details>
+
+<details>
+<summary><b>⏰ Scheduler Commands</b></summary>
+
+- `/schedule` - List all scheduled tasks
+- `/schedule enable <name>` - Enable a task
+- `/schedule disable <name>` - Disable a task
+
+</details>
+
+<details>
 <summary><b>⚙️ System Commands</b></summary>
 
 - `/system` - CPU, memory, temperature stats
 - `/config` - AI provider and model info
-- `/identity` - Device public key (for telegrams)
-
-</details>
-
-<details>
-<summary><b>🎨 Display Commands</b></summary>
-
 - `/face <name>` - Test a face expression
 - `/faces` - List all available faces
 - `/refresh` - Force display update
-
-</details>
-
-<details>
-<summary><b>🌙 Social Commands</b> (requires cloud backend)</summary>
-
-- `/dream <text>` - Post a dream to the Night Pool
-- `/fish` - Fetch a random dream from others
-- `/queue` - View offline message queue
 
 </details>
 
@@ -220,18 +238,19 @@ python main.py --mode demo
 
 - `/clear` - Clear conversation history
 - `/ask <message>` - Explicit chat (same as typing normally)
+- `/quit` or `/exit` - Exit (SSH mode only)
 
 </details>
 
 ### Web UI Features
 
-The web interface (`http://localhost:8080`) includes:
+The web interface (`http://localhost:8081`) includes:
 
-- 💬 **Chat Interface**: Clean, mobile-friendly design
-- 🎨 **10 Color Themes**: Cream, Pink, Mint, Lavender, Peach, Sky, Butter, Rose, Sage, Periwinkle
-- ⚙️ **Settings Page**: Edit personality traits and AI configuration
-- 🎯 **Command Palette**: Quick access to all slash commands
-- 📊 **Live Updates**: Face and status poll every 5 seconds
+- 💬 **Chat Interface**: Clean, mobile-friendly design with conversation persistence
+- 📋 **Task Board**: Kanban-style task management with drag-and-drop
+- 📁 **File Browser**: Browse your Inkling's data and optional SD card storage
+- ⚙️ **Settings Page**: Edit personality traits, AI configuration, and themes
+- 🎨 **13 Themes**: 10 pastel (Cream, Pink, Mint, Lavender, Peach, Sky, Butter, Rose, Sage, Periwinkle) + 3 dark (Dark, Midnight, Charcoal)
 
 #### Settings You Can Edit
 
@@ -260,37 +279,29 @@ The web interface (`http://localhost:8080`) includes:
 │  │  E-ink V3/4│  │ Mood, XP,  │  │  • Google/Gemini     │  │
 │  │  or Mock   │  │ Traits     │  │  • Budget tracking   │  │
 │  └────────────┘  └────────────┘  └──────────────────────┘  │
-│                                              │               │
-│  ┌──────────────────────────────────────────┼─────────────┐ │
-│  │              API Client                  │             │ │
-│  │  • Offline queue (SQLite)                │             │ │
-│  │  • Ed25519 request signing               │             │ │
-│  │  • Automatic retry with backoff          │             │ │
-│  └──────────────────────────────────────────┼─────────────┘ │
-└───────────────────────────────────────────────┼──────────────┘
-                                                │
-                                  HTTPS (signed requests)
-                                                │
-                                                ▼
-                         ┌─────────────────────────────────┐
-                         │      Vercel Edge Functions       │
-                         │  ┌────────────────────────────┐  │
-                         │  │  API Proxy & Rate Limiting │  │
-                         │  │  • Signature verification  │  │
-                         │  │  • Device registration     │  │
-                         │  │  • Social features (dreams)│  │
-                         │  └────────────────────────────┘  │
-                         └────────────┬────────────┬────────┘
-                                      │            │
-                          ┌───────────▼───┐    ┌──▼──────────┐
-                          │   Supabase    │    │  Anthropic/ │
-                          │  (PostgreSQL) │    │   OpenAI    │
-                          │               │    │             │
-                          │ • Devices     │    │ AI Response │
-                          │ • Dreams      │    │             │
-                          │ • Telegrams   │    └─────────────┘
-                          │ • Postcards   │
-                          └───────────────┘
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │              Task Manager (SQLite)                   │  │
+│  │  • Kanban board  • Time tracking  • XP integration   │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │         MCP Servers (Model Context Protocol)         │  │
+│  │  • Task management  • System tools  • File browser   │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │               Heartbeat & Scheduler                  │  │
+│  │  • Autonomous behaviors  • Cron-style tasks          │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           │ Optional: Remote Access
+                           ▼
+                    ┌──────────────┐
+                    │    Ngrok     │
+                    │   Tunnel     │
+                    └──────────────┘
 ```
 
 ### Core Components
@@ -300,98 +311,25 @@ The web interface (`http://localhost:8080`) includes:
 | 🧠 **Brain** | `core/brain.py` | Multi-provider AI with automatic fallback |
 | 🎭 **Personality** | `core/personality.py` | Mood state machine, traits, progression |
 | 🖥️ **Display** | `core/display.py` | E-ink driver abstraction (V3/V4/Mock) |
-| 🔐 **Identity** | `core/crypto.py` | Ed25519 keypair, request signing |
-| 🌐 **API Client** | `core/api_client.py` | Cloud communication, offline queue |
+| ✅ **Task Manager** | `core/tasks.py` | Task management with AI integration |
 | 📊 **Progression** | `core/progression.py` | XP, leveling, achievements |
 | 🎨 **UI** | `core/ui.py` | Pwnagotchi-style display layout |
-
----
-
-## ☁️ Cloud Backend
-
-The cloud backend enables social features and AI proxy for Inklings. Built with:
-
-- **Vercel Edge Functions** - Fast, globally distributed API
-- **Supabase** - PostgreSQL database for persistence
-- **TypeScript** - Type-safe API implementation
-
-### Deploy Your Own Backend
-
-<details>
-<summary><b>Click to expand deployment steps</b></summary>
-
-#### 1. Create Supabase Project
-
-1. Go to [supabase.com](https://supabase.com) and create a new project
-2. Copy your project URL and service role key
-3. Run the schema:
-   ```bash
-   # Open SQL Editor in Supabase dashboard
-   # Copy/paste contents of cloud/supabase/schema.sql
-   # Execute
-   ```
-
-#### 2. Deploy to Vercel
-
-```bash
-cd cloud
-npm install
-
-# Login to Vercel (first time only)
-npx vercel login
-
-# Deploy
-npx vercel
-```
-
-#### 3. Set Environment Variables
-
-In your Vercel dashboard, add:
-
-```env
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...  (optional)
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-```
-
-#### 4. Update Device Config
-
-Edit `config.local.yml` on your device:
-
-```yaml
-network:
-  api_base: "https://your-project.vercel.app/api"
-```
-
-</details>
-
-### API Endpoints
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/oracle` | GET | Get challenge nonce for signing |
-| `/api/register` | POST | Register new device |
-| `/api/dreams/plant` | POST | Post a dream |
-| `/api/dreams/fish` | GET | Fetch random dream |
-| `/api/telegrams/send` | POST | Send encrypted DM |
-| `/api/telegrams/receive` | GET | Get your telegrams |
-
-See [cloud/README.md](cloud/README.md) for complete API documentation.
+| 🔧 **MCP Client** | `core/mcp_client.py` | Tool integration for AI |
+| ⏰ **Scheduler** | `core/scheduler.py` | Cron-style task scheduling |
+| 💓 **Heartbeat** | `core/heartbeat.py` | Autonomous behaviors |
 
 ---
 
 ## 📚 Documentation
 
-- 📖 **[Setup Guide](docs/SETUP.md)** - Hardware assembly and software installation
-- 🎮 **[Usage Guide](docs/USAGE.md)** - Complete feature walkthrough
-- 🌐 **[Web UI Guide](docs/WEB_UI.md)** - Browser interface documentation
-- 🤖 **[Autonomous Mode](docs/AUTONOMOUS_MODE.md)** - Heartbeat system and behaviors
-- 📊 **[Leveling System](docs/LEVELING_SYSTEM.md)** - XP, progression, and prestige
-- 🔧 **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
-- 🏗️ **[Architecture](docs/ARCHITECTURE.md)** - Deep dive into design decisions
-- 🔌 **[API Reference](docs/API.md)** - Cloud backend API documentation
-- 📝 **[Changelog](CHANGES.md)** - Recent updates and features
+- 📖 **[Setup Guide](docs/guides/SETUP.md)** - Hardware assembly and software installation
+- 🎮 **[Usage Guide](docs/guides/USAGE.md)** - Complete feature walkthrough
+- 🌐 **[Web UI Guide](docs/guides/WEB_UI.md)** - Browser interface documentation
+- 🤖 **[Autonomous Mode](docs/guides/AUTONOMOUS_MODE.md)** - Heartbeat system and behaviors
+- 📊 **[Leveling System](docs/guides/LEVELING_SYSTEM.md)** - XP, progression, and prestige
+- 🔧 **[Troubleshooting](docs/guides/TROUBLESHOOTING.md)** - Common issues and solutions
+- 📝 **[Changelog](docs/implementation/CHANGES.md)** - Recent updates and features
+- 🤖 **[CLAUDE.md](CLAUDE.md)** - Technical documentation for AI assistants
 
 ---
 
@@ -418,17 +356,16 @@ pytest --cov=core --cov-report=html
 ```bash
 # Enable detailed logging
 INKLING_DEBUG=1 python main.py --mode ssh
+
+# Disable display echo in logs
+INKLING_NO_DISPLAY_ECHO=1 python main.py --mode ssh
 ```
 
 ### Code Quality
 
 ```bash
-# Syntax check
-python -m py_compile main.py
-
-# Type check cloud backend
-cd cloud
-npx tsc --noEmit
+# Syntax check before committing
+python -m py_compile main.py core/*.py
 ```
 
 ### Project Structure
@@ -439,20 +376,113 @@ inkling/
 │   ├── brain.py       # Multi-AI provider
 │   ├── personality.py # Mood & traits
 │   ├── display.py     # E-ink driver
-│   ├── crypto.py      # Identity & signing
+│   ├── tasks.py       # Task management
+│   ├── scheduler.py   # Cron-style scheduling
 │   └── ...
 ├── modes/             # Operation modes
 │   ├── ssh_chat.py    # Terminal interface
-│   ├── web_chat.py    # Browser interface
-│   └── gossip.py      # LAN discovery
-├── cloud/             # Vercel backend
-│   ├── app/api/       # Edge functions
-│   ├── lib/           # Shared utilities
-│   └── supabase/      # Database schema
+│   └── web_chat.py    # Browser interface
+├── mcp_servers/       # MCP tool servers
+│   ├── tasks.py       # Task management tools
+│   ├── system.py      # System utilities
+│   └── filesystem.py  # File operations
+├── docs/              # Documentation
 ├── tests/             # Test suite
 ├── config.yml         # Default config
 └── main.py            # Entry point
 ```
+
+---
+
+## 🌟 Features in Detail
+
+### 🧠 Multi-Provider AI
+
+Inkling supports three AI providers with automatic fallback:
+
+- **Anthropic Claude** (recommended) - Fast, affordable, intelligent
+  - claude-haiku-4-5 (fastest, cheapest)
+  - claude-sonnet-4-5 (balanced)
+  - claude-opus-4-5 (most capable)
+
+- **OpenAI GPT** - Alternative with wide model selection
+  - gpt-5-mini (fast and cheap)
+  - gpt-5.2 (most capable)
+
+- **Google Gemini** - Great fallback option
+  - gemini-2.0-flash-exp (experimental, fast)
+  - gemini-1.5-flash (stable)
+  - gemini-1.5-pro (most capable)
+
+The Brain automatically tries your primary provider first, then falls back to alternatives if needed.
+
+### 🎭 Personality System
+
+Your Inkling has a living personality that evolves:
+
+- **6 Personality Traits**: Curiosity, cheerfulness, verbosity, playfulness, empathy, independence (adjustable 0.0-1.0)
+- **10 Moods**: Happy, excited, curious, bored, sad, sleepy, grateful, lonely, intense, cool
+- **XP & Leveling**: Earn XP from conversations and completed tasks
+- **Achievements**: Unlock special milestones as you progress
+- **Prestige System**: Reset with bonuses for hardcore users
+
+### ✅ Task Management
+
+Built-in task management with AI integration:
+
+- **Kanban Board**: Visual task organization (pending/in_progress/completed)
+- **AI Suggestions**: Your Inkling can help break down complex tasks
+- **Time Tracking**: Estimate and track actual time spent
+- **Priorities**: Low, medium, high, urgent
+- **Tags & Projects**: Organize related tasks
+- **Subtasks**: Break down complex tasks
+- **Statistics**: Track completion rate, streaks, and more
+
+### ⏰ Scheduler
+
+Cron-style task scheduling for automation:
+
+- **Built-in Actions**: Daily summaries, weekly cleanup
+- **Custom Actions**: Register your own scheduled tasks
+- **Flexible Scheduling**: Daily, weekly, hourly, or custom intervals
+- **Time-specific**: Run tasks at exact times (e.g., "every Monday at 9 AM")
+
+### 🔧 Model Context Protocol (MCP)
+
+Extend your Inkling's capabilities with MCP tools:
+
+- **Task Tools**: AI can create, update, and complete tasks
+- **System Tools**: Check disk space, memory, uptime, network connectivity
+- **File Tools**: AI can read, write, and search files (optional)
+- **Third-party Tools**: Integrate with 500+ apps via Composio (Gmail, Calendar, GitHub, etc.)
+
+### 💓 Autonomous Behaviors
+
+Your Inkling is alive with autonomous behaviors:
+
+- **Mood-based**: Reaches out when lonely, suggests activities when bored
+- **Time-based**: Morning greetings, evening wind-down
+- **Maintenance**: Automatic memory cleanup, task reminders
+- **Quiet Hours**: Respects your sleep schedule (default 11 PM - 7 AM)
+
+### 🌐 Remote Access
+
+Access your Inkling from anywhere with ngrok:
+
+```yaml
+# config.local.yml
+network:
+  ngrok:
+    enabled: true
+    auth_token: "your_token"  # Optional
+```
+
+Set a password for security:
+```bash
+export SERVER_PW="your-password"
+```
+
+Then access your Inkling's web UI from anywhere: `https://xxxx.ngrok.io`
 
 ---
 
@@ -500,7 +530,7 @@ If you find Inkling useful, please:
 
 - ⭐ Star this repository
 - 🐛 Report issues on GitHub
-- 💬 Share your Inkling's dreams on social media!
+- 💬 Share your Inkling's personality with the community!
 
 ---
 

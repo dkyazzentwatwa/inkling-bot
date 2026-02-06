@@ -5,16 +5,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Project Inkling is a **fully local** AI companion device for Raspberry Pi Zero 2W with e-ink display. It combines:
-- Pwnagotchi-style personality/mood system
-- Local AI assistant via Anthropic/OpenAI/Gemini APIs
-- Task management with AI integration
+- Pwnagotchi-style personality/mood system with XP/leveling
+- Local AI assistant via Anthropic/OpenAI/Gemini APIs with automatic fallback
+- Task management with AI integration via MCP
+- Scheduler for cron-style automated tasks
 - Model Context Protocol (MCP) for tool extensibility
-- No cloud dependencies - all social features (The Conservatory) have been removed
+- Web UI with Kanban board, file browser, and settings management
+- **No cloud dependencies** - All social features (The Conservatory, dreams, telegrams) have been completely removed
 
 The codebase has one main component:
 - **Pi Client** (Python) - Runs on the device with local AI and web UI
 
-**Note**: All social/cloud features (dreams, telegrams, Night Pool, etc.) have been completely removed. The bot is now 100% local and self-contained.
+**Note**: All social/cloud features mentioned in README.md have been removed. The bot is now 100% local and self-contained.
 
 ## Commands
 
@@ -93,15 +95,17 @@ main.py → Inkling class
     ├── Personality (core/personality.py) - Mood state machine + XP/leveling
     ├── Brain (core/brain.py) - Multi-provider AI with fallback
     ├── TaskManager (core/tasks.py) - Task management with AI companion features
+    ├── ScheduledTaskManager (core/scheduler.py) - Cron-style task scheduling
     ├── Heartbeat (core/heartbeat.py) - Autonomous behaviors and maintenance
     └── MCPClient (core/mcp_client.py) - Model Context Protocol tool integration
 
 modes/
     ├── ssh_chat.py - Terminal interaction
-    └── web_chat.py - Bottle-based web UI with Kanban board
+    └── web_chat.py - Bottle-based web UI with Kanban board and file browser
 
 mcp_servers/
     ├── tasks.py - MCP server exposing task management to AI
+    ├── system.py - System utilities (curl, df, free, uptime, ps, ping)
     └── filesystem.py - Optional Python-based file operations (read/write/list/search)
 ```
 
@@ -115,19 +119,33 @@ mcp_servers/
 
 **Multi-provider AI**: `Brain` tries Anthropic first, falls back to OpenAI or Gemini. All use async clients with retry logic and token budgeting.
 
+**Conversation Persistence**: `Brain` automatically saves conversation history to `~/.inkling/conversation.json`:
+- Saves after each message exchange
+- Loads on startup to preserve context across restarts
+- Limits to last 100 messages to prevent unbounded growth
+- Deleted when user runs `/clear` command
+- JSON format for human readability and debugging
+
 **Display Rate Limiting**: E-ink displays damage with frequent refreshes. `DisplayManager` enforces minimum intervals:
 - V3: 0.5s (supports partial refresh)
 - V4: 5.0s (full refresh only)
 - Mock: 0.5s (development)
 
+**Display Text Rendering**: The display uses pixel-based word wrapping (`core/ui.py`):
+- `word_wrap_pixels()` measures actual text width using `textbbox()` for accurate wrapping
+- Handles variable-width fonts correctly
+- Long words break with hyphens when they exceed max width
+- Prevents text cutoff issues that occur with character-based wrapping
+- Old `word_wrap()` function kept for backward compatibility (terminal output)
+
 **Pwnagotchi-Style UI**: The display uses a component-based layout system (`core/ui.py`):
 - `HeaderBar`: Name prompt, mood, uptime (14px)
-- `MessagePanel`: Full-width message area with centered, word-wrapped AI responses (86px, ~40 chars/line, 6 lines max)
+- `MessagePanel`: Full-width message area with centered, pixel-accurate word-wrapped AI responses (86px, ~40 chars/line, 6 lines max)
 - `FooterBar`: Compact footer with all stats in format `(^_^) | L1 NEWB | 54%mem 1%cpu 43° | CHAT3 | SSH` (22px)
 - Auto-pagination: Long responses (>6 lines) automatically split into pages with 3-second transitions
 
 **Web UI Architecture** (`modes/web_chat.py`):
-- Bottle web framework serving HTML templates (embedded in Python file)
+- Bottle web framework serving HTML templates (embedded in Python file as string constants)
 - Single-page app with async/await JavaScript
 - Routes:
   - `/` - Main chat interface
@@ -135,10 +153,18 @@ mcp_servers/
   - `/tasks` - Kanban board for task management
   - `/files` - File browser with multiple storage locations (see Storage Locations below)
 - API endpoints: `/api/chat`, `/api/command`, `/api/settings`, `/api/state`, `/api/tasks/*`, `/api/files/*`
+- Theme persistence: All 13 themes (10 pastel + 3 dark) must be defined in all templates
 - Settings changes:
   - Personality traits: Applied immediately (no restart)
   - AI configuration: Saved to `config.local.yml`, requires restart
-  - Theme: Saved to localStorage
+  - Theme: Saved to localStorage (`inklingTheme` key)
+
+**Web UI Template Structure**:
+- Templates embedded as constants: `HTML_TEMPLATE`, `SETTINGS_TEMPLATE`, `TASKS_TEMPLATE`, `FILES_TEMPLATE`
+- CSS themes defined inline with `[data-theme="name"]` selectors
+- JavaScript loads theme from `localStorage.getItem('inklingTheme')` and applies via `document.documentElement.setAttribute('data-theme', theme)`
+- **Theme Consistency**: All templates must have identical theme definitions (cream, pink, mint, lavender, peach, sky, butter, rose, sage, periwinkle, dark, midnight, charcoal)
+- Navigation should use `display: flex; justify-content: space-between; align-items: center` on header for consistent right-aligned nav
 
 ### Storage Locations
 
@@ -146,7 +172,7 @@ Project Inkling supports multiple storage locations for user files:
 
 **Inkling Data Directory** (`~/.inkling/`):
 - Default location for all Inkling-managed data
-- Contains: tasks.db, memory.db, logs, configs
+- Contains: tasks.db, conversation.json, memory.db, logs, configs
 - Always available
 
 **SD Card** (optional):
@@ -297,12 +323,6 @@ scheduler.register_action("my_action", my_custom_action)
 
 **Token Budget**: ~50-100 tokens per tool × 6 = 300-600 tokens (well within 20-tool limit)
 
-**Example AI Usage**:
-- "What's my disk space?" → Uses `df` tool
-- "Check memory usage" → Uses `free` tool
-- "Is google.com reachable?" → Uses `ping` tool
-- "Fetch https://api.github.com" → Uses `curl` tool
-
 ### Remote Access (Ngrok)
 
 **Status**: Fully implemented and supported
@@ -341,8 +361,6 @@ You'll see:
 - Paid ngrok plans support custom domains and longer sessions
 - Web UI requires password authentication when `SERVER_PW` is set
 
-**Implementation**: See `modes/web_chat.py:3272-3334` for ngrok integration code
-
 ### Available Slash Commands
 
 All commands defined in `core/commands.py` and available in both SSH and web modes:
@@ -359,7 +377,7 @@ All commands defined in `core/commands.py` and available in both SSH and web mod
 - `/energy` - Show energy level
 - `/traits` - Show all personality traits
 
-**Tasks** (see Task Management System section above for details):
+**Tasks**:
 - `/tasks` - List all tasks
 - `/task [title]` - Show or create task
 - `/done <id>` - Complete task (awards XP)
@@ -367,7 +385,7 @@ All commands defined in `core/commands.py` and available in both SSH and web mod
 - `/delete <id>` - Delete task permanently
 - `/taskstats` - Show statistics
 
-**Scheduler** (see Scheduler System section above for details):
+**Scheduler**:
 - `/schedule` or `/schedule list` - List all scheduled tasks
 - `/schedule enable <name>` - Enable a task
 - `/schedule disable <name>` - Disable a task
@@ -383,7 +401,7 @@ All commands defined in `core/commands.py` and available in both SSH and web mod
 
 **Session** (SSH only):
 - `/ask <message>` - Explicit chat command
-- `/clear` - Clear conversation history
+- `/clear` - Clear conversation history (also deletes saved conversation.json)
 - `/quit` or `/exit` - Exit chat
 
 ### Autonomous Behaviors (Heartbeat System)
@@ -396,6 +414,7 @@ All commands defined in `core/commands.py` and available in both SSH and web mod
   - **Maintenance**: Memory pruning, task reminders
 - Quiet hours: Suppress spontaneous messages (default 11pm-7am)
 - Enable/disable in `config.yml` under `heartbeat.*`
+- Integrates with Scheduler to check for scheduled tasks
 
 ## Configuration
 
@@ -431,7 +450,7 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 
 | Module | Purpose | Key Classes/Functions |
 |--------|---------|----------------------|
-| `core/brain.py` | Multi-provider AI | `Brain` class, async chat methods, token budgeting |
+| `core/brain.py` | Multi-provider AI | `Brain` class, async chat methods, token budgeting, conversation persistence |
 | `core/personality.py` | Mood & traits | `Personality`, `PersonalityTraits`, mood state machine |
 | `core/progression.py` | XP & leveling | `Progression`, `XPSource` enum, achievements |
 | `core/tasks.py` | Task management | `TaskManager`, `Task` dataclass, CRUD operations |
@@ -439,28 +458,31 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 | `core/scheduler.py` | Cron-style scheduling | `ScheduledTaskManager`, time-based task execution |
 | `core/mcp_client.py` | MCP tool integration | `MCPClient`, tool discovery, async tool calls |
 | `core/display.py` | E-ink abstraction | `DisplayManager`, V3/V4/Mock drivers |
-| `core/ui.py` | Display layout | `HeaderBar`, `MessagePanel`, `FooterBar`, `PwnagotchiUI` |
+| `core/ui.py` | Display layout | `HeaderBar`, `MessagePanel`, `FooterBar`, `PwnagotchiUI`, `word_wrap_pixels()` |
 | `core/crypto.py` | Identity (unused) | `Identity`, Ed25519 keypair - legacy from removed social features |
 | `core/memory.py` | Conversation memory | Summarization, context pruning |
 | `core/commands.py` | Slash commands | `COMMANDS` dict, command metadata |
 | `core/storage.py` | Storage detection | SD card detection, storage availability checks |
+| `mcp_servers/tasks.py` | Task tools MCP | task_create, task_list, task_complete, task_update, task_delete, task_stats |
 | `mcp_servers/system.py` | System tools MCP | curl, df, free, uptime, ps, ping utilities |
 | `mcp_servers/filesystem.py` | Filesystem MCP | File operations (list, read, write, search, info) |
 
-## Database Schema
+## Database & File Storage
 
 **Local SQLite** (`~/.inkling/`):
 - `tasks.db`: Task manager storage (created by TaskManager)
 - `memory.db`: Conversation summaries (created by Memory)
+- `conversation.json`: Chat history (last 100 messages, managed by Brain)
+- `personality.json`: Personality state (traits, mood, XP, level)
 
 ## Important Implementation Notes
 
 **Display Text Rendering**:
-- AI response text in `MessagePanel` is centered both horizontally (per line) and vertically (as block)
-- Use `textbbox()` to calculate width for centering
-- Full-width layout: ~40 chars per line, 6 lines max in 86px message area
+- AI response text in `MessagePanel` uses `word_wrap_pixels()` for pixel-accurate wrapping
+- Measures actual text width using `textbbox()` to handle variable-width fonts
+- Long words break with hyphens when exceeding max width
+- Text is centered both horizontally (per line) and vertically (as block)
 - Auto-pagination: `display.show_message_paginated()` splits long messages into pages with 3-second delay
-  - Used automatically in both SSH and web modes when response exceeds 6 lines
 
 **Face Preference**:
 - E-ink displays (V3/V4): Use ASCII faces from `FACES` (better rendering on e-ink)
@@ -483,7 +505,8 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 **MCP Integration**: Inkling can use external tools via Model Context Protocol
 - Built-in servers:
   - `tasks` (task management) - Python-based, always available
-  - `filesystem` (file operations) - Python-based, optional (see FILESYSTEM_MCP.md)
+  - `system` (Linux utilities) - Python-based, 6 safe tools
+  - `filesystem` (file operations) - Python-based, optional (see docs/guides/FILESYSTEM_MCP.md)
 - Third-party servers: Composio (500+ app integrations), fetch, memory, brave-search, etc.
 - **Composio integration**: Google Calendar, Gmail, Google Sheets, Notion, GitHub, Slack, etc.
   - HTTP transport with SSE (Server-Sent Events) support
@@ -495,10 +518,11 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 - Enable in `config.yml` under `mcp.servers.*`
 
 **Web UI Template Structure** (`modes/web_chat.py`):
-- Templates are embedded as string constants (HTML_TEMPLATE, SETTINGS_TEMPLATE, TASKS_TEMPLATE)
+- Templates are embedded as string constants (HTML_TEMPLATE, SETTINGS_TEMPLATE, TASKS_TEMPLATE, FILES_TEMPLATE)
 - Use Bottle's `template()` function with simple variable substitution: `{{name}}`, `{{int(value)}}`
 - JavaScript in templates uses async/await for API calls
 - Theme support via CSS variables and `data-theme` attribute
+- **Theme Consistency Critical**: All 13 themes must be defined identically in all templates
 - Keep templates self-contained (inline CSS and JS)
 - When adding new routes, define template constant then use: `template(YOUR_TEMPLATE, name=self.personality.name, ...)`
 
@@ -532,6 +556,12 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 3. Add transition rules in `Personality._natural_mood_decay()`
 4. Optionally add mood-specific heartbeat behavior
 
+**Adding a New Web UI Theme**:
+1. Add theme definition to ALL templates (HTML_TEMPLATE, SETTINGS_TEMPLATE, TASKS_TEMPLATE, FILES_TEMPLATE)
+2. Format: `[data-theme="name"] { --bg: #color; --text: #color; --border: #color; --muted: #color; --accent: #color; }`
+3. Add option to Settings page theme dropdown
+4. Test theme persistence across all pages
+
 **Modifying Web UI**:
 1. For existing pages: Edit template constant in `modes/web_chat.py`
 2. For new pages: Create template constant, add route with `@self._app.route()`
@@ -558,7 +588,17 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 - Verify Bottle is installed: `pip show bottle`
 - Check browser console for JavaScript errors
 
+**Theme Not Persisting**:
+- Verify all templates have identical theme definitions (13 total)
+- Check browser localStorage for `inklingTheme` key
+- Clear browser cache and retry
+
 **Task Manager Not Working**:
 - Ensure MCP is enabled: `mcp.enabled: true` in config
 - Check tasks server configured: `mcp.servers.tasks` exists
 - Verify `~/.inkling/tasks.db` has write permissions
+
+**Conversation History Lost**:
+- Check `~/.inkling/conversation.json` exists and has write permissions
+- Verify `Brain.save_messages()` is called after chat responses
+- Enable debug mode to see save/load messages
