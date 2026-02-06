@@ -363,6 +363,51 @@ You'll see:
 - Paid ngrok plans support custom domains and longer sessions
 - Web UI requires password authentication when `SERVER_PW` is set
 
+### WiFi Configuration (BTBerryWifi)
+
+**Status**: Fully implemented and supported
+
+Project Inkling supports WiFi configuration via Bluetooth for portable use. Uses BTBerryWifi for BLE-based network setup without keyboard/monitor.
+
+**Setup**:
+
+1. Install BTBerryWifi on Raspberry Pi:
+```bash
+curl -L https://raw.githubusercontent.com/nksan/Rpi-SetWiFi-viaBluetooth/main/btwifisetInstall.sh | bash
+```
+
+2. Download mobile app:
+   - iOS: https://apps.apple.com/app/btberrywifi/id6479825660
+   - Android: https://play.google.com/store/apps/details?id=com.bluetoothwifisetup
+
+3. Service behavior:
+   - Runs automatically for 15 minutes on boot
+   - Can be started manually with `/btcfg` command
+   - Times out after 15 minutes to conserve battery
+
+**WiFi Commands**:
+- `/wifi` - Show current WiFi status, saved networks, IP address, BLE service status
+- `/btcfg` - Start BLE configuration service for 15 minutes
+- `/wifiscan` - Scan for nearby WiFi networks with signal strength and security
+
+**Display Integration**:
+- WiFi signal bars shown in footer: `▂▄▆█` (excellent), `▂▄▆` (good), `▂▄` (fair), `▂` (poor), `○` (very poor)
+- Automatically updates when network changes
+- DisplayContext includes `wifi_ssid` and `wifi_signal` fields
+
+**Implementation Files**:
+- `core/wifi_utils.py` - WiFi utility functions (get_current_wifi, scan_networks, start_btcfg, etc.)
+- `core/commands.py` - Command definitions (wifi, btcfg, wifiscan)
+- `modes/ssh_chat.py` - SSH command handlers (cmd_wifi, cmd_btcfg, cmd_wifiscan)
+- `modes/web_chat.py` - Web command handlers (_cmd_wifi, _cmd_btcfg, _cmd_wifiscan)
+- `core/ui.py` - Display integration (DisplayContext, FooterBar)
+- `core/display.py` - WiFi status retrieval in render loop
+
+**Use Cases**:
+- Travel: Configure WiFi at hotels, airports, friend's houses
+- Network switching: Easily switch between home, work, mobile hotspot
+- Headless setup: No keyboard/monitor needed for network configuration
+
 ### Available Slash Commands
 
 All commands defined in `core/commands.py` and available in both SSH and web modes:
@@ -395,6 +440,11 @@ All commands defined in `core/commands.py` and available in both SSH and web mod
 **System**:
 - `/system` - Show system stats (CPU, memory, temp, uptime)
 - `/config` - Show AI configuration
+
+**WiFi**:
+- `/wifi` - Show WiFi status and saved networks
+- `/btcfg` - Start BLE configuration service (15 min)
+- `/wifiscan` - Scan for nearby WiFi networks
 
 **Display**:
 - `/face <name>` - Test a face expression
@@ -467,6 +517,7 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 | `core/memory.py` | Conversation memory | Summarization, context pruning |
 | `core/commands.py` | Slash commands | `COMMANDS` dict, command metadata |
 | `core/storage.py` | Storage detection | SD card detection, storage availability checks |
+| `core/wifi_utils.py` | WiFi management | `get_current_wifi()`, `scan_networks()`, `start_btcfg()`, `get_wifi_bars()` |
 | `mcp_servers/tasks.py` | Task tools MCP | task_create, task_list, task_complete, task_update, task_delete, task_stats |
 | `mcp_servers/system.py` | System tools MCP | curl, df, free, uptime, ps, ping utilities |
 | `mcp_servers/filesystem.py` | Filesystem MCP | File operations (list, read, write, search, info) |
@@ -606,3 +657,15 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 - Check `~/.inkling/conversation.json` exists and has write permissions
 - Verify `Brain.save_messages()` is called after chat responses
 - Enable debug mode to see save/load messages
+
+**WiFi Not Working**:
+- Check interface name: `ip link show` (should show `wlan0`)
+- Verify WiFi adapter is enabled: `sudo rfkill list` (should not show "Soft blocked")
+- BTBerryWifi not installed: Run installation script (see WiFi Configuration section)
+- Permission denied on scan: `/wifiscan` requires sudo permissions for `iwlist`
+- BLE service won't start: Check Bluetooth is enabled (`sudo systemctl status bluetooth`)
+
+**WiFi Display Not Updating**:
+- Display refresh rate limited (V3: 0.5s, V4: 5.0s)
+- WiFi check is non-blocking and fails gracefully
+- Check logs for WiFi utility errors: `INKLING_DEBUG=1 python main.py --mode ssh`

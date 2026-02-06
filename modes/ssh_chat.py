@@ -1211,3 +1211,120 @@ class SSHChatMode:
             print("  /schedule list      - List all scheduled tasks")
             print("  /schedule enable <name>  - Enable a task")
             print("  /schedule disable <name> - Disable a task")
+
+    # ================
+    # WiFi Commands
+    # ================
+
+    async def cmd_wifi(self) -> None:
+        """Show WiFi status and saved networks."""
+        from core.wifi_utils import get_current_wifi, get_saved_networks, is_btcfg_running, get_wifi_bars
+
+        print(f"\n{Colors.HEADER}═══ WIFI STATUS ═══{Colors.RESET}\n")
+
+        # Current connection status
+        status = get_current_wifi()
+
+        if status.connected and status.ssid:
+            bars = get_wifi_bars(status.signal_strength)
+            print(f"{Colors.SUCCESS}✓ Connected to: {status.ssid}{Colors.RESET}")
+            print(f"  Signal: {bars} {status.signal_strength}%")
+
+            if status.ip_address:
+                print(f"  IP: {status.ip_address}")
+
+            if status.frequency:
+                print(f"  Band: {status.frequency}")
+        else:
+            print(f"{Colors.ERROR}✗ Not connected{Colors.RESET}")
+
+        print()
+
+        # BTBerryWifi service status
+        if is_btcfg_running():
+            print(f"{Colors.SUCCESS}🔵 BLE Configuration: Running (15 min window){Colors.RESET}")
+            print(f"   Use BTBerryWifi app to configure WiFi")
+        else:
+            print(f"{Colors.DIM}🔵 BLE Configuration: Stopped{Colors.RESET}")
+            print(f"   Use /btcfg to start configuration service")
+
+        print()
+
+        # Saved networks
+        saved = get_saved_networks()
+        if saved:
+            print(f"{Colors.BOLD}Saved Networks ({len(saved)}):{Colors.RESET}")
+            for ssid in saved:
+                icon = "●" if status.connected and status.ssid == ssid else "○"
+                print(f"  {icon} {ssid}")
+        else:
+            print(f"{Colors.DIM}No saved networks{Colors.RESET}")
+
+        print()
+        print(f"{Colors.DIM}Tip: Use /wifiscan to find nearby networks{Colors.RESET}")
+
+    async def cmd_btcfg(self) -> None:
+        """Start BTBerryWifi BLE configuration service."""
+        from core.wifi_utils import start_btcfg
+
+        print(f"\n{Colors.INFO}Starting BLE WiFi configuration...{Colors.RESET}\n")
+
+        success, message = start_btcfg()
+
+        if success:
+            print(f"{Colors.SUCCESS}{message}{Colors.RESET}")
+        else:
+            print(f"{Colors.ERROR}{message}{Colors.RESET}")
+
+    async def cmd_wifiscan(self) -> None:
+        """Scan for nearby WiFi networks."""
+        from core.wifi_utils import scan_networks, get_current_wifi
+
+        print(f"\n{Colors.INFO}Scanning for WiFi networks...{Colors.RESET}\n")
+
+        networks = scan_networks()
+        current = get_current_wifi()
+
+        if not networks:
+            print(f"{Colors.ERROR}No networks found or permission denied{Colors.RESET}")
+            print(f"\n{Colors.DIM}Tip: Scanning requires sudo access{Colors.RESET}")
+            return
+
+        print(f"{Colors.HEADER}═══ NEARBY NETWORKS ({len(networks)}) ═══{Colors.RESET}\n")
+
+        for net in networks:
+            # Visual signal indicator
+            if net.signal_strength >= 80:
+                signal_icon = "▂▄▆█"
+                signal_color = Colors.SUCCESS
+            elif net.signal_strength >= 60:
+                signal_icon = "▂▄▆"
+                signal_color = Colors.SUCCESS
+            elif net.signal_strength >= 40:
+                signal_icon = "▂▄"
+                signal_color = Colors.EXCITED
+            elif net.signal_strength >= 20:
+                signal_icon = "▂"
+                signal_color = Colors.ERROR
+            else:
+                signal_icon = "○"
+                signal_color = Colors.DIM
+
+            # Connection indicator
+            connected = current.connected and current.ssid == net.ssid
+            conn_icon = "●" if connected else " "
+
+            # Security badge
+            if net.security == "Open":
+                security_badge = f"{Colors.ERROR}[OPEN]{Colors.RESET}"
+            elif net.security == "WPA3":
+                security_badge = f"{Colors.SUCCESS}[WPA3]{Colors.RESET}"
+            elif net.security == "WPA2":
+                security_badge = f"{Colors.INFO}[WPA2]{Colors.RESET}"
+            else:
+                security_badge = f"{Colors.DIM}[{net.security}]{Colors.RESET}"
+
+            print(f"{conn_icon} {signal_color}{signal_icon}{Colors.RESET} {net.signal_strength:3}% {security_badge} {net.ssid}")
+
+        print()
+        print(f"{Colors.DIM}Use /btcfg to start BLE configuration service{Colors.RESET}")

@@ -54,6 +54,11 @@ COMMANDS: List[Command] = [
     # Scheduler commands
     Command("schedule", "Manage scheduled tasks", "cmd_schedule", "scheduler"),
 
+    # WiFi commands
+    Command("wifi", "Show WiFi status and saved networks", "cmd_wifi", "system"),
+    Command("btcfg", "Start BLE WiFi configuration (15 min)", "cmd_btcfg", "system"),
+    Command("wifiscan", "Scan for nearby WiFi networks", "cmd_wifiscan", "system"),
+
     # Session commands (SSH only)
     Command("ask", "Explicit chat command", "cmd_ask", "session", requires_brain=True),
     Command("clear", "Clear conversation history", "cmd_clear", "session", requires_brain=True),

@@ -294,6 +294,10 @@ class DisplayContext:
     temperature: int = 0
     clock_time: str = "--:--"
 
+    # WiFi stats
+    wifi_ssid: Optional[str] = None
+    wifi_signal: int = 0
+
     # Social stats
     dream_count: int = 0
     telegram_count: int = 0
@@ -465,14 +469,21 @@ class FooterBar:
         # Line 2 components
         line2 = []
 
-        # 1. System stats (memory, cpu, temp)
-        temp_str = f"{ctx.temperature}°" if ctx.temperature > 0 else "--°"
-        line2.append(f"{ctx.memory_percent}%mem {ctx.cpu_percent}%cpu {temp_str}")
+        # 1. WiFi status (if connected)
+        if ctx.wifi_ssid:
+            from core.wifi_utils import get_wifi_bars
+            wifi_bars = get_wifi_bars(ctx.wifi_signal)
+            wifi_text = f"{wifi_bars}"
+            line2.append(wifi_text)
 
-        # 2. Chat count
+        # 2. System stats (memory, cpu, temp)
+        temp_str = f"{ctx.temperature}°" if ctx.temperature > 0 else "--°"
+        line2.append(f"{ctx.memory_percent}%m {ctx.cpu_percent}%c {temp_str}")
+
+        # 3. Chat count
         line2.append(f"CH{ctx.chat_count}")
 
-        # 3. Clock
+        # 4. Clock
         line2.append(ctx.clock_time)
 
         # Join with vertical bar separator (render separators in bold)

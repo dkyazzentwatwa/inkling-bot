@@ -485,6 +485,18 @@ class DisplayManager:
             xp_progress = LevelCalculator.progress_to_next_level(prog.xp)
             prestige = prog.prestige
 
+        # Get WiFi status (non-blocking, fails gracefully)
+        wifi_ssid = None
+        wifi_signal = 0
+        try:
+            from core.wifi_utils import get_current_wifi
+            wifi_status = get_current_wifi()
+            if wifi_status.connected and wifi_status.ssid:
+                wifi_ssid = wifi_status.ssid
+                wifi_signal = wifi_status.signal_strength
+        except Exception:
+            pass  # Silently fail if WiFi utilities not available
+
         # Build display context
         ctx = DisplayContext(
             name=self.device_name,
@@ -495,6 +507,8 @@ class DisplayManager:
             cpu_percent=stats["cpu"],
             temperature=stats["temperature"],
             clock_time=clock_time,
+            wifi_ssid=wifi_ssid,
+            wifi_signal=wifi_signal,
             dream_count=self._dream_count,
             telegram_count=self._telegram_count,
             chat_count=self._chat_count,

@@ -170,6 +170,52 @@ python main.py --mode demo
 
 ---
 
+## 📡 WiFi Configuration (Portable Use)
+
+Inkling supports **BTBerryWifi** for easy WiFi configuration via Bluetooth when away from your home network. Perfect for travel, coffee shops, or switching between networks.
+
+### Installation
+
+```bash
+# One-line installer on your Raspberry Pi
+curl -L https://raw.githubusercontent.com/nksan/Rpi-SetWiFi-viaBluetooth/main/btwifisetInstall.sh | bash
+```
+
+This installs the BLE service that runs for 15 minutes on boot, allowing WiFi configuration from your phone.
+
+### Mobile Apps
+
+Download the BTBerryWifi app:
+- **iOS**: [App Store](https://apps.apple.com/app/btberrywifi/id6479825660)
+- **Android**: [Google Play](https://play.google.com/store/apps/details?id=com.bluetoothwifisetup)
+
+### Usage Workflow
+
+1. **At new location**: Reboot your Inkling or use `/btcfg` command
+2. **Open app** on your phone and scan for devices
+3. **Connect** to your Inkling
+4. **Select WiFi** network and enter password
+5. **Done!** Inkling connects automatically
+
+### WiFi Commands
+
+Inkling includes built-in WiFi management commands:
+
+- `/wifi` - Show current WiFi status, saved networks, and BLE service status
+- `/btcfg` - Start BLE configuration service for 15 minutes
+- `/wifiscan` - Scan for nearby WiFi networks with signal strength
+
+### On-Screen WiFi Indicator
+
+The e-ink display shows WiFi status in the footer:
+```
+▂▄▆█ 54%m 1%c 43° | CH3 | 10:42
+```
+- **▂▄▆█** - WiFi signal bars (excellent signal)
+- Automatically updates when you connect/disconnect
+
+---
+
 ## 🎮 Usage
 
 ### Available Modes
@@ -230,6 +276,15 @@ python main.py --mode demo
 - `/face <name>` - Test a face expression
 - `/faces` - List all available faces
 - `/refresh` - Force display update
+
+</details>
+
+<details>
+<summary><b>📡 WiFi Commands</b></summary>
+
+- `/wifi` - Show WiFi status and saved networks
+- `/btcfg` - Start BLE configuration service (15 min)
+- `/wifiscan` - Scan for nearby WiFi networks
 
 </details>
 

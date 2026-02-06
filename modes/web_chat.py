@@ -867,26 +867,24 @@ SETTINGS_TEMPLATE = """
         <div class="input-group">
             <label for="anthropic-model">Anthropic Model</label>
             <select id="anthropic-model" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
-                <option value="claude-3-haiku-20240307">Claude 3 Haiku (Fast & Cheap)</option>
-                <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Balanced)</option>
-                <option value="claude-3-opus-20240229">Claude 3 Opus (Most Capable)</option>
+                <option value="claude-haiku-4-5">Claude Haiku 4.5 (Fast & Cheap)</option>
+                <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (Balanced)</option>
+                <option value="claude-opus-4-5">Claude Opus 4.5 (Most Capable)</option>
             </select>
         </div>
 
         <div class="input-group">
             <label for="openai-model">OpenAI Model</label>
             <select id="openai-model" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
-                <option value="gpt-4o-mini">GPT-4o Mini (Fast & Cheap)</option>
-                <option value="gpt-4o">GPT-4o (Balanced)</option>
-                <option value="o1-mini">o1 Mini (Reasoning)</option>
+                <option value="gpt-5-mini">GPT-5 Mini (Fast & Cheap)</option>
+                <option value="gpt-5.2">GPT-5.2 (Most Capable)</option>
             </select>
         </div>
 
         <div class="input-group">
             <label for="gemini-model">Gemini Model</label>
             <select id="gemini-model" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
-                <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (Fast)</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Capable)</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
             </select>
         </div>
 
@@ -3705,6 +3703,120 @@ class WebChatMode:
             "error": True,
         }
 
+    def _cmd_wifi(self) -> Dict[str, Any]:
+        """Show WiFi status and saved networks."""
+        from core.wifi_utils import get_current_wifi, get_saved_networks, is_btcfg_running, get_wifi_bars
+
+        status = get_current_wifi()
+        output = ["**WiFi Status**\n"]
+
+        # Current connection
+        if status.connected and status.ssid:
+            bars = get_wifi_bars(status.signal_strength)
+            output.append(f"✓ Connected to: **{status.ssid}**")
+            output.append(f"  Signal: {bars} {status.signal_strength}%")
+            if status.ip_address:
+                output.append(f"  IP: {status.ip_address}")
+            if status.frequency:
+                output.append(f"  Band: {status.frequency}")
+        else:
+            output.append("✗ Not connected")
+
+        output.append("")
+
+        # BLE service status
+        if is_btcfg_running():
+            output.append("🔵 **BLE Configuration: Running** (15 min window)")
+            output.append("   Use BTBerryWifi app to configure WiFi")
+        else:
+            output.append("🔵 BLE Configuration: Stopped")
+            output.append("   Use /btcfg to start configuration service")
+
+        output.append("")
+
+        # Saved networks
+        saved = get_saved_networks()
+        if saved:
+            output.append(f"**Saved Networks ({len(saved)}):**")
+            for ssid in saved:
+                icon = "●" if status.connected and status.ssid == ssid else "○"
+                output.append(f"  {icon} {ssid}")
+        else:
+            output.append("*No saved networks*")
+
+        output.append("")
+        output.append("*Tip: Use /wifiscan to find nearby networks*")
+
+        return {
+            "response": "\n".join(output),
+            "face": self.personality.face,
+        }
+
+    def _cmd_btcfg(self) -> Dict[str, Any]:
+        """Start BTBerryWifi BLE configuration service."""
+        from core.wifi_utils import start_btcfg
+
+        success, message = start_btcfg()
+
+        return {
+            "response": message,
+            "face": self.personality.face,
+            "error": not success,
+        }
+
+    def _cmd_wifiscan(self) -> Dict[str, Any]:
+        """Scan for nearby WiFi networks."""
+        from core.wifi_utils import scan_networks, get_current_wifi
+
+        networks = scan_networks()
+        current = get_current_wifi()
+
+        if not networks:
+            return {
+                "response": "No networks found or permission denied.\n\n*Tip: Scanning requires sudo access*",
+                "face": self.personality.face,
+                "error": True,
+            }
+
+        output = [f"**Nearby Networks ({len(networks)})**\n"]
+
+        for net in networks:
+            # Visual signal indicator
+            if net.signal_strength >= 80:
+                signal_icon = "▂▄▆█"
+            elif net.signal_strength >= 60:
+                signal_icon = "▂▄▆"
+            elif net.signal_strength >= 40:
+                signal_icon = "▂▄"
+            elif net.signal_strength >= 20:
+                signal_icon = "▂"
+            else:
+                signal_icon = "○"
+
+            # Connection indicator
+            connected = current.connected and current.ssid == net.ssid
+            conn_icon = "●" if connected else " "
+
+            # Security badge
+            if net.security == "Open":
+                security_badge = "[OPEN]"
+            elif net.security == "WPA3":
+                security_badge = "[WPA3]"
+            elif net.security == "WPA2":
+                security_badge = "[WPA2]"
+            else:
+                security_badge = f"[{net.security}]"
+
+            output.append(f"{conn_icon} {signal_icon} {net.signal_strength:3}% {security_badge} {net.ssid}")
+
+        output.append("")
+        output.append("*Use /btcfg to start BLE configuration service*")
+
+        return {
+            "response": "\n".join(output),
+            "face": self.personality.face,
+        }
+
     def _handle_command_sync(self, command: str) -> Dict[str, Any]:
         """Handle slash commands (sync wrapper)."""
         parts = command.split(maxsplit=1)
@@ -3730,8 +3842,8 @@ class WebChatMode:
             return {"response": f"Command handler not implemented: {cmd_obj.name}", "error": True}
 
         # Call handler with args if needed
-        if cmd_obj.name in ("face", "dream", "ask", "schedule", "bash"):
-            return handler(args)
+        if cmd_obj.name in ("face", "dream", "ask", "schedule", "bash", "task", "done", "cancel", "delete", "tasks"):
+            return handler(args) if args or cmd_obj.name in ("tasks", "schedule") else handler()
         else:
             return handler()
 
