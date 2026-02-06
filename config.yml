@@ -129,14 +129,6 @@ web:
   # Web UI authentication (reads from SERVER_PW environment variable)
   web_password: ${SERVER_PW}  # Set via: export SERVER_PW="your-password"
 
-# BLE Terminal Configuration
-ble:
-  enabled: false  # Enable BLE command transport
-  device_name: "Inkling BLE"  # Bluetooth device name
-  allow_bash: true  # Enable /bash in SSH + BLE
-  command_timeout_seconds: 8  # Timeout for /bash commands
-  max_output_bytes: 8192  # Cap /bash output size
-
 # MCP Servers (Model Context Protocol)
 # Gives Inkling access to external tools
 mcp:

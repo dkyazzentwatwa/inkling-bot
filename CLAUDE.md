@@ -343,63 +343,6 @@ You'll see:
 
 **Implementation**: See `modes/web_chat.py:3272-3334` for ngrok integration code
 
-### BLE Terminal Access
-
-**Status**: Fully implemented and supported
-
-Project Inkling supports BLE (Bluetooth Low Energy) terminal access for command input from mobile devices. Uses Nordic UART Service (NUS) protocol for iOS/Android BLE terminal apps.
-
-**Setup**:
-
-1. Install system dependencies on Raspberry Pi:
-```bash
-sudo apt update
-sudo apt install -y bluez python3-dbus python3-gi
-```
-
-2. Install Python package:
-```bash
-source .venv/bin/activate
-pip install bluezero
-# Or: pip install -r requirements.txt (bluezero is now included)
-```
-
-3. Enable in `config.local.yml`:
-```yaml
-ble:
-  enabled: true
-  device_name: "Inkling BLE"
-  allow_bash: true
-  command_timeout_seconds: 8
-  max_output_bytes: 8192
-```
-
-4. Configure Bluetooth pairing (one-time):
-```bash
-bluetoothctl
-power on
-agent on
-default-agent
-discoverable on
-pairable on
-```
-
-5. Connect from iOS/Android BLE terminal app (LightBlue, BLE Terminal, Bluefruit Connect)
-
-**Usage**:
-- Subscribe to TX characteristic for responses
-- Send commands to RX characteristic (newline-terminated)
-- Supports all slash commands: `/help`, `/tasks`, `/done`, `/bash uptime`, etc.
-
-**Security**:
-- BLE runs in same process as SSH/Web, shares all state
-- `/bash` commands allowed if `allow_bash: true` in config
-- Output limited to `max_output_bytes` (default 8KB)
-
-**Implementation**: See `modes/ble_transport.py` and `core/mode_bridge.py`
-
-**Note**: `bluezero` must be installed via pip, NOT apt. The package `python3-bluezero` does not exist in Raspberry Pi OS repositories.
-
 ### Available Slash Commands
 
 All commands defined in `core/commands.py` and available in both SSH and web modes:

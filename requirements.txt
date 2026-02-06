@@ -34,12 +34,10 @@ psutil>=5.9.0
 requests>=2.31.0
 
 # E-ink Display (Pi only)
-# waveshare-epd>=1.0.0  # Uncomment on Raspberry Pi for e-ink support
+# IMPORTANT: waveshare-epd must be installed from GitHub, not PyPI
+# Install with: pip install git+https://github.com/waveshareteam/e-Paper.git#subdirectory=RaspberryPi_JetsonNano/python
 # spidev>=3.6  # Uncomment on Raspberry Pi
 # RPi.GPIO>=0.7.1  # Uncomment on Raspberry Pi
-
-# BLE/Bluetooth (Pi only, optional)
-bluezero>=0.7.0  # BLE GATT transport
 
 # Development
 pytest>=7.4.0
