@@ -431,6 +431,97 @@ class GeminiProvider(AIProvider):
         return gemini_tools
 
 
+class LlamaCppProvider(AIProvider):
+    """Local llama.cpp provider for fully offline inference.
+
+    Runs GGUF models locally using llama-cpp-python.
+    Designed for small models like TinyLlama 1.1B (4-bit quantized)
+    that fit in constrained memory on devices like Raspberry Pi.
+
+    Does not support tool use (small local models lack reliable function calling).
+    """
+
+    def __init__(
+        self,
+        model_path: str,
+        model: str = "local",
+        max_tokens: int = 150,
+        n_ctx: int = 2048,
+        n_gpu_layers: int = 0,
+    ):
+        # api_key not needed for local inference, pass empty string
+        super().__init__(api_key="", model=model, max_tokens=max_tokens)
+        self.model_path = model_path
+        self.n_ctx = n_ctx
+        self.n_gpu_layers = n_gpu_layers
+        self._llm = None
+
+    @property
+    def name(self) -> str:
+        return "local"
+
+    def _get_llm(self):
+        """Lazy-load the llama.cpp model."""
+        if self._llm is None:
+            from llama_cpp import Llama
+            print(f"[LlamaCpp] Loading model from {self.model_path}...")
+            self._llm = Llama(
+                model_path=self.model_path,
+                n_ctx=self.n_ctx,
+                n_gpu_layers=self.n_gpu_layers,
+                verbose=bool(os.environ.get("INKLING_DEBUG")),
+            )
+            print(f"[LlamaCpp] Model loaded successfully")
+        return self._llm
+
+    async def generate(
+        self,
+        system_prompt: str,
+        messages: List[Message],
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> ThinkResult:
+        """Generate using local llama.cpp model. Tools are ignored."""
+        llm = self._get_llm()
+
+        # Build chat-ML style prompt
+        prompt = f"<|system|>\n{system_prompt}</s>\n"
+        for m in messages:
+            role = m.role
+            prompt += f"<|{role}|>\n{m.content}</s>\n"
+        prompt += "<|assistant|>\n"
+
+        try:
+            # Run inference in a thread to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: llm(
+                    prompt,
+                    max_tokens=self.max_tokens,
+                    stop=["</s>", "<|user|>", "<|system|>"],
+                    echo=False,
+                ),
+            )
+
+            content = result["choices"][0]["text"].strip()
+            tokens = result.get("usage", {}).get("total_tokens", 0)
+
+            if os.environ.get("INKLING_DEBUG"):
+                print(f"[LlamaCpp] Generated {tokens} tokens")
+
+            return ThinkResult(
+                content=content,
+                tokens_used=tokens,
+                provider=self.name,
+                model=self.model,
+                tool_calls=[],
+                is_tool_use=False,
+            )
+
+        except Exception as e:
+            raise ProviderError(f"LlamaCpp error: {e}")
+
+
 class Brain:
     """
     Multi-provider AI brain for Inkling.
@@ -484,17 +575,27 @@ class Brain:
         anthropic_config = self.config.get("anthropic", {})
         openai_config = self.config.get("openai", {})
         gemini_config = self.config.get("gemini", {})
+        local_config = self.config.get("local", {})
 
         anthropic_key = anthropic_config.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
         openai_key = openai_config.get("api_key") or os.environ.get("OPENAI_API_KEY")
         gemini_key = gemini_config.get("api_key") or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        local_model_path = local_config.get("model_path", "")
 
         # Debug output
         print(f"[Brain] Primary provider: {primary}")
-        print(f"[Brain] API keys detected: Anthropic={bool(anthropic_key)}, OpenAI={bool(openai_key)}, Gemini={bool(gemini_key)}")
+        print(f"[Brain] API keys detected: Anthropic={bool(anthropic_key)}, OpenAI={bool(openai_key)}, Gemini={bool(gemini_key)}, Local={bool(local_model_path)}")
 
         # Build provider list with primary first
-        if primary == "anthropic" and anthropic_key:
+        if primary == "local" and local_model_path:
+            self.providers.append(LlamaCppProvider(
+                model_path=local_model_path,
+                model=local_config.get("model_name", "tinyllama-1.1b"),
+                max_tokens=local_config.get("max_tokens", 150),
+                n_ctx=local_config.get("n_ctx", 2048),
+                n_gpu_layers=local_config.get("n_gpu_layers", 0),
+            ))
+        elif primary == "anthropic" and anthropic_key:
             self.providers.append(AnthropicProvider(
                 api_key=anthropic_key,
                 model=anthropic_config.get("model", "claude-3-haiku-20240307"),
@@ -529,6 +630,16 @@ class Brain:
                 api_key=anthropic_key,
                 model=anthropic_config.get("model", "claude-3-haiku-20240307"),
                 max_tokens=anthropic_config.get("max_tokens", 150),
+            ))
+
+        # Add local llama.cpp as fallback if not primary
+        if primary != "local" and local_model_path:
+            self.providers.append(LlamaCppProvider(
+                model_path=local_model_path,
+                model=local_config.get("model_name", "tinyllama-1.1b"),
+                max_tokens=local_config.get("max_tokens", 150),
+                n_ctx=local_config.get("n_ctx", 2048),
+                n_gpu_layers=local_config.get("n_gpu_layers", 0),
             ))
 
         if not self.providers:

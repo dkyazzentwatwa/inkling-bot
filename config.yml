@@ -36,6 +36,19 @@ ai:
     model: "gemini-2.0-flash-exp"
     max_tokens: 150
 
+  # Local llama.cpp settings (fully offline, no API key needed)
+  # Uses llama-cpp-python to run GGUF models locally.
+  # Recommended: TinyLlama 1.1B Chat (Q4_K_M quantization, ~670MB)
+  # Download: https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF
+  #
+  # To use as primary (offline-only mode), set: primary: "local"
+  local:
+    model_path: ""  # Path to .gguf file, e.g. "/home/pi/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+    model_name: "tinyllama-1.1b"  # Display name
+    max_tokens: 150
+    n_ctx: 2048       # Context window size (2048 is TinyLlama's max)
+    n_gpu_layers: 0   # GPU layers (0 = CPU only, suitable for Pi Zero 2W)
+
   # Token budgets
   budget:
     daily_tokens: 10000  # ~$0.03/day with Haiku

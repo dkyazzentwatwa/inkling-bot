@@ -6,6 +6,12 @@ anthropic>=0.39.0
 openai>=1.50.0
 google-genai>=1.0.0
 
+# Local AI (optional - for offline mode with TinyLlama/GGUF models)
+# Install with: pip install llama-cpp-python
+# On Raspberry Pi, build from source for ARM support:
+#   CMAKE_ARGS="-DLLAMA_BLAS=ON" pip install llama-cpp-python
+# llama-cpp-python>=0.2.0
+
 # Image Processing
 Pillow>=10.0.0
 

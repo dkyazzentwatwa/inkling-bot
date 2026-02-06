@@ -817,7 +817,14 @@ SETTINGS_TEMPLATE = """
                 <option value="anthropic">Anthropic (Claude)</option>
                 <option value="openai">OpenAI (GPT)</option>
                 <option value="gemini">Google (Gemini)</option>
+                <option value="local">Local (llama.cpp)</option>
             </select>
+        </div>
+
+        <div class="input-group" id="local-settings" style="display: none;">
+            <label for="local-model-path">Local Model Path (.gguf)</label>
+            <input type="text" id="local-model-path" placeholder="/home/pi/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
+            <p style="font-size: 0.875rem; color: var(--muted); margin-top: 0.25rem;">Path to a GGUF model file. Recommended: TinyLlama 1.1B Chat (Q4_K_M, ~670MB)</p>
         </div>
 
         <div class="input-group">
@@ -880,6 +887,13 @@ SETTINGS_TEMPLATE = """
             localStorage.setItem('inklingTheme', theme);
         });
 
+        // Show/hide local model path based on provider selection
+        function updateLocalSettings() {
+            const primary = document.getElementById('ai-primary').value;
+            document.getElementById('local-settings').style.display = primary === 'local' ? 'block' : 'none';
+        }
+        document.getElementById('ai-primary').addEventListener('change', updateLocalSettings);
+
         // Load current AI settings on page load
         fetch('/api/settings')
             .then(resp => resp.json())
@@ -889,8 +903,10 @@ SETTINGS_TEMPLATE = """
                     document.getElementById('anthropic-model').value = data.ai.anthropic?.model || 'claude-3-haiku-20240307';
                     document.getElementById('openai-model').value = data.ai.openai?.model || 'gpt-4o-mini';
                     document.getElementById('gemini-model').value = data.ai.gemini?.model || 'gemini-2.0-flash-exp';
+                    document.getElementById('local-model-path').value = data.ai.local?.model_path || '';
                     document.getElementById('max-tokens').value = data.ai.budget?.max_tokens || 150;
                     document.getElementById('daily-tokens').value = data.ai.budget?.daily_tokens || 10000;
+                    updateLocalSettings();
                 }
             })
             .catch(err => console.error('Failed to load AI settings:', err));
@@ -928,6 +944,9 @@ SETTINGS_TEMPLATE = """
                     },
                     gemini: {
                         model: document.getElementById('gemini-model').value,
+                    },
+                    local: {
+                        model_path: document.getElementById('local-model-path').value,
                     },
                     budget: {
                         daily_tokens: parseInt(document.getElementById('daily-tokens').value),
@@ -2556,6 +2575,9 @@ class WebChatMode:
                 "gemini": {
                     "model": self.brain.config.get("gemini", {}).get("model", "gemini-2.0-flash-exp"),
                 },
+                "local": {
+                    "model_path": self.brain.config.get("local", {}).get("model_path", ""),
+                },
                 "budget": {
                     "daily_tokens": self.brain.budget.daily_limit,
                     "max_tokens": self.brain.config.get("budget", {}).get("per_request_max", 150),
@@ -3036,7 +3058,7 @@ class WebChatMode:
                 config["ai"]["primary"] = ai_settings["primary"]
 
             # Update provider-specific settings
-            for provider in ["anthropic", "openai", "gemini"]:
+            for provider in ["anthropic", "openai", "gemini", "local"]:
                 if provider in ai_settings:
                     if provider not in config["ai"]:
                         config["ai"][provider] = {}
