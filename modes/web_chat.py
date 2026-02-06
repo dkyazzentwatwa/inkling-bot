@@ -321,6 +321,121 @@ HTML_TEMPLATE = """
             background: var(--text);
             color: var(--bg);
         }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            header {
+                padding: 0.75rem;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            header h1 {
+                font-size: 1.25rem;
+                gap: 8px;
+            }
+            .face {
+                font-size: 24px;
+            }
+            .header-left {
+                flex: 1;
+                min-width: 0;
+            }
+            .status-line,
+            .thought-line {
+                font-size: 0.7rem;
+                margin-left: 34px;
+            }
+            .thought-line {
+                max-width: 40ch;
+            }
+            .nav {
+                width: 100%;
+                justify-content: space-between;
+                gap: 6px;
+            }
+            .nav a {
+                flex: 1;
+                text-align: center;
+                padding: 6px 8px;
+                font-size: 0.75rem;
+                white-space: nowrap;
+            }
+            .messages {
+                padding: 0.75rem;
+            }
+            .message {
+                padding: 0.6rem;
+                font-size: 0.9rem;
+            }
+            .input-area {
+                padding: 0.75rem;
+                gap: 0.5rem;
+                flex-direction: column;
+            }
+            .input-area input {
+                width: 100%;
+                padding: 0.875rem;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            .input-area button {
+                width: 100%;
+                padding: 0.875rem;
+                font-size: 16px;
+            }
+            .command-palette {
+                margin: 0.75rem;
+            }
+            .command-palette summary {
+                padding: 0.6rem;
+                font-size: 0.9rem;
+            }
+            .command-groups {
+                padding: 0.75rem;
+                max-height: 150px;
+            }
+            .command-group {
+                margin-bottom: 0.75rem;
+            }
+            .command-buttons {
+                gap: 0.4rem;
+            }
+            .command-buttons button {
+                padding: 0.6rem 0.75rem;
+                font-size: 0.7rem;
+                min-height: 44px; /* Better touch targets */
+            }
+        }
+
+        @media (max-width: 480px) {
+            header h1 {
+                font-size: 1.1rem;
+            }
+            .face {
+                font-size: 20px;
+            }
+            .nav a {
+                padding: 4px 6px;
+                font-size: 0.7rem;
+            }
+            .status-line,
+            .thought-line {
+                font-size: 0.65rem;
+                margin-left: 28px;
+            }
+            .thought-line {
+                max-width: 30ch;
+            }
+            .messages {
+                padding: 0.5rem;
+            }
+            .message {
+                padding: 0.5rem;
+                font-size: 0.85rem;
+            }
+            .command-palette {
+                margin: 0.5rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -758,6 +873,98 @@ SETTINGS_TEMPLATE = """
         }
         .message.show {
             display: block;
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            body {
+                padding: 0.75rem;
+            }
+            header {
+                padding: 0.75rem 0;
+                margin-bottom: 1.5rem;
+                flex-wrap: wrap;
+                gap: 0.75rem;
+            }
+            h1 {
+                font-size: 1.25rem;
+            }
+            h2 {
+                font-size: 1rem;
+                margin: 1.5rem 0 0.75rem;
+            }
+            .header-left {
+                flex: 1 1 100%;
+            }
+            .status-line,
+            .thought-line {
+                font-size: 0.7rem;
+            }
+            .thought-line {
+                max-width: 40ch;
+            }
+            header > div:last-child {
+                width: 100%;
+                justify-content: space-between !important;
+            }
+            .back-button {
+                flex: 1;
+                padding: 0.6rem 0.5rem;
+                font-size: 0.85rem;
+            }
+            .settings-section {
+                max-width: 100%;
+            }
+            .input-group {
+                margin-bottom: 1.25rem;
+            }
+            .input-group input[type="text"],
+            .input-group select {
+                padding: 0.875rem;
+                font-size: 16px !important; /* Prevents zoom on iOS */
+            }
+            .slider-container {
+                margin-bottom: 1.25rem;
+            }
+            .slider::-webkit-slider-thumb {
+                width: 24px;
+                height: 24px; /* Larger for easier touch */
+            }
+            .slider::-moz-range-thumb {
+                width: 24px;
+                height: 24px;
+            }
+            .save-button {
+                padding: 0.875rem;
+                font-size: 16px;
+                margin-top: 1.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 0.5rem;
+            }
+            header {
+                margin-bottom: 1rem;
+            }
+            h1 {
+                font-size: 1.1rem;
+            }
+            h2 {
+                font-size: 0.95rem;
+                margin: 1rem 0 0.5rem;
+            }
+            .back-button {
+                padding: 0.5rem 0.4rem;
+                font-size: 0.75rem;
+            }
+            .input-group {
+                margin-bottom: 1rem;
+            }
+            .slider-container {
+                margin-bottom: 1rem;
+            }
         }
     </style>
 </head>
@@ -1463,22 +1670,126 @@ TASKS_TEMPLATE = """
             color: var(--muted);
         }
 
-        /* Responsive */
+        /* Mobile Responsiveness */
         @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+            .header {
+                padding: 0.75rem;
+                margin-bottom: 16px;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            .header h1 {
+                font-size: 1.25rem;
+                gap: 8px;
+            }
+            .face {
+                font-size: 24px;
+            }
+            .header-left {
+                flex: 1;
+                min-width: 0;
+            }
+            .status-line,
+            .thought-line {
+                font-size: 0.7rem;
+                margin-left: 34px;
+            }
+            .thought-line {
+                max-width: 40ch;
+            }
+            .nav {
+                width: 100%;
+                justify-content: space-between;
+                gap: 6px;
+            }
+            .nav a {
+                flex: 1;
+                text-align: center;
+                padding: 6px 8px;
+                font-size: 0.75rem;
+            }
             .kanban {
                 grid-template-columns: 1fr;
+                gap: 16px;
             }
-
             .stats-bar {
                 grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+                margin-bottom: 16px;
             }
-
+            .stat-card {
+                padding: 12px;
+            }
+            .stat-number {
+                font-size: 24px;
+            }
+            .quick-add {
+                padding: 12px;
+                margin-bottom: 16px;
+            }
             .quick-add-form {
                 flex-direction: column;
+                gap: 8px;
             }
-
             .quick-add input {
                 min-width: 100%;
+                font-size: 16px; /* Prevents zoom on iOS */
+                padding: 10px;
+            }
+            .quick-add button {
+                width: 100%;
+                font-size: 16px;
+                padding: 10px;
+            }
+            .task {
+                padding: 12px;
+            }
+            .task-actions button {
+                padding: 6px 10px;
+                font-size: 0.75rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 8px;
+            }
+            .header {
+                padding: 0.5rem;
+                margin-bottom: 12px;
+            }
+            .header h1 {
+                font-size: 1.1rem;
+            }
+            .face {
+                font-size: 20px;
+            }
+            .nav a {
+                padding: 4px 6px;
+                font-size: 0.7rem;
+            }
+            .status-line,
+            .thought-line {
+                font-size: 0.65rem;
+                margin-left: 28px;
+            }
+            .thought-line {
+                max-width: 30ch;
+            }
+            .stats-bar {
+                gap: 8px;
+            }
+            .stat-card {
+                padding: 10px;
+            }
+            .stat-number {
+                font-size: 20px;
+            }
+            .stat-label {
+                font-size: 10px;
             }
         }
     </style>
@@ -1898,6 +2209,41 @@ LOGIN_TEMPLATE = """
             font-size: 3rem;
             margin-bottom: 1rem;
         }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .login-container {
+                padding: 1.5rem;
+                margin: 1rem;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            .face {
+                font-size: 2.5rem;
+            }
+            input[type="password"],
+            button {
+                font-size: 16px; /* Prevents zoom on iOS */
+                padding: 0.875rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 1rem;
+                margin: 0.5rem;
+            }
+            h1 {
+                font-size: 1.25rem;
+            }
+            .face {
+                font-size: 2rem;
+            }
+            .subtitle {
+                font-size: 0.8rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -2204,6 +2550,122 @@ FILES_TEMPLATE = """
         .storage-selector select:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0.75rem;
+            }
+            header {
+                flex-wrap: wrap;
+                gap: 0.75rem;
+                padding-bottom: 0.75rem;
+                margin-bottom: 0.75rem;
+            }
+            h1 {
+                font-size: 1.25rem;
+            }
+            .header-left {
+                flex: 1 1 100%;
+            }
+            .status-line,
+            .thought-line {
+                font-size: 0.7rem;
+            }
+            .thought-line {
+                max-width: 40ch;
+            }
+            .nav {
+                width: 100%;
+                justify-content: space-between;
+                gap: 0.5rem;
+            }
+            .nav a {
+                flex: 1;
+                text-align: center;
+                padding: 0.4rem 0.5rem;
+                font-size: 0.85rem;
+            }
+            .storage-selector {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.5rem;
+                padding: 0.75rem;
+            }
+            .storage-selector label {
+                font-size: 0.9rem;
+            }
+            .storage-selector select {
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            .breadcrumb {
+                font-size: 0.8em;
+                padding: 0.4rem;
+            }
+            .file-item {
+                padding: 0.75rem;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+            .file-info {
+                width: 100%;
+            }
+            .file-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+            .btn {
+                padding: 0.4rem 0.75rem;
+                font-size: 0.85em;
+            }
+            .modal-content {
+                width: 95%;
+                max-width: 95%;
+                margin: 10% auto;
+                padding: 1rem;
+            }
+            .modal-header h2 {
+                font-size: 1.1rem;
+            }
+            .modal-body {
+                max-height: 60vh;
+                font-size: 0.85rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 0.5rem;
+            }
+            h1 {
+                font-size: 1.1rem;
+            }
+            .nav a {
+                padding: 0.3rem 0.4rem;
+                font-size: 0.75rem;
+            }
+            .status-line,
+            .thought-line {
+                font-size: 0.65rem;
+            }
+            .thought-line {
+                max-width: 30ch;
+            }
+            .file-item {
+                padding: 0.6rem;
+            }
+            .file-name {
+                font-size: 0.9rem;
+            }
+            .file-meta {
+                font-size: 0.75em;
+            }
+            .btn {
+                padding: 0.35rem 0.6rem;
+                font-size: 0.8em;
+            }
         }
     </style>
 </head>
