@@ -128,13 +128,13 @@ def test_xp_rate_limiter():
     assert can_award is True
     assert amount == 5
 
-    limiter.record_xp(5)
+    limiter.record_xp(XPSource.QUICK_CHAT, 5)
 
     # Award up to the limit
     for _ in range(18):  # 18 * 5 = 90, total 95
         can_award, amount = limiter.can_award_xp(XPSource.QUICK_CHAT, 5)
         if can_award:
-            limiter.record_xp(amount)
+            limiter.record_xp(XPSource.QUICK_CHAT, amount)
 
     # Should be near/at limit
     can_award, amount = limiter.can_award_xp(XPSource.QUICK_CHAT, 10)

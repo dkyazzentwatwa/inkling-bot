@@ -163,6 +163,25 @@ class TestPersonality:
         # Should transition from BORED to CURIOUS
         assert personality.mood.current == Mood.CURIOUS
 
+    def test_first_interaction_awards_daily_and_chat_xp(self, personality):
+        """First interaction of the day should include daily + chat XP."""
+        from core.progression import ChatQuality
+
+        quality = ChatQuality(
+            message_length=80,
+            turn_count=3,
+            is_question=True,
+            sentiment="positive",
+        )
+        xp_awarded = personality.on_interaction(
+            positive=True,
+            chat_quality=quality,
+            user_message="Can we go deeper on this topic?",
+        )
+
+        assert xp_awarded is not None
+        assert xp_awarded > 20
+
     def test_on_interaction_negative(self, personality):
         """Test negative interaction effects."""
         from core.personality import Mood

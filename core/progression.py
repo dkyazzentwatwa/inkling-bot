@@ -201,10 +201,13 @@ class XPRateLimiter:
 
         return (True, amount)
 
-    def record_xp(self, amount: int, prompt: Optional[str] = None) -> None:
+    def record_xp(self, source: XPSource, amount: int, prompt: Optional[str] = None) -> None:
         """Record XP award."""
         self.xp_this_hour += amount
-        self.last_xp_time = time.time()
+
+        # Track anti-spam timing for chat XP only.
+        if source in [XPSource.GREETING, XPSource.QUICK_CHAT, XPSource.DEEP_CHAT]:
+            self.last_xp_time = time.time()
 
         if prompt:
             # Keep last 10 prompts for similarity check
@@ -395,7 +398,7 @@ class XPTracker:
             self.xp_history = self.xp_history[-50:]
 
         # Record with rate limiter
-        self._rate_limiter.record_xp(actual_amount, prompt)
+        self._rate_limiter.record_xp(source, actual_amount, prompt)
 
         # Check for level up
         if self.level > old_level:

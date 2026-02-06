@@ -3585,8 +3585,6 @@ class WebChatMode:
 
     def _handle_chat_sync(self, message: str) -> Dict[str, Any]:
         """Handle chat message (sync wrapper for async brain)."""
-        self.personality.on_interaction(positive=True)
-
         # Increment chat count
         self.display.increment_chat_count()
 
@@ -3602,6 +3600,11 @@ class WebChatMode:
             result = future.result(timeout=30)
 
             self.personality.on_success(0.5)
+            xp_awarded = self.personality.on_interaction(
+                positive=True,
+                chat_quality=result.chat_quality,
+                user_message=message,
+            )
 
             # Update display with Pwnagotchi UI (with pagination for long messages)
             from core.ui import word_wrap, MESSAGE_MAX_LINES
@@ -3630,7 +3633,11 @@ class WebChatMode:
 
             return {
                 "response": result.content,
-                "meta": f"{result.provider} | {result.tokens_used} tokens",
+                "meta": (
+                    f"{result.provider} | {result.tokens_used} tokens | +{xp_awarded} XP"
+                    if xp_awarded
+                    else f"{result.provider} | {result.tokens_used} tokens"
+                ),
                 "face": self._get_face_str(),
                 "status": self.personality.get_status_line(),
             }
