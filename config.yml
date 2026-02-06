@@ -41,7 +41,7 @@ ai:
     api_key: ${OLLAMA_API_KEY}
     model: "qwen3-coder-next"
     max_tokens: 150
-    base_url: "https://api.ollama.com/v1"  # Ollama cloud API
+    base_url: "https://ollama.com/api"  # Ollama cloud API
     # For local Ollama: base_url: "http://localhost:11434/v1"
 
   # Token budgets

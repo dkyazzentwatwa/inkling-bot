@@ -434,7 +434,7 @@ class GeminiProvider(AIProvider):
 class OllamaProvider(AIProvider):
     """Ollama cloud provider.
 
-    Uses Ollama's cloud API (OpenAI-compatible) at https://api.ollama.com/v1.
+    Uses Ollama's cloud API (OpenAI-compatible) at https://ollama.com/api.
     Supports models like qwen3-coder-next, kimi-k2.5, nemotron-3-nano:30b-cloud, gpt-oss:120b-cloud, etc.
     """
 
@@ -443,7 +443,7 @@ class OllamaProvider(AIProvider):
         api_key: str,
         model: str = "qwen3-coder-next",
         max_tokens: int = 150,
-        base_url: str = "https://api.ollama.com/v1",
+        base_url: str = "https://ollama.com/api",
     ):
         super().__init__(api_key, model, max_tokens)
         self._client = None
@@ -623,7 +623,7 @@ class Brain:
                 api_key=ollama_key,
                 model=ollama_config.get("model", "qwen3-coder-next"),
                 max_tokens=ollama_config.get("max_tokens", 150),
-                base_url=ollama_config.get("base_url", "https://api.ollama.com/v1"),
+                base_url=ollama_config.get("base_url", "https://ollama.com/api"),
             ))
 
         if openai_key:
@@ -640,7 +640,7 @@ class Brain:
                 api_key=ollama_key,
                 model=ollama_config.get("model", "qwen3-coder-next"),
                 max_tokens=ollama_config.get("max_tokens", 150),
-                base_url=ollama_config.get("base_url", "https://api.ollama.com/v1"),
+                base_url=ollama_config.get("base_url", "https://ollama.com/api"),
             ))
 
         # Add gemini as fallback if not primary
