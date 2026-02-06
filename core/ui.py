@@ -499,16 +499,16 @@ class FooterBar:
         line2_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_segments)
         line2_x = (DISPLAY_WIDTH - line2_width) // 2
 
-        # Draw line 1
+        # Draw line 1 (use normal text for better readability)
         x = line1_x
         for seg in line1_segments:
-            draw_text_bold(draw, (x, line1_y), seg.text, font=self.fonts.small, fill=0)
+            draw.text((x, line1_y), seg.text, font=self.fonts.small, fill=0)
             x += text_width(draw, seg.text, self.fonts.small)
 
-        # Draw line 2
+        # Draw line 2 (use normal text for better readability)
         x = line2_x
         for seg in line2_segments:
-            draw_text_bold(draw, (x, line2_y), seg.text, font=self.fonts.small, fill=0)
+            draw.text((x, line2_y), seg.text, font=self.fonts.small, fill=0)
             x += text_width(draw, seg.text, self.fonts.small)
 
 
