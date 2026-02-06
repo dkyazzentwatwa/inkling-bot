@@ -388,10 +388,11 @@ class MessagePanel:
         max_width = self.width - 10  # Leave some margin
         lines = word_wrap_pixels(ctx.message, max_width, self.fonts.normal, draw)
 
-        # Calculate starting Y to vertically center text block
+        # Calculate starting Y to position text block (slightly below center)
         line_height = MESSAGE_LINE_HEIGHT
         total_text_height = len(lines) * line_height
-        start_y = self.y + (self.height - total_text_height) // 2
+        vertical_offset = 8  # Pixels to push text down from center
+        start_y = self.y + (self.height - total_text_height) // 2 + vertical_offset
 
         # Draw each line centered horizontally
         text_y = start_y
