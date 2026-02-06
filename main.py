@@ -148,14 +148,27 @@ class Inkling:
 
         # Personality (create first so display can reference it)
         print("  - Creating personality...")
-        personality_config = self.config.get("personality", {})
-        traits = PersonalityTraits(
-            curiosity=personality_config.get("curiosity", 0.7),
-            cheerfulness=personality_config.get("cheerfulness", 0.6),
-            verbosity=personality_config.get("verbosity", 0.5),
-        )
         device_name = self.config.get("device", {}).get("name", "Inkling")
-        self.personality = Personality(name=device_name, traits=traits)
+        self.personality = Personality.load()  # Load saved state
+
+        # Update name if changed in config
+        if self.personality.name != device_name:
+            self.personality.name = device_name
+
+        # Update traits from config (user-editable via web UI)
+        personality_config = self.config.get("personality", {})
+        if "curiosity" in personality_config:
+            self.personality.traits.curiosity = personality_config["curiosity"]
+        if "cheerfulness" in personality_config:
+            self.personality.traits.cheerfulness = personality_config["cheerfulness"]
+        if "verbosity" in personality_config:
+            self.personality.traits.verbosity = personality_config["verbosity"]
+        if "playfulness" in personality_config:
+            self.personality.traits.playfulness = personality_config["playfulness"]
+        if "empathy" in personality_config:
+            self.personality.traits.empathy = personality_config["empathy"]
+        if "independence" in personality_config:
+            self.personality.traits.independence = personality_config["independence"]
 
         # Display
         print("  - Initializing display...")
@@ -401,6 +414,14 @@ class Inkling:
 
         if self.mcp_client:
             await self.mcp_client.stop_all()
+
+        # Save personality state
+        if self.personality:
+            try:
+                self.personality.save()
+                print("[Personality] State saved")
+            except Exception as e:
+                print(f"[Personality] Failed to save state: {e}")
 
         if self.display:
             self.display.sleep()

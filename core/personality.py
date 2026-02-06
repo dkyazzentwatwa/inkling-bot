@@ -304,6 +304,13 @@ class Personality:
         if old_mood != self.mood.current:
             self._notify_mood_change(old_mood, self.mood.current)
 
+        # Auto-save after XP awards
+        if xp_awarded > 0:
+            try:
+                self.save()
+            except Exception:
+                pass  # Don't fail chat on save error
+
         return xp_awarded if xp_awarded > 0 else None
 
     def on_success(self, magnitude: float = 0.5) -> None:
@@ -552,6 +559,13 @@ class Personality:
         if old_mood != self.mood.current:
             self._notify_mood_change(old_mood, self.mood.current)
 
+        # Auto-save after task XP
+        if xp_awarded > 0:
+            try:
+                self.save()
+            except Exception:
+                pass
+
         result = {}
         if xp_awarded > 0:
             result['xp_awarded'] = xp_awarded
@@ -661,3 +675,36 @@ class Personality:
             p.progression = XPTracker.from_dict(data["progression"])
 
         return p
+
+    def save(self, data_dir: str = "~/.inkling") -> None:
+        """Save personality state to JSON."""
+        import json
+        from pathlib import Path
+
+        data_dir_path = Path(data_dir).expanduser()
+        data_dir_path.mkdir(parents=True, exist_ok=True)
+        save_path = data_dir_path / "personality.json"
+
+        with open(save_path, 'w') as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def load(cls, data_dir: str = "~/.inkling") -> "Personality":
+        """Load personality state from JSON, or create new if not found."""
+        import json
+        from pathlib import Path
+
+        data_dir_path = Path(data_dir).expanduser()
+        save_path = data_dir_path / "personality.json"
+
+        if save_path.exists():
+            try:
+                with open(save_path, 'r') as f:
+                    data = json.load(f)
+                return cls.from_dict(data)
+            except Exception as e:
+                print(f"[Personality] Failed to load saved state: {e}")
+                # Fall through to create new
+
+        # No saved state or failed to load - create new
+        return cls()
