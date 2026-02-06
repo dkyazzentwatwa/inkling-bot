@@ -850,13 +850,15 @@ SETTINGS_TEMPLATE = """
         <div class="input-group">
             <label for="ollama-model">Ollama Model</label>
             <select id="ollama-model" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
-                <option value="llama3.3">Llama 3.3 (Balanced)</option>
-                <option value="llama3.1">Llama 3.1 (Capable)</option>
-                <option value="qwen2.5">Qwen 2.5 (Multilingual)</option>
-                <option value="mistral">Mistral (Fast)</option>
-                <option value="gemma2">Gemma 2 (Compact)</option>
-                <option value="phi4">Phi 4 (Efficient)</option>
-                <option value="deepseek-r1">DeepSeek R1 (Reasoning)</option>
+                <option value="qwen3-coder-next">Qwen3 Coder Next</option>
+                <option value="kimi-k2.5">Kimi K2.5</option>
+                <option value="ministral-3:8b-cloud">Ministral 3 8B</option>
+                <option value="rnj-1:8b-cloud">RNJ-1 8B</option>
+                <option value="nemotron-3-nano:30b-cloud">Nemotron 3 Nano 30B</option>
+                <option value="gemini-3-flash-preview:cloud">Gemini 3 Flash Preview</option>
+                <option value="glm-4.7:cloud">GLM 4.7</option>
+                <option value="gpt-oss:120b-cloud">GPT-OSS 120B</option>
+                <option value="gpt-oss:20b-cloud">GPT-OSS 20B</option>
             </select>
         </div>
 
@@ -903,7 +905,7 @@ SETTINGS_TEMPLATE = """
                     document.getElementById('anthropic-model').value = data.ai.anthropic?.model || 'claude-3-haiku-20240307';
                     document.getElementById('openai-model').value = data.ai.openai?.model || 'gpt-4o-mini';
                     document.getElementById('gemini-model').value = data.ai.gemini?.model || 'gemini-2.0-flash-exp';
-                    document.getElementById('ollama-model').value = data.ai.ollama?.model || 'llama3.3';
+                    document.getElementById('ollama-model').value = data.ai.ollama?.model || 'qwen3-coder-next';
                     document.getElementById('max-tokens').value = data.ai.budget?.max_tokens || 150;
                     document.getElementById('daily-tokens').value = data.ai.budget?.daily_tokens || 10000;
                 }
@@ -2575,7 +2577,7 @@ class WebChatMode:
                     "model": self.brain.config.get("gemini", {}).get("model", "gemini-2.0-flash-exp"),
                 },
                 "ollama": {
-                    "model": self.brain.config.get("ollama", {}).get("model", "llama3.3"),
+                    "model": self.brain.config.get("ollama", {}).get("model", "qwen3-coder-next"),
                 },
                 "budget": {
                     "daily_tokens": self.brain.budget.daily_limit,

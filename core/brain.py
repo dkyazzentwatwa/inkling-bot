@@ -435,13 +435,13 @@ class OllamaProvider(AIProvider):
     """Ollama cloud provider.
 
     Uses Ollama's cloud API (OpenAI-compatible) at https://api.ollama.com/v1.
-    Supports models like llama3.3, qwen2.5, mistral, gemma2, phi4, deepseek-r1, etc.
+    Supports models like qwen3-coder-next, kimi-k2.5, nemotron-3-nano:30b-cloud, gpt-oss:120b-cloud, etc.
     """
 
     def __init__(
         self,
         api_key: str,
-        model: str = "llama3.3",
+        model: str = "qwen3-coder-next",
         max_tokens: int = 150,
         base_url: str = "https://api.ollama.com/v1",
     ):
@@ -621,7 +621,7 @@ class Brain:
         elif primary == "ollama" and ollama_key:
             self.providers.append(OllamaProvider(
                 api_key=ollama_key,
-                model=ollama_config.get("model", "llama3.3"),
+                model=ollama_config.get("model", "qwen3-coder-next"),
                 max_tokens=ollama_config.get("max_tokens", 150),
                 base_url=ollama_config.get("base_url", "https://api.ollama.com/v1"),
             ))
@@ -638,7 +638,7 @@ class Brain:
         if primary != "ollama" and ollama_key:
             self.providers.append(OllamaProvider(
                 api_key=ollama_key,
-                model=ollama_config.get("model", "llama3.3"),
+                model=ollama_config.get("model", "qwen3-coder-next"),
                 max_tokens=ollama_config.get("max_tokens", 150),
                 base_url=ollama_config.get("base_url", "https://api.ollama.com/v1"),
             ))
