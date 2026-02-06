@@ -219,6 +219,12 @@ class Inkling:
                 enable_time_behaviors=heartbeat_config_data.get("enable_time_behaviors", True),
                 enable_social_behaviors=heartbeat_config_data.get("enable_social_behaviors", True),
                 enable_maintenance=heartbeat_config_data.get("enable_maintenance", True),
+                enable_thoughts=heartbeat_config_data.get("enable_thoughts", True),
+                thought_interval_min_minutes=heartbeat_config_data.get("thought_interval_min_minutes", 15),
+                thought_interval_max_minutes=heartbeat_config_data.get("thought_interval_max_minutes", 30),
+                thought_surface_probability=heartbeat_config_data.get(
+                    "thought_surface_probability", 0.35
+                ),
                 quiet_hours_start=heartbeat_config_data.get("quiet_hours_start", 23),
                 quiet_hours_end=heartbeat_config_data.get("quiet_hours_end", 7),
             )

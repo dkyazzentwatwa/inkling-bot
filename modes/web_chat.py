@@ -171,6 +171,23 @@ HTML_TEMPLATE = """
             gap: 12px;
             margin: 0;
         }
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .status-line,
+        .thought-line {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-left: 44px;
+        }
+        .thought-line {
+            max-width: 60ch;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         .face {
             font-size: 32px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif;
@@ -308,10 +325,14 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <header>
-        <h1>
-            <span class="face" id="face">{{face}}</span>
-            <span>Chat</span>
-        </h1>
+        <div class="header-left">
+            <h1>
+                <span class="face" id="face">{{face}}</span>
+                <span>Chat</span>
+            </h1>
+            <div class="status-line" id="status">{{status}}</div>
+            <div class="thought-line" id="thought">{{thought}}</div>
+        </div>
         <div class="nav">
             <a href="/tasks">📋 Tasks</a>
             <a href="/files">📁 Files</a>
@@ -379,6 +400,7 @@ HTML_TEMPLATE = """
         const sendBtn = document.getElementById('send');
         const faceEl = document.getElementById('face');
         const statusEl = document.getElementById('status');
+        const thoughtEl = document.getElementById('thought');
 
         // Handle enter key
         inputEl.addEventListener('keypress', (e) => {
@@ -460,6 +482,7 @@ HTML_TEMPLATE = """
         function updateState(data) {
             if (data.face && faceEl) faceEl.textContent = data.face;
             if (data.status && statusEl) statusEl.textContent = data.status;
+            if (data.thought !== undefined && thoughtEl) thoughtEl.textContent = data.thought || '';
         }
 
         function escapeHtml(text) {
@@ -616,6 +639,22 @@ SETTINGS_TEMPLATE = """
             align-items: center;
             margin-bottom: 2rem;
         }
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .status-line,
+        .thought-line {
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+        .thought-line {
+            max-width: 60ch;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         h1 { font-size: 1.5rem; }
         h2 {
             font-size: 1.125rem;
@@ -724,7 +763,11 @@ SETTINGS_TEMPLATE = """
 </head>
 <body>
     <header>
-        <h1>⚙️ Settings</h1>
+        <div class="header-left">
+            <h1>⚙️ Settings</h1>
+            <div class="status-line" id="status">{{status}}</div>
+            <div class="thought-line" id="thought">{{thought}}</div>
+        </div>
         <div style="display: flex; gap: 0.5rem;">
             <button class="back-button" onclick="location.href='/'">Chat</button>
             <button class="back-button" onclick="location.href='/tasks'">Tasks</button>
@@ -888,6 +931,8 @@ SETTINGS_TEMPLATE = """
         const savedTheme = localStorage.getItem('inklingTheme') || 'cream';
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.getElementById('theme').value = savedTheme;
+        const statusEl = document.getElementById('status');
+        const thoughtEl = document.getElementById('thought');
 
         // Theme change handler
         document.getElementById('theme').addEventListener('change', function() {
@@ -895,6 +940,19 @@ SETTINGS_TEMPLATE = """
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('inklingTheme', theme);
         });
+
+        function updateHeader() {
+            fetch('/api/state')
+                .then(r => r.json())
+                .then(data => {
+                    if (statusEl) statusEl.textContent = data.status || '';
+                    if (thoughtEl) thoughtEl.textContent = data.thought || '';
+                })
+                .catch(() => {});
+        }
+
+        updateHeader();
+        setInterval(updateHeader, 5000);
 
         // Load current AI settings on page load
         fetch('/api/settings')
@@ -1053,6 +1111,26 @@ TASKS_TEMPLATE = """
             padding: 1rem;
             margin-bottom: 24px;
             border-bottom: 2px solid var(--border);
+        }
+
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .status-line,
+        .thought-line {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-left: 44px;
+        }
+
+        .thought-line {
+            max-width: 60ch;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .header h1 {
@@ -1409,10 +1487,14 @@ TASKS_TEMPLATE = """
 </head>
 <body>
     <div class="header">
-        <h1>
-            <span class="face" id="face">(･_･)</span>
-            <span>Tasks</span>
-        </h1>
+        <div class="header-left">
+            <h1>
+                <span class="face" id="face">(･_･)</span>
+                <span>Tasks</span>
+            </h1>
+            <div class="status-line" id="status">{{status}}</div>
+            <div class="thought-line" id="thought">{{thought}}</div>
+        </div>
         <div class="nav">
             <a href="/">💬 Chat</a>
             <a href="/files">📁 Files</a>
@@ -1502,6 +1584,8 @@ TASKS_TEMPLATE = """
         document.documentElement.setAttribute('data-theme', theme);
 
         let tasks = [];
+        const statusEl = document.getElementById('status');
+        const thoughtEl = document.getElementById('thought');
 
         // Load tasks
         async function loadTasks() {
@@ -1538,6 +1622,8 @@ TASKS_TEMPLATE = """
                 .then(r => r.json())
                 .then(data => {
                     document.getElementById('face').textContent = data.face || '(･_･)';
+                    if (statusEl) statusEl.textContent = data.status || '';
+                    if (thoughtEl) thoughtEl.textContent = data.thought || '';
                 })
                 .catch(err => console.error('Face error:', err));
         }
@@ -1890,6 +1976,22 @@ FILES_TEMPLATE = """
             justify-content: space-between;
             align-items: center;
         }
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .status-line,
+        .thought-line {
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+        .thought-line {
+            max-width: 60ch;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
         h1 {
             font-size: 1.8rem;
@@ -2110,7 +2212,11 @@ FILES_TEMPLATE = """
 <body>
     <div class="container">
         <header>
-            <h1>📁 Files</h1>
+            <div class="header-left">
+                <h1>📁 Files</h1>
+                <div class="status-line" id="status">{{status}}</div>
+                <div class="thought-line" id="thought">{{thought}}</div>
+            </div>
             <div class="nav">
                 <a href="/">💬 Chat</a>
                 <a href="/tasks">📋 Tasks</a>
@@ -2151,10 +2257,25 @@ FILES_TEMPLATE = """
     <script>
         let currentPath = '';
         let currentStorage = 'inkling';  // Track current storage location
+        const statusEl = document.getElementById('status');
+        const thoughtEl = document.getElementById('thought');
 
         // Apply saved theme
         const theme = localStorage.getItem('inklingTheme') || 'cream';
         document.documentElement.setAttribute('data-theme', theme);
+
+        function updateHeader() {
+            fetch('/api/state')
+                .then(r => r.json())
+                .then(data => {
+                    if (statusEl) statusEl.textContent = data.status || '';
+                    if (thoughtEl) thoughtEl.textContent = data.thought || '';
+                })
+                .catch(() => {});
+        }
+
+        updateHeader();
+        setInterval(updateHeader, 5000);
 
         function switchStorage() {
             currentStorage = document.getElementById('storageSelect').value;
@@ -2474,6 +2595,7 @@ class WebChatMode:
                 name=self.personality.name,
                 face=self._get_face_str(),
                 status=self.personality.get_status_line(),
+                thought=self.personality.last_thought or "",
             )
 
         @self._app.route("/settings")
@@ -2485,6 +2607,8 @@ class WebChatMode:
                 SETTINGS_TEMPLATE,
                 name=self.personality.name,
                 traits=self.personality.traits.to_dict(),
+                status=self.personality.get_status_line(),
+                thought=self.personality.last_thought or "",
             )
 
         @self._app.route("/tasks")
@@ -2495,6 +2619,8 @@ class WebChatMode:
             return template(
                 TASKS_TEMPLATE,
                 name=self.personality.name,
+                status=self.personality.get_status_line(),
+                thought=self.personality.last_thought or "",
             )
 
         @self._app.route("/files")
@@ -2519,6 +2645,8 @@ class WebChatMode:
                 FILES_TEMPLATE,
                 name=self.personality.name,
                 sd_available=sd_available,
+                status=self.personality.get_status_line(),
+                thought=self.personality.last_thought or "",
             )
 
         @self._app.route("/api/chat", method="POST")
@@ -2558,6 +2686,7 @@ class WebChatMode:
                 "face": self._get_face_str(),
                 "status": self.personality.get_status_line(),
                 "mood": self.personality.mood.current.value,
+                "thought": self.personality.last_thought or "",
             })
 
         @self._app.route("/api/settings", method="GET")

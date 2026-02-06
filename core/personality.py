@@ -143,6 +143,10 @@ class Personality:
         # Progression system
         self.progression = XPTracker()
 
+        # Latest autonomous thought (optional)
+        self.last_thought: Optional[str] = None
+        self.last_thought_at: Optional[float] = None
+
         # Social stats tracking
         self.social_stats = {
             "dreams_posted": 0,
@@ -641,6 +645,11 @@ class Personality:
         energy_bar = "=" * int(self.energy * 5) + "-" * (5 - int(self.energy * 5))
         return f"[{energy_bar}] {self.mood.current.value}"
 
+    def set_last_thought(self, thought: str, timestamp: Optional[float] = None) -> None:
+        """Store the latest autonomous thought."""
+        self.last_thought = thought.strip() if thought else None
+        self.last_thought_at = timestamp if timestamp is not None else time.time()
+
     def to_dict(self) -> dict:
         """Serialize personality state."""
         return {
@@ -652,6 +661,8 @@ class Personality:
             },
             "interaction_count": self._interaction_count,
             "progression": self.progression.to_dict(),
+            "last_thought": self.last_thought,
+            "last_thought_at": self.last_thought_at,
         }
 
     @classmethod
@@ -669,6 +680,8 @@ class Personality:
                 mood = Mood.HAPPY
             p.mood.set_mood(mood, data["mood"].get("intensity", 0.5))
         p._interaction_count = data.get("interaction_count", 0)
+        p.last_thought = data.get("last_thought")
+        p.last_thought_at = data.get("last_thought_at")
 
         # Restore progression
         if "progression" in data:

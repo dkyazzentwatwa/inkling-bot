@@ -428,7 +428,7 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 - `ai.openai.model`: Model selection (gpt-5-mini/gpt-5.2)
 - `ai.gemini.model`: Model selection (gemini-2.0-flash-exp/gemini-1.5-flash/gemini-1.5-pro)
 - `ai.ollama.model`: Model selection (qwen3-coder-next/kimi-k2.5/ministral-3:8b-cloud/rnj-1:8b-cloud/nemotron-3-nano:30b-cloud/gemini-3-flash-preview:cloud/glm-4.7:cloud/gpt-oss:120b-cloud/gpt-oss:20b-cloud)
-- `ai.ollama.base_url`: Ollama API URL (default: https://ollama.com/api)
+- `ai.ollama.base_url`: Ollama API URL (default: https://ollama.com/api for cloud, http://localhost:11434/api for local)
 - `ai.budget.daily_tokens`: Daily token limit (default 10000)
 - `ai.budget.per_request_max`: Max tokens per request (default 500)
 - `personality.*`: Base trait values (curiosity, cheerfulness, verbosity, playfulness, empathy, independence - 0.0-1.0)

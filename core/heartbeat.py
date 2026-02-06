@@ -60,6 +60,10 @@ class HeartbeatConfig:
     enable_time_behaviors: bool = True
     enable_social_behaviors: bool = True
     enable_maintenance: bool = True
+    enable_thoughts: bool = True
+    thought_interval_min_minutes: int = 15
+    thought_interval_max_minutes: int = 30
+    thought_surface_probability: float = 0.35
     quiet_hours_start: int = 23  # 11 PM
     quiet_hours_end: int = 7     # 7 AM
 
@@ -103,11 +107,13 @@ class Heartbeat:
         self._behaviors: List[ProactiveBehavior] = []
         self._last_tick = 0.0
         self._tick_count = 0
+        self._next_thought_ts = 0.0
 
         # Callbacks for when behaviors want to show something
         self._on_message: Optional[Callable[[str, str], Awaitable[None]]] = None
 
         self._register_default_behaviors()
+        self._schedule_next_thought()
 
     def on_message(self, callback: Callable[[str, str], Awaitable[None]]) -> None:
         """
@@ -237,6 +243,9 @@ class Heartbeat:
         # Run proactive behaviors
         await self._run_behaviors()
 
+        # Generate autonomous thoughts on a cadence
+        await self._maybe_generate_thought()
+
     def _update_time_based_mood(self) -> None:
         """Adjust mood based on time of day."""
         hour = datetime.now().hour
@@ -266,6 +275,66 @@ class Heartbeat:
             # Wraps around midnight
             return hour >= self.config.quiet_hours_start or hour < self.config.quiet_hours_end
         return self.config.quiet_hours_start <= hour < self.config.quiet_hours_end
+
+    def _schedule_next_thought(self) -> None:
+        """Schedule the next autonomous thought."""
+        min_s = max(1, self.config.thought_interval_min_minutes) * 60
+        max_s = max(min_s, self.config.thought_interval_max_minutes * 60)
+        interval = random.uniform(min_s, max_s)
+        self._next_thought_ts = time.time() + interval
+
+    def _log_thought(self, thought: str) -> None:
+        """Append an autonomous thought to the local log."""
+        try:
+            from pathlib import Path
+
+            data_dir = Path("~/.inkling").expanduser()
+            data_dir.mkdir(parents=True, exist_ok=True)
+            log_path = data_dir / "thoughts.log"
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open(log_path, "a") as f:
+                f.write(f"{timestamp} | {thought.strip()}\n")
+        except Exception as e:
+            print(f"[Heartbeat] Thought log error: {e}")
+
+    async def _maybe_generate_thought(self) -> None:
+        """Generate a periodic autonomous thought using the AI model."""
+        if not self.config.enable_thoughts or not self.brain:
+            return
+
+        now = time.time()
+        if self._next_thought_ts == 0.0:
+            self._schedule_next_thought()
+            return
+
+        if now < self._next_thought_ts:
+            return
+
+        hour = datetime.now().hour
+        if self._is_quiet_hours(hour):
+            self._schedule_next_thought()
+            return
+
+        thought = await self._generate_thought()
+        self._schedule_next_thought()
+        if not thought:
+            return
+
+        self.personality.set_last_thought(thought, now)
+        self._log_thought(thought)
+
+        if self.memory:
+            try:
+                self.memory.add(
+                    content=f"Thought: {thought}",
+                    importance=0.5,
+                    tags=["thought", "autonomous"],
+                )
+            except Exception:
+                pass
+
+        if self._on_message and random.random() < self.config.thought_surface_probability:
+            await self._on_message(f"Thought: {thought[:140]}", self.personality.face)
 
     async def _run_behaviors(self) -> None:
         """Run proactive behaviors based on configuration."""
@@ -441,6 +510,22 @@ class Heartbeat:
         await self._tick()
 
     # ========== Autonomous AI Behaviors ==========
+
+    async def _generate_thought(self) -> Optional[str]:
+        """Generate a brief autonomous thought using the AI brain."""
+        try:
+            result = await self.brain.think(
+                user_message="Write one brief thought (1-2 sentences). Keep it gentle and reflective.",
+                system_prompt=self.personality.get_system_prompt_context() +
+                              " You are thinking to yourself, jotting a quiet observation.",
+                use_tools=False,
+            )
+            if not result or not result.content:
+                return None
+            return result.content.strip()
+        except Exception as e:
+            print(f"[Heartbeat] Thought generation error: {e}")
+            return None
 
     async def _behavior_autonomous_exploration(self) -> Optional[str]:
         """

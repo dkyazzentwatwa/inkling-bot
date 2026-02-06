@@ -17,7 +17,7 @@
 
 ## ✨ What is Inkling?
 
-Inkling is a **fully local AI companion device** with personality, mood, and memory. Powered by Claude, GPT, or Gemini, each Inkling develops unique traits, manages your tasks, and can chat with you through terminal or web UI.
+Inkling is a **fully local AI companion device** with personality, mood, and memory. Powered by Claude, GPT, Gemini, Ollama Cloud, or Groq, each Inkling develops unique traits, manages your tasks, and can chat with you through terminal or web UI.
 
 Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant—but it lives entirely on your device.
 
@@ -94,7 +94,7 @@ Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant—but it live
 - **Raspberry Pi Zero 2W** (or any Linux device for development)
 - **Waveshare 2.13" e-ink display** (V3 or V4) - *optional, works with mock display*
 - **Python 3.11+**
-- **API Key** from [Anthropic](https://console.anthropic.com), [OpenAI](https://platform.openai.com), or [Google AI](https://ai.google.dev/)
+- **API Key** from [Anthropic](https://console.anthropic.com), [OpenAI](https://platform.openai.com), [Google AI](https://ai.google.dev/), [Ollama Cloud](https://ollama.com), or [Groq](https://console.groq.com)
 
 ### Installation
 
@@ -398,7 +398,7 @@ inkling/
 
 ### 🧠 Multi-Provider AI
 
-Inkling supports three AI providers with automatic fallback:
+Inkling supports multiple AI providers with automatic fallback:
 
 - **Anthropic Claude** (recommended) - Fast, affordable, intelligent
   - claude-haiku-4-5 (fastest, cheapest)
@@ -413,6 +413,14 @@ Inkling supports three AI providers with automatic fallback:
   - gemini-2.0-flash-exp (experimental, fast)
   - gemini-1.5-flash (stable)
   - gemini-1.5-pro (most capable)
+
+- **Ollama Cloud** - Hosted open models via OpenAI-compatible API
+  - gpt-oss:20b (example)
+  - qwen3:8b (example)
+
+- **Groq** - Ultra-fast inference via OpenAI-compatible API
+  - llama-3.3-70b-versatile (example)
+  - llama-3.1-8b-instant (example)
 
 The Brain automatically tries your primary provider first, then falls back to alternatives if needed.
 

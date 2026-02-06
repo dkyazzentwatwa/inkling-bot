@@ -443,7 +443,7 @@ class GeminiProvider(AIProvider):
 class OllamaProvider(AIProvider):
     """Ollama cloud provider.
 
-    Uses Ollama's cloud API (OpenAI-compatible) at https://ollama.com/api.
+    Uses Ollama's native cloud API at https://ollama.com/api/chat.
     Supports models like qwen3-coder-next, kimi-k2.5, nemotron-3-nano:30b-cloud, gpt-oss:120b-cloud, etc.
     """
 
@@ -455,22 +455,11 @@ class OllamaProvider(AIProvider):
         base_url: str = "https://ollama.com/api",
     ):
         super().__init__(api_key, model, max_tokens)
-        self._client = None
         self.base_url = base_url
 
     @property
     def name(self) -> str:
         return "ollama"
-
-    def _get_client(self):
-        """Lazy-load the OpenAI-compatible client for Ollama."""
-        if self._client is None:
-            import openai
-            self._client = openai.AsyncOpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url,
-            )
-        return self._client
 
     async def generate(
         self,
@@ -478,68 +467,89 @@ class OllamaProvider(AIProvider):
         messages: List[Message],
         tools: Optional[List[Dict[str, Any]]] = None,
     ) -> ThinkResult:
-        """Generate using Ollama cloud, with optional tool use."""
-        client = self._get_client()
+        """Generate using Ollama cloud native API."""
+        import aiohttp
 
-        # Convert messages to OpenAI format (with system message)
+        # Convert messages to Ollama format (system message as first user message)
         api_messages = [{"role": "system", "content": system_prompt}]
         api_messages.extend([
             {"role": m.role, "content": m.content}
             for m in messages
         ])
 
-        try:
-            kwargs = {
-                "model": self.model,
-                "messages": api_messages,
-                "max_completion_tokens": self.max_tokens,
-            }
+        # Build request payload
+        payload = {
+            "model": self.model,
+            "messages": api_messages,
+            "stream": False,  # Non-streaming mode
+        }
 
-            # Convert tools to OpenAI format
-            if tools:
-                kwargs["tools"] = [
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": t["name"],
-                            "description": t.get("description", ""),
-                            "parameters": t.get("input_schema", {}),
-                        }
+        # Add tool support if provided (Ollama supports OpenAI-style tools)
+        if tools:
+            payload["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t["name"],
+                        "description": t.get("description", ""),
+                        "parameters": t.get("input_schema", {}),
                     }
-                    for t in tools
-                ]
+                }
+                for t in tools
+            ]
 
-            response = await client.chat.completions.create(**kwargs)
+        # Make request to Ollama cloud API
+        url = f"{self.base_url}/chat"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
-            # Debug: Print raw response structure
-            if os.environ.get("INKLING_DEBUG"):
-                print(f"[Ollama] Raw response: {response}")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise ProviderError(f"Ollama API error {response.status}: {error_text}")
 
-            message = response.choices[0].message
-            content = message.content or ""
-            tokens = response.usage.total_tokens if response.usage else 0
+                    data = await response.json()
 
-            # Parse tool calls
-            tool_calls = []
-            if message.tool_calls:
-                for tc in message.tool_calls:
-                    tool_calls.append(ToolCall(
-                        id=tc.id,
-                        name=tc.function.name,
-                        arguments=json.loads(tc.function.arguments) if tc.function.arguments else {},
-                    ))
+                    # Debug: Print raw response structure
+                    if os.environ.get("INKLING_DEBUG"):
+                        print(f"[Ollama] Raw response: {data}")
 
-            is_tool_use = len(tool_calls) > 0
+                    # Parse Ollama response format
+                    message = data.get("message", {})
+                    content = message.get("content", "")
 
-            return ThinkResult(
-                content=content,
-                tokens_used=tokens,
-                provider=self.name,
-                model=self.model,
-                tool_calls=tool_calls,
-                is_tool_use=is_tool_use,
-            )
+                    # Estimate tokens (Ollama provides eval_count and prompt_eval_count)
+                    prompt_tokens = data.get("prompt_eval_count", 0)
+                    completion_tokens = data.get("eval_count", 0)
+                    tokens = prompt_tokens + completion_tokens
 
+                    # Parse tool calls if present
+                    tool_calls = []
+                    if "tool_calls" in message:
+                        for tc in message["tool_calls"]:
+                            tool_calls.append(ToolCall(
+                                id=tc.get("id", tc["function"]["name"]),
+                                name=tc["function"]["name"],
+                                arguments=tc["function"].get("arguments", {}),
+                            ))
+
+                    is_tool_use = len(tool_calls) > 0
+
+                    return ThinkResult(
+                        content=content,
+                        tokens_used=tokens,
+                        provider=self.name,
+                        model=self.model,
+                        tool_calls=tool_calls,
+                        is_tool_use=is_tool_use,
+                    )
+
+        except aiohttp.ClientError as e:
+            raise ProviderError(f"Ollama connection error: {e}")
         except Exception as e:
             error_str = str(e).lower()
             if "rate" in error_str or "429" in error_str:

@@ -36,13 +36,13 @@ ai:
     model: "gemini-2.5-flash"
     max_tokens: 1500
 
-  # Ollama cloud settings
+  # Ollama cloud settings (uses native Ollama API format)
   ollama:
     api_key: ${OLLAMA_API_KEY}
     model: "qwen3-coder-next"
-    max_tokens: 150
-    base_url: "https://ollama.com/api"  # Ollama cloud API
-    # For local Ollama: base_url: "http://localhost:11434/v1"
+    max_tokens: 1500
+    base_url: "https://ollama.com/api"  # Ollama cloud API (native format)
+    # For local Ollama: base_url: "http://localhost:11434/api"
 
   # Token budgets
   budget:
@@ -85,10 +85,16 @@ heartbeat:
   enable_time_behaviors: true     # Morning greetings, evening wind-down
   enable_social_behaviors: false  # (Removed: social features disabled)
   enable_maintenance: true        # Memory pruning, task reminders
+  enable_thoughts: true           # Periodic autonomous thoughts
 
   # Quiet hours (no spontaneous messages except maintenance)
   quiet_hours_start: 23  # 11 PM
   quiet_hours_end: 7     # 7 AM
+
+  # Thought cadence (minutes)
+  thought_interval_min_minutes: 15
+  thought_interval_max_minutes: 30
+  thought_surface_probability: 0.35
 
 # Scheduler - Cron-style task scheduling
 # Runs tasks at exact times (checked every 60 seconds via Heartbeat)
