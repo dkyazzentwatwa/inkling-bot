@@ -33,6 +33,7 @@ from core.mcp_client import MCPClientManager
 from core.personality import Personality, PersonalityTraits
 from core.heartbeat import Heartbeat, HeartbeatConfig
 from core.tasks import TaskManager
+from core.battery import _client as pisugar_client # Import the singleton client for configuration
 from modes.ssh_chat import SSHChatMode
 from modes.web_chat import WebChatMode
 
@@ -151,6 +152,18 @@ class Inkling:
         device_name = self.config.get("device", {}).get("name", "Inkling")
         self.personality = Personality.load()  # Load saved state
 
+        # Battery (if enabled)
+        battery_config = self.config.get("battery", {})
+        if battery_config.get("enabled", False):
+            pisugar_client.host = battery_config.get("host", "127.0.0.1")
+            pisugar_client.port = battery_config.get("port", 8000)
+            pisugar_client.enabled = True
+            print(f"  - PiSugar battery monitoring enabled ({pisugar_client.host}:{pisugar_client.port})")
+        else:
+            # Disable client if not enabled in config
+            pisugar_client.enabled = False
+            print("  - PiSugar battery monitoring disabled")
+
         # Update name if changed in config
         if self.personality.name != device_name:
             self.personality.name = device_name
@@ -227,6 +240,10 @@ class Inkling:
                 ),
                 quiet_hours_start=heartbeat_config_data.get("quiet_hours_start", 23),
                 quiet_hours_end=heartbeat_config_data.get("quiet_hours_end", 7),
+                enable_battery_behaviors=heartbeat_config_data.get("enable_battery_behaviors", True),
+                battery_low_threshold=heartbeat_config_data.get("battery_low_threshold", 20),
+                battery_critical_threshold=heartbeat_config_data.get("battery_critical_threshold", 10),
+                battery_full_threshold=heartbeat_config_data.get("battery_full_threshold", 95),
             )
 
             self.heartbeat = Heartbeat(

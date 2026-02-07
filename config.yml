@@ -96,6 +96,12 @@ heartbeat:
   thought_interval_max_minutes: 30
   thought_surface_probability: 0.35
 
+  # Battery specific settings
+  enable_battery_behaviors: true # Set to false to disable battery-related messages
+  battery_low_threshold: 20      # % at which "low" warning triggers
+  battery_critical_threshold: 10 # % at which "critical" warning triggers
+  battery_full_threshold: 95     # % at which "full" message triggers
+
 # Scheduler - Cron-style task scheduling
 # Runs tasks at exact times (checked every 60 seconds via Heartbeat)
 scheduler:
@@ -142,6 +148,12 @@ web:
 
   # Web UI authentication (reads from SERVER_PW environment variable)
   web_password: ${SERVER_PW}  # Set via: export SERVER_PW="your-password"
+
+# Battery Management (for PiSugar or similar)
+battery:
+  enabled: true  # Set to true to enable battery monitoring and display
+  host: "127.0.0.1" # PiSugar server host
+  port: 8000      # PiSugar server port
 
 # MCP Servers (Model Context Protocol)
 # Gives Inkling access to external tools

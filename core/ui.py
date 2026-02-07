@@ -304,6 +304,10 @@ class DisplayContext:
     chat_count: int = 0
     friend_nearby: bool = False
 
+    # Battery stats
+    battery_percentage: int = -1
+    is_charging: bool = False
+
     # Progression
     level: int = 1
     level_name: str = "Newborn"
@@ -469,7 +473,12 @@ class FooterBar:
         # Line 2 components
         line2 = []
 
-        # 1. WiFi status (if connected)
+        # 1. Battery status
+        if ctx.battery_percentage != -1:
+            battery_icon = "⚡" if ctx.is_charging else "🔋"
+            line2.append(f"{battery_icon} {ctx.battery_percentage}%")
+
+        # 2. WiFi status (if connected)
         if ctx.wifi_ssid:
             from core.wifi_utils import get_wifi_bars
             wifi_bars = get_wifi_bars(ctx.wifi_signal)

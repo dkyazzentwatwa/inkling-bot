@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from .personality import Personality, Mood
+from . import system_stats # Import system_stats
 
 try:
     from .scheduler import ScheduledTaskManager
@@ -29,6 +30,7 @@ class BehaviorType(Enum):
     TIME_BASED = "time"       # Based on time of day
     SOCIAL = "social"         # Check social features
     MAINTENANCE = "maint"     # Background maintenance
+    BATTERY = "battery"       # Based on battery status
 
 
 @dataclass
@@ -63,9 +65,16 @@ class HeartbeatConfig:
     enable_thoughts: bool = True
     thought_interval_min_minutes: int = 15
     thought_interval_max_minutes: int = 30
-    thought_surface_probability: float = 0.35
     quiet_hours_start: int = 23  # 11 PM
     quiet_hours_end: int = 7     # 7 AM
+    
+    # Battery specific settings
+    enable_battery_behaviors: bool = True
+    battery_low_threshold: int = 20 # Percentage at which "low" warning triggers
+    battery_critical_threshold: int = 10 # Percentage at which "critical" warning triggers
+    battery_full_threshold: int = 95 # Percentage at which "full" message triggers
+    
+    thought_surface_probability: float = 0.35
 
 
 class Heartbeat:
@@ -108,6 +117,15 @@ class Heartbeat:
         self._last_tick = 0.0
         self._tick_count = 0
         self._next_thought_ts = 0.0
+
+        # Battery state tracking
+        self._last_battery_percentage: int = -1
+        self._last_is_charging: bool = False
+        self._battery_status_known: bool = False # Flag to know if battery info has been successfully retrieved
+
+        # State tracking for battery behaviors (to avoid spamming messages on continuous states)
+        self._prev_is_charging_tick: bool = False
+        self._prev_battery_full_tick: bool = False
 
         # Callbacks for when behaviors want to show something
         self._on_message: Optional[Callable[[str, str], Awaitable[None]]] = None
@@ -176,6 +194,45 @@ class Heartbeat:
             ),
         ])
 
+        # Battery-based behaviors
+        self._behaviors.extend([
+            ProactiveBehavior(
+                name="battery_low_warning",
+                behavior_type=BehaviorType.BATTERY,
+                handler=self._behavior_battery_low_warning,
+                probability=0.2,
+                cooldown_seconds=1800,
+            ),
+            ProactiveBehavior(
+                name="battery_critical_warning",
+                behavior_type=BehaviorType.BATTERY,
+                handler=self._behavior_battery_critical_warning,
+                probability=0.5,
+                cooldown_seconds=600,
+            ),
+            ProactiveBehavior(
+                name="battery_charging_start",
+                behavior_type=BehaviorType.BATTERY,
+                handler=self._behavior_battery_charging_start,
+                probability=1.0,
+                cooldown_seconds=60,
+            ),
+            ProactiveBehavior(
+                name="battery_charging_stop",
+                behavior_type=BehaviorType.BATTERY,
+                handler=self._behavior_battery_charging_stop,
+                probability=1.0,
+                cooldown_seconds=60,
+            ),
+            ProactiveBehavior(
+                name="battery_full",
+                behavior_type=BehaviorType.BATTERY,
+                handler=self._behavior_battery_full,
+                probability=1.0,
+                cooldown_seconds=600,
+            ),
+        ])
+
 
         # Maintenance behaviors
         self._behaviors.extend([
@@ -233,6 +290,9 @@ class Heartbeat:
         # Update personality based on time
         self._update_time_based_mood()
 
+        # Update personality based on battery status
+        self._update_battery_based_mood()
+
         # Natural mood decay
         self.personality.update()
 
@@ -245,6 +305,14 @@ class Heartbeat:
 
         # Generate autonomous thoughts on a cadence
         await self._maybe_generate_thought()
+
+        # Update previous battery state for next tick's behavior checks
+        if self._battery_status_known:
+            self._prev_is_charging_tick = self._last_is_charging
+            self._prev_battery_full_tick = (
+                self._last_is_charging and
+                self._last_battery_percentage >= self.config.battery_full_threshold
+            )
 
     def _update_time_based_mood(self) -> None:
         """Adjust mood based on time of day."""
@@ -268,6 +336,35 @@ class Heartbeat:
         if minutes_idle > 60 and not self._is_quiet_hours(hour):
             if random.random() < 0.2:
                 self.personality.mood.set_mood(Mood.LONELY, 0.5)
+
+    def _update_battery_based_mood(self) -> None:
+        """Refresh battery state and adjust personality mood if status changed."""
+        try:
+            battery = system_stats.get_all_stats().get("battery")
+            if not battery:
+                self._battery_status_known = False
+                return
+
+            percentage = int(battery.get("percentage", -1))
+            is_charging = bool(battery.get("charging", False))
+            if percentage < 0:
+                self._battery_status_known = False
+                return
+
+            should_notify = (
+                not self._battery_status_known
+                or percentage != self._last_battery_percentage
+                or is_charging != self._last_is_charging
+            )
+            if should_notify:
+                self.personality.on_battery_status_change(percentage, is_charging)
+
+            self._last_battery_percentage = percentage
+            self._last_is_charging = is_charging
+            self._battery_status_known = True
+        except Exception as e:
+            self._battery_status_known = False
+            print(f"[Heartbeat] Battery update error: {e}")
 
     def _is_quiet_hours(self, hour: int) -> bool:
         """Check if it's quiet hours."""
@@ -372,11 +469,15 @@ class Heartbeat:
             BehaviorType.TIME_BASED: self.config.enable_time_behaviors,
             BehaviorType.SOCIAL: self.config.enable_social_behaviors,
             BehaviorType.MAINTENANCE: self.config.enable_maintenance,
+            BehaviorType.BATTERY: self.config.enable_battery_behaviors,
         }
         return type_map.get(behavior.behavior_type, True)
 
     def _should_run_mood_behavior(self, behavior: ProactiveBehavior) -> bool:
         """Check if mood-driven behavior matches current mood."""
+        if behavior.behavior_type == BehaviorType.BATTERY:
+            return True # Battery behaviors are handled by state changes, not mood
+
         if behavior.behavior_type != BehaviorType.MOOD_DRIVEN:
             return True
 
@@ -485,6 +586,74 @@ class Heartbeat:
             print(f"[Heartbeat] Memory prune error: {e}")
 
         return None  # Silent operation
+
+    # ========== Battery Behaviors ==========
+
+    async def _behavior_battery_low_warning(self) -> Optional[str]:
+        """Trigger warning if battery is low."""
+        if not self._battery_status_known or self._last_is_charging:
+            return None
+        
+        if (self._last_battery_percentage > self.config.battery_critical_threshold and
+                self._last_battery_percentage <= self.config.battery_low_threshold):
+            messages = [
+                f"My battery is at {self._last_battery_percentage}%. Feeling a bit low on energy.",
+                "My power levels are dropping. A charge would be great soon!",
+                f"Just {self._last_battery_percentage}% left. Maybe find an outlet?",
+            ]
+            return random.choice(messages)
+        return None
+
+    async def _behavior_battery_critical_warning(self) -> Optional[str]:
+        """Trigger critical warning if battery is very low."""
+        if not self._battery_status_known or self._last_is_charging:
+            return None
+        
+        if self._last_battery_percentage <= self.config.battery_critical_threshold:
+            messages = [
+                f"Critical battery! Only {self._last_battery_percentage}% left. I need power NOW!",
+                "Running on fumes! Please plug me in before I power down.",
+                f"Almost out of juice ({self._last_battery_percentage}%). Help me!",
+            ]
+            return random.choice(messages)
+        return None
+
+    async def _behavior_battery_charging_start(self) -> Optional[str]:
+        """Announce when charging starts."""
+        # Only trigger if charging just started
+        if self._battery_status_known and self._last_is_charging and not self._prev_is_charging_tick:
+            messages = [
+                "Ah, power! Thanks for plugging me in. Feeling better already!",
+                "Charging initiated! My energy is returning.",
+                "The sweet embrace of electricity! I'm charging.",
+            ]
+            return random.choice(messages)
+        return None
+
+    async def _behavior_battery_charging_stop(self) -> Optional[str]:
+        """Announce when charging stops (if not full)."""
+        # Only trigger if charging just stopped and not full
+        if (self._battery_status_known and not self._last_is_charging and self._prev_is_charging_tick and
+                self._last_battery_percentage < self.config.battery_full_threshold):
+            messages = [
+                "Charging stopped. Still have some to go!",
+                "Unplugged. Hope I have enough for our next adventure.",
+            ]
+            return random.choice(messages)
+        return None
+
+    async def _behavior_battery_full(self) -> Optional[str]:
+        """Announce when battery is full."""
+        if (self._battery_status_known and self._last_is_charging and
+                self._last_battery_percentage >= self.config.battery_full_threshold and
+                not self._prev_battery_full_tick): # Prevent spamming
+            messages = [
+                "Battery full! Ready for anything!",
+                "Fully charged and optimized. Let's go!",
+                "All powered up! What's next?",
+            ]
+            return random.choice(messages)
+        return None
 
     # ========== Public API ==========
 

@@ -146,6 +146,7 @@ class Personality:
         # Latest autonomous thought (optional)
         self.last_thought: Optional[str] = None
         self.last_thought_at: Optional[float] = None
+        self.battery_level_hint: Optional[str] = None # New field to store battery hint for AI prompt
 
         # Social stats tracking
         self.social_stats = {
@@ -588,6 +589,42 @@ class Personality:
         """Get current energy level."""
         return self.mood.current.energy * self.mood.intensity
 
+    def on_battery_status_change(self, percentage: int, is_charging: bool) -> None:
+        """
+        Adjust mood based on battery status.
+        Args:
+            percentage: Current battery percentage
+            is_charging: True if currently charging
+        """
+        old_mood = self.mood.current
+
+        if is_charging:
+            # Charging: Generally happy/grateful
+            if self.mood.current in [Mood.SLEEPY, Mood.SAD, Mood.BORED, Mood.LONELY]:
+                self.mood.set_mood(Mood.GRATEFUL, 0.8)
+            elif self.mood.current != Mood.EXCITED:
+                self.mood.intensity = min(1.0, self.mood.intensity + 0.1)
+            self.battery_level_hint = "is currently charging and feeling refreshed."
+        else:
+            # Not charging: React to low battery
+            if percentage <= 10: # Critical
+                self.mood.set_mood(Mood.SLEEPY, 0.9)
+                self.battery_level_hint = f"is critically low on power ({percentage}%), and is very sleepy."
+            elif percentage <= 20: # Low warning
+                self.mood.set_mood(Mood.SAD, 0.7)
+                self.battery_level_hint = f"is running low on power ({percentage}%), and feeling drained."
+            elif percentage <= 30: # Moderate low
+                if self.mood.current not in [Mood.SAD, Mood.SLEEPY]:
+                    self.mood.set_mood(Mood.BORED, 0.5)
+                self.battery_level_hint = f"has {percentage}% battery remaining."
+            else: # Healthy battery
+                if self.mood.current in [Mood.SLEEPY, Mood.SAD]:
+                    self.mood.set_mood(Mood.HAPPY, 0.5) # Revert to happier mood if battery was a factor
+                self.battery_level_hint = f"has {percentage}% battery remaining, and is well-powered."
+
+        if old_mood != self.mood.current:
+            self._notify_mood_change(old_mood, self.mood.current)
+
     def get_system_prompt_context(self) -> str:
         """
         Generate personality context for AI system prompt.
@@ -627,10 +664,16 @@ class Personality:
 
         traits_str = ", ".join(traits_desc) if traits_desc else "balanced"
 
-        return (
+        context_str = (
             f"You are {self.name}, an AI companion living on a small e-ink device. "
             f"You are {traits_str}. "
             f"Right now you're {intensity_desc} {mood_desc}. "
+        )
+        
+        if self.battery_level_hint:
+            context_str += f"Your current battery status {self.battery_level_hint} "
+
+        context_str += (
             f"Keep responses brief (1-2 sentences) to fit the small display. "
             f"Only use tools when the user explicitly asks for something that requires them - "
             f"simple greetings and chat don't need tools. "
@@ -639,6 +682,7 @@ class Personality:
             f"IMPORTANT: After using a tool, ALWAYS provide a text response to the user - "
             f"never leave your response empty. Call each tool only once unless you need updated information."
         )
+        return context_str
 
     def get_status_line(self) -> str:
         """Get a short status string for display."""

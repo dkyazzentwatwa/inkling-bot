@@ -20,6 +20,8 @@ try:
 except ImportError:  # pragma: no cover - fallback for older Python
     ZoneInfo = None
 
+from .battery import get_battery_info
+
 # Track when the application started for uptime calculation
 _start_time: float = time.time()
 
@@ -203,14 +205,21 @@ def get_all_stats() -> dict:
     Get all system stats in a single call.
 
     Returns:
-        Dict with keys: memory, cpu, temperature, uptime
+        Dict with keys: memory, cpu, temperature, uptime, battery
     """
-    return {
+    stats = {
         "memory": get_memory_percent(),
         "cpu": get_cpu_percent(),
         "temperature": get_temperature(),
         "uptime": get_uptime(),
     }
+    
+    # Add battery if available
+    battery = get_battery_info()
+    if battery:
+        stats["battery"] = battery
+        
+    return stats
 
 
 def get_local_time(timezone: Optional[str] = None) -> str:

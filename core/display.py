@@ -506,6 +506,8 @@ class DisplayManager:
             memory_percent=stats["memory"],
             cpu_percent=stats["cpu"],
             temperature=stats["temperature"],
+            battery_percentage=stats["battery"]["percentage"] if "battery" in stats else -1,
+            is_charging=stats["battery"]["charging"] if "battery" in stats else False,
             clock_time=clock_time,
             wifi_ssid=wifi_ssid,
             wifi_signal=wifi_signal,
