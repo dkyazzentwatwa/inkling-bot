@@ -287,6 +287,7 @@ class DisplayContext:
 
     # Face
     face_str: str = "(^_^)"
+    prefer_ascii: bool = True
 
     # System stats
     memory_percent: int = 0
@@ -471,42 +472,39 @@ class FooterBar:
         line1.append(ctx.mode)
 
         # Line 2 components
-        line2 = []
+        line2_left = []
 
         # 1. Battery status
         if ctx.battery_percentage != -1:
-            battery_icon = "⚡" if ctx.is_charging else "🔋"
-            line2.append(f"{battery_icon} {ctx.battery_percentage}%")
+            if ctx.prefer_ascii:
+                battery_label = "CHG" if ctx.is_charging else "BAT"
+            else:
+                battery_label = "⚡" if ctx.is_charging else "🔋"
+            line2_left.append(f"{battery_label} {ctx.battery_percentage}%")
 
+        wifi_text = None
         # 2. WiFi status (if connected)
         if ctx.wifi_ssid:
             from core.wifi_utils import get_wifi_bars
             wifi_bars = get_wifi_bars(ctx.wifi_signal)
             wifi_text = f"{wifi_bars}"
-            line2.append(wifi_text)
+            line2_left.append(wifi_text)
 
         # 2. System stats (memory, cpu, temp)
         temp_str = f"{ctx.temperature}°" if ctx.temperature > 0 else "--°"
-        line2.append(f"{ctx.memory_percent}%m {ctx.cpu_percent}%c {temp_str}")
+        line2_left.append(f"{ctx.memory_percent}%m {ctx.cpu_percent}%c {temp_str}")
 
-        # 3. Chat count
-        line2.append(f"CH{ctx.chat_count}")
-
-        # 4. Clock
-        line2.append(ctx.clock_time)
+        # Right-aligned stats
+        line2_right = f"CH{ctx.chat_count} {ctx.clock_time}"
 
         # Join with vertical bar separator (render separators in bold)
         separator = "   |   "
         line1_segments = interleave_with_separator(line1, separator)
-        line2_segments = interleave_with_separator(line2, separator)
+        line2_left_segments = interleave_with_separator(line2_left, separator)
 
         # Center line 1
         line1_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line1_segments)
         line1_x = (DISPLAY_WIDTH - line1_width) // 2
-
-        # Center line 2
-        line2_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_segments)
-        line2_x = (DISPLAY_WIDTH - line2_width) // 2
 
         # Draw line 1 (use normal text for better readability)
         x = line1_x
@@ -514,11 +512,31 @@ class FooterBar:
             draw.text((x, line1_y), seg.text, font=self.fonts.small, fill=0)
             x += text_width(draw, seg.text, self.fonts.small)
 
-        # Draw line 2 (use normal text for better readability)
-        x = line2_x
-        for seg in line2_segments:
+        # Resolve potential overlap by dropping optional left items
+        left_x = 4
+        right_width = text_width(draw, line2_right, self.fonts.small)
+        left_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_left_segments)
+        padding = 6
+        if left_width + right_width + padding > DISPLAY_WIDTH:
+            # Drop WiFi first, then battery if still too wide
+            if wifi_text and len(line2_left) >= 2:
+                line2_left = [seg for seg in line2_left if seg != wifi_text]
+            line2_left_segments = interleave_with_separator(line2_left, separator)
+            left_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_left_segments)
+        if left_width + right_width + padding > DISPLAY_WIDTH:
+            if ctx.battery_percentage != -1:
+                line2_left = [seg for seg in line2_left if not seg.startswith("BAT") and not seg.startswith("CHG") and not seg.startswith("⚡") and not seg.startswith("🔋")]
+            line2_left_segments = interleave_with_separator(line2_left, separator)
+
+        # Draw line 2 left-aligned
+        x = left_x
+        for seg in line2_left_segments:
             draw.text((x, line2_y), seg.text, font=self.fonts.small, fill=0)
             x += text_width(draw, seg.text, self.fonts.small)
+
+        # Draw line 2 right-aligned
+        right_x = DISPLAY_WIDTH - right_width - 4
+        draw.text((right_x, line2_y), line2_right, font=self.fonts.small, fill=0)
 
 
 class PwnagotchiUI:

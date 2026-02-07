@@ -223,6 +223,59 @@ The e-ink display shows WiFi status in the footer:
 
 ---
 
+## PiSugar Battery Management (PiSugar 2)
+
+Inkling can read battery percentage and charging status from PiSugar and surface it in the footer and personality mood.
+
+### Install PiSugar Power Manager
+
+```bash
+wget https://cdn.pisugar.com/release/pisugar-power-manager.sh
+sudo bash pisugar-power-manager.sh -c release
+```
+
+When prompted, select `PiSugar2 (2-LEDs)`.
+
+### Start and enable the service
+
+```bash
+sudo systemctl start pisugar-server
+sudo systemctl enable pisugar-server
+```
+
+### Verify the TCP port
+
+PiSugar server listens on port `8423` by default.
+
+```bash
+nc -zv 127.0.0.1 8423
+```
+
+### Configure Inkling
+
+In `config.yml` or `config.local.yml`:
+
+```yaml
+battery:
+  enabled: true
+  host: "127.0.0.1"
+  port: 8423
+
+heartbeat:
+  enable_battery_behaviors: true
+  battery_low_threshold: 20
+  battery_critical_threshold: 10
+  battery_full_threshold: 95
+```
+
+Restart Inkling after updating config:
+
+```bash
+python main.py --mode ssh
+```
+
+---
+
 ## 🎮 Usage
 
 ### Available Modes

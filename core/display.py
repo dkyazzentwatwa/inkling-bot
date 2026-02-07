@@ -309,6 +309,9 @@ class DisplayManager:
         # Auto-refresh state
         self._refresh_task: Optional[asyncio.Task] = None
         self._auto_refresh_interval = max(0.0, self.min_refresh_interval)
+        self._face_animation_interval = 2.0
+        self._last_face_anim_ts = 0.0
+        self._face_anim_toggle = False
 
         # V4 safety: minimum full refresh interval (seconds)
         self._full_refresh_min_seconds = 5.0
@@ -329,7 +332,8 @@ class DisplayManager:
         self._ui = PwnagotchiUI()
         # Align auto-refresh to configured interval for partial refresh displays
         if self._driver.supports_partial:
-            self._auto_refresh_interval = max(0.0, self.min_refresh_interval)
+            base_interval = max(0.0, self.min_refresh_interval)
+            self._auto_refresh_interval = min(base_interval, self._face_animation_interval)
 
     def _create_driver(self) -> DisplayDriver:
         """Create appropriate display driver based on type."""
@@ -503,6 +507,7 @@ class DisplayManager:
             mood_text=mood_text,
             uptime=stats["uptime"],
             face_str=face_str,
+            prefer_ascii=bool(self._prefer_ascii_faces),
             memory_percent=stats["memory"],
             cpu_percent=stats["cpu"],
             temperature=stats["temperature"],
@@ -763,11 +768,20 @@ class DisplayManager:
             # Only auto-refresh if using partial refresh (V3 or mock)
             # V4 full refresh is too slow and wears the display
             if self._driver and self._driver.supports_partial:
+                face = self._current_face
+                now = time.time()
+                if now - self._last_face_anim_ts >= self._face_animation_interval:
+                    self._face_anim_toggle = not self._face_anim_toggle
+                    self._last_face_anim_ts = now
+                if self._face_anim_toggle:
+                    face = self._get_animated_face(face)
+
                 # Re-render with updated stats (uptime, CPU, etc.)
                 await self.update(
-                    face=self._current_face,
+                    face=face,
                     text=self._current_text,
                     mood_text=self._current_mood,
+                    force=True,
                     cancel_page_loop=False,
                 )
 
@@ -785,6 +799,31 @@ class DisplayManager:
     def refresh_count(self) -> int:
         """Total number of display refreshes."""
         return self._refresh_count
+
+    def _get_animated_face(self, base_face: str) -> str:
+        """Return a subtle alternate face for light animation."""
+        if self._prefer_ascii_faces:
+            ascii_alt = {
+                "happy": "wink",
+                "excited": "happy",
+                "curious": "thinking",
+                "cool": "bored",
+                "sad": "sleepy",
+                "sleepy": "sleepy",
+                "default": "wink",
+            }
+            return ascii_alt.get(base_face, "wink")
+
+        unicode_alt = {
+            "happy": "look_r_happy",
+            "excited": "look_l_happy",
+            "curious": "thinking",
+            "cool": "look_r",
+            "sad": "demotivated",
+            "sleepy": "sleep",
+            "default": "look_r",
+        }
+        return unicode_alt.get(base_face, "look_r")
 
     # ========================================================================
     # Social Stats Management
