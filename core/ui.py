@@ -4,18 +4,19 @@ Project Inkling - UI Components
 Pwnagotchi-inspired UI components for the e-ink display:
 - Drawing primitives (boxes, lines)
 - Widget classes for layout regions
-- Face rendering with large Unicode characters
+- XP progress bar for visual leveling motivation
 
 Layout (250x122 pixels):
 ┌─────────────────────────────────────────────────────┐
-│ inkling>█              Curious          UP 00:15:32 │  <- Header (14px)
+│ inkling> Cool               ▂▄▆ UP 00:15:32        │  <- Header (14px, WiFi bars)
 ├─────────────────────────────────────────────────────┤
 │                                                     │
 │  Hey there! I'm feeling pretty curious about       │  <- Message (86px)
 │  the world today. What's on your mind?             │
 │                                                     │
 ├─────────────────────────────────────────────────────┤
-│ (^_^) │ L1 NEWB │ 54%mem 1%cpu 43° │ CHAT3 │ SSH  │  <- Footer (22px)
+│        [████████░░] 80% │ L1 NEWB │ SSH            │  <- Footer Line 1 (XP bar!)
+│     BAT 85% 54%m 1%c 43° │ CH3 │ 10:42            │  <- Footer Line 2
 └─────────────────────────────────────────────────────┘
 """
 
@@ -324,9 +325,9 @@ class DisplayContext:
 
 class HeaderBar:
     """
-    Top header bar with name prompt, mood, and uptime.
+    Top header bar with name, mood, WiFi signal, and uptime.
 
-    Format: "name>█  [mood]  UP HH:MM:SS"
+    Format: "name> Mood  [WiFi bars] UP HH:MM:SS"
     """
 
     def __init__(self, fonts: Fonts):
@@ -339,39 +340,22 @@ class HeaderBar:
         # Background
         draw_box(draw, 0, self.y, DISPLAY_WIDTH, self.height, fill=255, outline=0)
 
-        # Name prompt with cursor
-        name_text = ctx.name[:8]
-        cursor_text = ">_"
-        name_x = 3
-        name_y = self.y + 2
-        draw_text_bold(draw, (name_x, name_y), name_text, font=self.fonts.small, fill=0)
-        cursor_x = name_x + text_width(draw, name_text, self.fonts.small)
-        draw.text((cursor_x, name_y), cursor_text, font=self.fonts.small, fill=0)
+        # Name + mood together (left-aligned, no cursor)
+        name_mood = f"{ctx.name[:8]}> {ctx.mood_text[:12]}"
+        draw_text_bold(draw, (3, self.y + 2), name_mood, font=self.fonts.small, fill=0)
 
-        # Mood text (centered-ish)
-        mood_x = 80
-        draw_text_bold(
-            draw,
-            (mood_x, self.y + 2),
-            ctx.mood_text[:12],
-            font=self.fonts.small,
-            fill=0,
-        )
+        # Build uptime text with WiFi bars if connected
+        if ctx.wifi_ssid and ctx.wifi_signal > 0:
+            from core.wifi_utils import get_wifi_bars
+            wifi_bars = get_wifi_bars(ctx.wifi_signal)
+            uptime_text = f"{wifi_bars} UP {ctx.uptime}"
+        else:
+            uptime_text = f"UP {ctx.uptime}"
 
-        # Uptime (right-aligned)
-        uptime_prefix = "UP"
-        uptime_suffix = f" {ctx.uptime}"
-        uptime_width = text_width(draw, uptime_prefix + uptime_suffix, self.fonts.tiny)
+        # Right-align uptime
+        uptime_width = text_width(draw, uptime_text, self.fonts.tiny)
         uptime_x = DISPLAY_WIDTH - uptime_width - 6
-        uptime_y = self.y + 3
-        draw_text_bold(draw, (uptime_x, uptime_y), uptime_prefix, font=self.fonts.tiny, fill=0)
-        draw_text_bold(
-            draw,
-            (uptime_x + text_width(draw, uptime_prefix, self.fonts.tiny), uptime_y),
-            uptime_suffix,
-            font=self.fonts.tiny,
-            fill=0,
-        )
+        draw_text_bold(draw, (uptime_x, self.y + 3), uptime_text, font=self.fonts.tiny, fill=0)
 
 
 class MessagePanel:
@@ -439,8 +423,8 @@ class FooterBar:
     Bottom footer bar with all stats in compact format.
 
     Two-line format to reduce crowding:
-    Line 1: "(^_^) | L1 NEWB | SSH"
-    Line 2: "54%mem 1%cpu 43° | CH3 | 10:42"
+    Line 1: "[████████░░] 80% | L1 NEWB | SSH"
+    Line 2: "BAT 85% 54%mem 1%cpu 43° | CH3 | 10:42"
     """
 
     def __init__(self, fonts: Fonts):
@@ -458,8 +442,9 @@ class FooterBar:
         # Line 1 components
         line1 = []
 
-        # 1. Face
-        line1.append(ctx.face_str)
+        # 1. XP Bar (replaces face)
+        xp_bar = format_xp_bar(ctx.xp_progress, bar_width=10, show_percentage=True)
+        line1.append(xp_bar)
 
         # 2. Level and rank
         level_name_short = ctx.level_name.split()[0][:4].upper()  # "NEWB", "CURI", etc.
@@ -481,14 +466,6 @@ class FooterBar:
             else:
                 battery_label = "⚡" if ctx.is_charging else "🔋"
             line2_left.append(f"{battery_label} {ctx.battery_percentage}%")
-
-        wifi_text = None
-        # 2. WiFi status (if connected)
-        if ctx.wifi_ssid:
-            from core.wifi_utils import get_wifi_bars
-            wifi_bars = get_wifi_bars(ctx.wifi_signal)
-            wifi_text = f"{wifi_bars}"
-            line2_left.append(wifi_text)
 
         # 2. System stats (memory, cpu, temp)
         temp_str = f"{ctx.temperature}°" if ctx.temperature > 0 else "--°"
@@ -512,18 +489,13 @@ class FooterBar:
             draw.text((x, line1_y), seg.text, font=self.fonts.small, fill=0)
             x += text_width(draw, seg.text, self.fonts.small)
 
-        # Resolve potential overlap by dropping optional left items
+        # Resolve potential overlap by dropping battery if too wide
         left_x = 4
         right_width = text_width(draw, line2_right, self.fonts.small)
         left_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_left_segments)
         padding = 6
         if left_width + right_width + padding > DISPLAY_WIDTH:
-            # Drop WiFi first, then battery if still too wide
-            if wifi_text and len(line2_left) >= 2:
-                line2_left = [seg for seg in line2_left if seg != wifi_text]
-            line2_left_segments = interleave_with_separator(line2_left, separator)
-            left_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_left_segments)
-        if left_width + right_width + padding > DISPLAY_WIDTH:
+            # Drop battery if still too wide
             if ctx.battery_percentage != -1:
                 line2_left = [seg for seg in line2_left if not seg.startswith("BAT") and not seg.startswith("CHG") and not seg.startswith("⚡") and not seg.startswith("🔋")]
             line2_left_segments = interleave_with_separator(line2_left, separator)
@@ -537,6 +509,34 @@ class FooterBar:
         # Draw line 2 right-aligned
         right_x = DISPLAY_WIDTH - right_width - 4
         draw.text((right_x, line2_y), line2_right, font=self.fonts.small, fill=0)
+
+
+def format_xp_bar(progress: float, bar_width: int = 10, show_percentage: bool = True) -> str:
+    """
+    Generate visual XP progress bar.
+
+    Args:
+        progress: Progress as 0.0-1.0
+        bar_width: Number of blocks in the bar
+        show_percentage: Include percentage text
+
+    Returns:
+        XP bar string like "[████████░░] 80%"
+    """
+    filled = int(progress * bar_width)
+    empty = bar_width - filled
+
+    # Use Unicode blocks for filled/empty
+    filled_char = "█"
+    empty_char = "░"
+
+    bar = f"[{filled_char * filled}{empty_char * empty}]"
+
+    if show_percentage:
+        pct = int(progress * 100)
+        bar += f" {pct}%"
+
+    return bar
 
 
 class PwnagotchiUI:
