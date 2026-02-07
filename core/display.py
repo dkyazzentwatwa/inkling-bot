@@ -311,7 +311,6 @@ class DisplayManager:
         self._auto_refresh_interval = max(0.0, self.min_refresh_interval)
         self._face_animation_interval = 2.0
         self._face_anim_toggle = False
-        self._face_anim_tick = 0
 
         # V4 safety: minimum full refresh interval (seconds)
         self._full_refresh_min_seconds = 5.0
@@ -769,9 +768,8 @@ class DisplayManager:
             # V4 full refresh is too slow and wears the display
             if self._driver and self._driver.supports_partial:
                 face = self._current_face
-                self._face_anim_tick = (self._face_anim_tick + 1) % 2
-                if self._face_anim_tick == 0:
-                    self._face_anim_toggle = not self._face_anim_toggle
+                # Flip every refresh for a visible animation cadence
+                self._face_anim_toggle = not self._face_anim_toggle
                 if self._face_anim_toggle:
                     face = self._get_animated_face(face)
 
@@ -803,23 +801,23 @@ class DisplayManager:
         """Return a subtle alternate face for light animation."""
         if self._prefer_ascii_faces:
             ascii_alt = {
+                "sad": "sad",
+                "sleepy": "sleepy",
                 "happy": "wink",
                 "excited": "happy",
                 "curious": "thinking",
                 "cool": "bored",
-                "sad": "sleepy",
-                "sleepy": "sleepy",
                 "default": "wink",
             }
             return ascii_alt.get(base_face, "wink")
 
         unicode_alt = {
+            "sad": "sad",
+            "sleepy": "sleep",
             "happy": "look_r_happy",
             "excited": "look_l_happy",
             "curious": "thinking",
             "cool": "look_r",
-            "sad": "demotivated",
-            "sleepy": "sleep",
             "default": "look_r",
         }
         return unicode_alt.get(base_face, "look_r")
