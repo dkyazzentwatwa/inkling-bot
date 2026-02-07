@@ -1221,6 +1221,36 @@ SETTINGS_TEMPLATE = """
             </label>
         </div>
 
+        <h2>🖥️ E-ink Display</h2>
+
+        <div class="input-group">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="display-dark-mode" style="width: 18px; height: 18px; cursor: pointer;">
+                <span>Dark Mode (Inverted display colors)</span>
+            </label>
+            <p style="font-size: 0.875rem; color: var(--muted); margin: 0.5rem 0 0 26px;">
+                White-on-black display for nighttime viewing. Changes apply instantly via /darkmode command.
+            </p>
+        </div>
+
+        <div class="input-group">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="screensaver-enabled" style="width: 18px; height: 18px; cursor: pointer;">
+                <span>Screen Saver</span>
+            </label>
+            <p style="font-size: 0.875rem; color: var(--muted); margin: 0.5rem 0 0 26px;">
+                Auto-activates after idle time. Cycles through stats, quotes, faces, and progression.
+            </p>
+        </div>
+
+        <div class="input-group">
+            <label for="screensaver-timeout">Screen Saver Idle Timeout (minutes)</label>
+            <input type="number" id="screensaver-timeout" min="1" max="60" value="5" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
+            <p style="font-size: 0.875rem; color: var(--muted); margin: 0.5rem 0 0 0;">
+                Time before screen saver activates after last interaction.
+            </p>
+        </div>
+
         <h2>👤 Device & Personality</h2>
 
         <div class="input-group">
@@ -1408,8 +1438,13 @@ SETTINGS_TEMPLATE = """
                     document.getElementById('max-tokens').value = data.ai.budget?.max_tokens || 150;
                     document.getElementById('daily-tokens').value = data.ai.budget?.daily_tokens || 10000;
                 }
+                if (data.display) {
+                    document.getElementById('display-dark-mode').checked = data.display.dark_mode || false;
+                    document.getElementById('screensaver-enabled').checked = data.display.screensaver?.enabled || false;
+                    document.getElementById('screensaver-timeout').value = data.display.screensaver?.idle_timeout_minutes || 5;
+                }
             })
-            .catch(err => console.error('Failed to load AI settings:', err));
+            .catch(err => console.error('Failed to load settings:', err));
 
         function updateSlider(name) {
             const slider = document.getElementById(name);
@@ -1433,6 +1468,13 @@ SETTINGS_TEMPLATE = """
                     playfulness: parseFloat(document.getElementById('playfulness').value) / 100,
                     empathy: parseFloat(document.getElementById('empathy').value) / 100,
                     independence: parseFloat(document.getElementById('independence').value) / 100,
+                },
+                display: {
+                    dark_mode: document.getElementById('display-dark-mode').checked,
+                    screensaver: {
+                        enabled: document.getElementById('screensaver-enabled').checked,
+                        idle_timeout_minutes: parseInt(document.getElementById('screensaver-timeout').value),
+                    }
                 },
                 ai: {
                     primary: document.getElementById('ai-primary').value,
@@ -3967,10 +4009,20 @@ class WebChatMode:
                 }
             }
 
+            # Get display config
+            display_config = {
+                "dark_mode": self.display._dark_mode,
+                "screensaver": {
+                    "enabled": self.display._screensaver_enabled,
+                    "idle_timeout_minutes": self.display._screensaver_idle_minutes,
+                }
+            }
+
             return json.dumps({
                 "name": self.personality.name,
                 "traits": self.personality.traits.to_dict(),
                 "ai": ai_config,
+                "display": display_config,
             })
 
         @self._app.route("/api/settings", method="POST")
@@ -3998,6 +4050,27 @@ class WebChatMode:
                             # Clamp value to 0.0-1.0
                             value = max(0.0, min(1.0, float(value)))
                             setattr(self.personality.traits, trait, value)
+
+                # Update display settings (apply immediately)
+                if "display" in data:
+                    display_settings = data["display"]
+
+                    # Apply dark mode
+                    if "dark_mode" in display_settings:
+                        self.display._dark_mode = display_settings["dark_mode"]
+                        if self._loop:
+                            asyncio.run_coroutine_threadsafe(
+                                self.display.update(force=True),
+                                self._loop
+                            )
+
+                    # Apply screensaver settings
+                    if "screensaver" in display_settings:
+                        ss = display_settings["screensaver"]
+                        self.display.configure_screensaver(
+                            enabled=ss.get("enabled", False),
+                            idle_minutes=ss.get("idle_timeout_minutes", 5.0)
+                        )
 
                 # AI settings are saved to config but not applied until restart
                 # (no validation needed - Brain will reinitialize on restart)
@@ -4620,6 +4693,23 @@ class WebChatMode:
             if "personality" not in config:
                 config["personality"] = {}
             config["personality"].update(new_settings["traits"])
+
+        # Update display settings
+        if "display" in new_settings:
+            if "display" not in config:
+                config["display"] = {}
+
+            display_settings = new_settings["display"]
+
+            # Update dark mode
+            if "dark_mode" in display_settings:
+                config["display"]["dark_mode"] = display_settings["dark_mode"]
+
+            # Update screensaver settings
+            if "screensaver" in display_settings:
+                if "screensaver" not in config["display"]:
+                    config["display"]["screensaver"] = {}
+                config["display"]["screensaver"].update(display_settings["screensaver"])
 
         # Update AI configuration
         if "ai" in new_settings:
