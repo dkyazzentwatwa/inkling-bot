@@ -648,7 +648,7 @@ class DisplayManager:
         face: str = "default",
         page_delay: float = 3.0,
         lines_per_page: int = 0,
-        chars_per_line: int = 40,
+        chars_per_line: int = 32,
         loop: bool = False,
     ) -> int:
         """
@@ -661,8 +661,8 @@ class DisplayManager:
             text: Message text to display
             face: Face expression to show
             page_delay: Seconds to wait between pages (default: 3.0)
-            lines_per_page: Maximum lines per page (default: 6)
-            chars_per_line: Maximum characters per line (default: 40)
+            lines_per_page: Maximum lines per page (default: MESSAGE_MAX_LINES)
+            chars_per_line: Maximum characters per line (default: 32, matches 250px display)
             loop: If True, keep cycling pages in the background
 
         Returns:
