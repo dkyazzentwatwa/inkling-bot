@@ -2017,26 +2017,6 @@ TASKS_TEMPLATE = """
             color: var(--muted);
         }
 
-        /* Drag and Drop */
-        .task-card[draggable="true"] {
-            cursor: grab;
-        }
-
-        .task-card[draggable="true"]:active {
-            cursor: grabbing;
-        }
-
-        .task-card.dragging {
-            opacity: 0.4;
-            border-style: dashed;
-        }
-
-        .column.drag-over {
-            background: color-mix(in srgb, var(--accent) 10%, var(--bg));
-            border-color: var(--accent);
-            border-style: dashed;
-        }
-
         /* Streak */
         .streak-fire {
             color: #ff6b35;
@@ -2264,8 +2244,7 @@ TASKS_TEMPLATE = """
                 📋 To Do
                 <span class="task-count" id="count-pending">0</span>
             </div>
-            <div class="tasks-list" id="tasks-pending" data-status="pending"
-                 ondragover="dragOver(event)" ondrop="drop(event, 'pending')" ondragleave="dragLeave(event)">
+            <div class="tasks-list" id="tasks-pending" data-status="pending">
                 <div class="loading">Loading tasks...</div>
             </div>
         </div>
@@ -2275,8 +2254,7 @@ TASKS_TEMPLATE = """
                 ⏳ In Progress
                 <span class="task-count" id="count-progress">0</span>
             </div>
-            <div class="tasks-list" id="tasks-in_progress" data-status="in_progress"
-                 ondragover="dragOver(event)" ondrop="drop(event, 'in_progress')" ondragleave="dragLeave(event)">
+            <div class="tasks-list" id="tasks-in_progress" data-status="in_progress">
                 <div class="loading">Loading tasks...</div>
             </div>
         </div>
@@ -2286,8 +2264,7 @@ TASKS_TEMPLATE = """
                 ✅ Completed
                 <span class="task-count" id="count-completed">0</span>
             </div>
-            <div class="tasks-list" id="tasks-completed" data-status="completed"
-                 ondragover="dragOver(event)" ondrop="drop(event, 'completed')" ondragleave="dragLeave(event)">
+            <div class="tasks-list" id="tasks-completed" data-status="completed">
                 <div class="loading">Loading tasks...</div>
             </div>
         </div>
@@ -2439,7 +2416,7 @@ TASKS_TEMPLATE = """
             }
 
             container.innerHTML = taskList.map(task => `
-                <div class="task-card" data-id="${task.id}" draggable="true" ondragstart="dragStart(event, '${task.id}')" ondragend="dragEnd(event)">
+                <div class="task-card" data-id="${task.id}">
                     <div class="task-header">
                         <div class="task-title">${escapeHtml(task.title)}</div>
                         <span class="priority priority-${task.priority}">${task.priority.toUpperCase()}</span>
@@ -2631,50 +2608,6 @@ TASKS_TEMPLATE = """
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
-        }
-
-        // Drag and drop
-        function dragStart(event, taskId) {
-            event.dataTransfer.setData('text/plain', taskId);
-            event.dataTransfer.effectAllowed = 'move';
-            event.target.classList.add('dragging');
-        }
-
-        function dragEnd(event) {
-            event.target.classList.remove('dragging');
-            document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
-        }
-
-        function dragOver(event) {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'move';
-            const col = event.currentTarget.closest('.column');
-            if (col) col.classList.add('drag-over');
-        }
-
-        function dragLeave(event) {
-            const col = event.currentTarget.closest('.column');
-            if (col && !col.contains(event.relatedTarget)) {
-                col.classList.remove('drag-over');
-            }
-        }
-
-        async function drop(event, newStatus) {
-            event.preventDefault();
-            const col = event.currentTarget.closest('.column');
-            if (col) col.classList.remove('drag-over');
-
-            const taskId = event.dataTransfer.getData('text/plain');
-            if (!taskId) return;
-
-            const task = tasks.find(t => t.id === taskId);
-            if (!task || task.status === newStatus) return;
-
-            if (newStatus === 'completed') {
-                await completeTask(taskId);
-            } else {
-                await changeStatus(taskId, newStatus);
-            }
         }
 
         // Search and filter
