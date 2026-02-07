@@ -69,6 +69,8 @@ Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant—but it live
 - WiFi signal strength in header
 - Pwnagotchi-style UI layout
 - Battery status (with PiSugar integration)
+- **Screen saver mode** (auto-activates after idle)
+- **Dark mode** (inverted colors for night use)
 - Support for Waveshare V3/V4 displays
 - Mock display for development
 - Smart rate limiting to prevent burn-in
@@ -358,6 +360,8 @@ BAT 92% 54%m 1%c 43° │ CH3 │ 14:23
 - `/face <name>` - Test a face expression
 - `/faces` - List all available faces
 - `/refresh` - Force display update
+- `/screensaver` - Toggle screen saver on/off
+- `/darkmode` - Toggle dark mode (inverted display)
 
 </details>
 
@@ -469,6 +473,7 @@ The web interface (`http://localhost:8081`) includes:
 - 🌐 **[Web UI Guide](docs/guides/WEB_UI.md)** - Browser interface documentation
 - 🤖 **[Autonomous Mode](docs/guides/AUTONOMOUS_MODE.md)** - Heartbeat system and behaviors
 - 📊 **[Leveling System](docs/guides/LEVELING_SYSTEM.md)** - XP, progression, and prestige
+- 🔌 **[Remote Claude Code](docs/guides/REMOTE_CLAUDE_CODE.md)** - Connect Inkling to your Mac
 - 🔧 **[Troubleshooting](docs/guides/TROUBLESHOOTING.md)** - Common issues and solutions
 - 📝 **[Changelog](docs/implementation/CHANGES.md)** - Recent updates and features
 - 🤖 **[CLAUDE.md](CLAUDE.md)** - Technical documentation for AI assistants
@@ -607,6 +612,7 @@ Extend your Inkling's capabilities with MCP tools:
 - **Task Tools**: AI can create, update, and complete tasks
 - **System Tools**: Check disk space, memory, uptime, network connectivity
 - **File Tools**: AI can read, write, and search files (optional)
+- **Remote Claude Code**: Connect to Claude Code on your Mac via SSH for remote file/terminal access
 - **Third-party Tools**: Integrate with 500+ apps via Composio (Gmail, Calendar, GitHub, etc.)
 
 ### 💓 Autonomous Behaviors
@@ -618,9 +624,69 @@ Your Inkling is alive with autonomous behaviors:
 - **Maintenance**: Automatic memory cleanup, task reminders
 - **Quiet Hours**: Respects your sleep schedule (default 11 PM - 7 AM)
 
-### 🌐 Remote Access
+### 🌙 Screen Saver & Dark Mode
 
-Access your Inkling from anywhere with ngrok:
+New display features for better e-ink longevity and nighttime use:
+
+**Screen Saver Mode**:
+- **Auto-activates** after idle timeout (configurable, default 5 minutes)
+- **4 Page Types**: Cycles through stats, quotes, faces, and progression
+- **Smart refresh**: Respects display rate limits (V3/V4 compatible)
+- **User interaction** immediately exits screen saver
+- **Commands**: `/screensaver on/off` to toggle
+
+**Dark Mode**:
+- **Inverted colors**: White-on-black for nighttime viewing
+- **Instant toggle**: Changes apply immediately
+- **Works everywhere**: SSH mode, web UI, all display types
+- **No battery impact**: E-ink uses same power for both colors
+- **Commands**: `/darkmode on/off` to toggle
+
+**Configuration**:
+```yaml
+display:
+  dark_mode: false  # Enable by default
+
+  screensaver:
+    enabled: true
+    idle_timeout_minutes: 5
+    page_duration_seconds: 10
+    pages:
+      - type: "stats"        # System stats
+      - type: "quote"        # Inspirational quotes
+      - type: "faces"        # Random expressions
+      - type: "progression"  # XP progress
+```
+
+### 🔌 Remote Claude Code Access
+
+Connect your Inkling to Claude Code running on your Mac, giving it access to your development environment:
+
+**How it works**:
+- Inkling connects to your Mac via SSH
+- Spawns `claude mcp serve` remotely
+- AI gains access to Bash, Read, Write, Edit, Grep, Glob tools on your Mac
+- All communication encrypted through SSH tunnel
+
+**Setup** (see [full guide](docs/guides/REMOTE_CLAUDE_CODE.md)):
+```yaml
+# config.local.yml
+mcp:
+  servers:
+    macbook-claude:
+      command: "ssh"
+      args: ["macbook", "claude", "mcp", "serve"]
+```
+
+**Use cases**:
+- "Edit my Mac's TODO.md file"
+- "Search my projects folder for API keys"
+- "Run tests on my Mac"
+- "Read the logs from my server"
+
+### 🌐 Remote Web Access
+
+Access your Inkling's web UI from anywhere with ngrok:
 
 ```yaml
 # config.local.yml
