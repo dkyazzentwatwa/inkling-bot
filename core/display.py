@@ -310,8 +310,8 @@ class DisplayManager:
         self._refresh_task: Optional[asyncio.Task] = None
         self._auto_refresh_interval = max(0.0, self.min_refresh_interval)
         self._face_animation_interval = 2.0
-        self._last_face_anim_ts = 0.0
         self._face_anim_toggle = False
+        self._face_anim_tick = 0
 
         # V4 safety: minimum full refresh interval (seconds)
         self._full_refresh_min_seconds = 5.0
@@ -769,10 +769,9 @@ class DisplayManager:
             # V4 full refresh is too slow and wears the display
             if self._driver and self._driver.supports_partial:
                 face = self._current_face
-                now = time.time()
-                if now - self._last_face_anim_ts >= self._face_animation_interval:
+                self._face_anim_tick = (self._face_anim_tick + 1) % 2
+                if self._face_anim_tick == 0:
                     self._face_anim_toggle = not self._face_anim_toggle
-                    self._last_face_anim_ts = now
                 if self._face_anim_toggle:
                     face = self._get_animated_face(face)
 
