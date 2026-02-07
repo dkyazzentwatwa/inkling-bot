@@ -212,6 +212,20 @@ mcp:
     #   headers:
     #     x-api-key: "${COMPOSIO_API_KEY}"
 
+    # Remote Claude Code on MacBook (via SSH)
+    # Gives Inkling access to Bash, Read, Write, Edit, Grep, Glob on your Mac
+    # Requires: SSH key auth set up between Pi and Mac
+    # See docs/guides/REMOTE_CLAUDE_CODE.md for full setup instructions
+    #
+    # macbook-claude:
+    #   command: "ssh"
+    #   args: ["macbook", "claude", "mcp", "serve"]
+    #
+    # With a specific project directory:
+    # macbook-claude:
+    #   command: "ssh"
+    #   args: ["macbook", "claude", "mcp", "serve", "--workdir", "/Users/you/projects/my-project"]
+
 # Example MCP servers you can enable:
 #
 # File system access:

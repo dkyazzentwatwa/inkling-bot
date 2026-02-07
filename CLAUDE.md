@@ -363,6 +363,38 @@ You'll see:
 - Paid ngrok plans support custom domains and longer sessions
 - Web UI requires password authentication when `SERVER_PW` is set
 
+### Remote Claude Code (SSH Bridge)
+
+**Status**: Fully implemented (config-only, no code changes needed)
+
+Inkling can control Claude Code running on your MacBook via SSH. This gives the AI access to
+Bash, Read, Write, Edit, Grep, and Glob tools on your Mac through natural conversation.
+
+**Architecture**: Inkling's MCP client spawns `ssh` as a subprocess → SSH connects to Mac →
+runs `claude mcp serve` → stdio piped back over encrypted SSH tunnel.
+
+**Quick Setup**:
+1. Enable Remote Login on Mac (System Settings → Sharing)
+2. Generate SSH key on Pi: `ssh-keygen -t ed25519 -f ~/.ssh/inkling_macbook -N ""`
+3. Copy key to Mac: `ssh-copy-id -i ~/.ssh/inkling_macbook.pub user@YourMac.local`
+4. Add SSH host alias to `~/.ssh/config` on Pi
+5. Add to `config.local.yml`:
+```yaml
+mcp:
+  servers:
+    macbook-claude:
+      command: "ssh"
+      args: ["macbook", "claude", "mcp", "serve"]
+```
+
+**Security**: Ed25519 key auth, forced command restriction in `authorized_keys`,
+optional dedicated macOS user, firewall to Pi's IP only.
+
+**Full guide**: See `docs/guides/REMOTE_CLAUDE_CODE.md`
+
+**Limitation**: No MCP passthrough — only Claude Code's built-in tools are exposed,
+not other MCP servers configured on your Mac. Bridge those individually via separate SSH entries.
+
 ### WiFi Configuration (BTBerryWifi)
 
 **Status**: Fully implemented and supported
@@ -567,6 +599,10 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
   - HTTP transport with SSE (Server-Sent Events) support
   - Set `COMPOSIO_API_KEY` environment variable
   - Enable in `config.yml` under `mcp.servers.composio`
+- **Remote Claude Code**: SSH bridge to Claude Code on MacBook (see docs/guides/REMOTE_CLAUDE_CODE.md)
+  - Exposes Bash, Read, Write, Edit, Grep, Glob on remote Mac
+  - Ed25519 key auth with forced command hardening
+  - Config-only setup: `command: "ssh"`, `args: ["macbook", "claude", "mcp", "serve"]`
 - **Tool limiting**: Set `mcp.max_tools` to limit total tools (default: 20)
   - Built-in tools prioritized over third-party
   - OpenAI has hard limit of 128 tools
