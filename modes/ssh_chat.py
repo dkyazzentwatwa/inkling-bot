@@ -1328,3 +1328,197 @@ class SSHChatMode:
 
         print()
         print(f"{Colors.DIM}Use /btcfg to start BLE configuration service{Colors.RESET}")
+
+    async def cmd_thoughts(self) -> None:
+        """Show recent autonomous thoughts from the thought log."""
+        from pathlib import Path
+
+        log_path = Path("~/.inkling/thoughts.log").expanduser()
+        if not log_path.exists():
+            print(f"\n{Colors.DIM}No thoughts yet. Thoughts are generated automatically over time.{Colors.RESET}")
+            return
+
+        lines = log_path.read_text().strip().splitlines()
+        recent = lines[-10:]  # Last 10 thoughts
+
+        print(f"\n{Colors.HEADER}═══ RECENT THOUGHTS ({len(recent)} of {len(lines)}) ═══{Colors.RESET}\n")
+
+        for line in recent:
+            parts = line.split(" | ", 1)
+            if len(parts) == 2:
+                ts, thought = parts
+                print(f"{Colors.DIM}{ts}{Colors.RESET}")
+                print(f"  {thought}")
+            else:
+                print(f"  {line}")
+            print()
+
+        if self.personality.last_thought:
+            print(f"{Colors.INFO}Latest: {self.personality.last_thought}{Colors.RESET}")
+
+    async def cmd_find(self, args: str) -> None:
+        """Search tasks by keyword."""
+        if not args.strip():
+            print(f"{Colors.ERROR}Usage: /find <keyword>{Colors.RESET}")
+            return
+
+        if not self.task_manager:
+            print(f"{Colors.ERROR}Task manager not available.{Colors.RESET}")
+            return
+
+        query = args.strip().lower()
+        all_tasks = self.task_manager.list_tasks()
+        matches = [
+            t for t in all_tasks
+            if query in t.title.lower()
+            or (t.description and query in t.description.lower())
+            or any(query in tag.lower() for tag in t.tags)
+        ]
+
+        if not matches:
+            print(f"\n{Colors.DIM}No tasks found matching '{args.strip()}'.{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.HEADER}═══ SEARCH RESULTS ({len(matches)}) ═══{Colors.RESET}\n")
+
+        for task in matches:
+            status_icon = {"pending": "📋", "in_progress": "⏳", "completed": "✅", "cancelled": "❌"}.get(task.status.value, "·")
+            priority_str = {"low": "", "medium": "◆", "high": "◆◆", "urgent": "🔥"}.get(task.priority.value, "")
+            tags_str = " ".join(f"#{t}" for t in task.tags) if task.tags else ""
+            print(f"  {status_icon} [{task.id[:8]}] {task.title} {priority_str}")
+            if task.description:
+                print(f"     {Colors.DIM}{task.description[:60]}{Colors.RESET}")
+            if tags_str:
+                print(f"     {Colors.INFO}{tags_str}{Colors.RESET}")
+            print()
+
+    async def cmd_memory(self) -> None:
+        """Show memory stats and recent entries."""
+        from core.memory import MemoryStore
+
+        store = MemoryStore()
+        try:
+            store.initialize()
+
+            total = store.count()
+            user_count = store.count(MemoryStore.CATEGORY_USER)
+            pref_count = store.count(MemoryStore.CATEGORY_PREFERENCE)
+            fact_count = store.count(MemoryStore.CATEGORY_FACT)
+            event_count = store.count(MemoryStore.CATEGORY_EVENT)
+
+            print(f"\n{Colors.HEADER}═══ MEMORY STORE ═══{Colors.RESET}\n")
+            print(f"  Total memories: {Colors.INFO}{total}{Colors.RESET}")
+            print(f"  User info:      {user_count}")
+            print(f"  Preferences:    {pref_count}")
+            print(f"  Facts:          {fact_count}")
+            print(f"  Events:         {event_count}")
+
+            recent = store.recall_recent(limit=5)
+            if recent:
+                print(f"\n{Colors.HEADER}Recent memories:{Colors.RESET}")
+                for mem in recent:
+                    print(f"  {Colors.DIM}[{mem.category}]{Colors.RESET} {mem.key}: {mem.value[:60]}")
+
+            important = store.recall_important(limit=3)
+            if important:
+                print(f"\n{Colors.HEADER}Most important:{Colors.RESET}")
+                for mem in important:
+                    print(f"  {Colors.INFO}★ {mem.importance:.1f}{Colors.RESET} [{mem.category}] {mem.key}: {mem.value[:60]}")
+
+            print()
+        finally:
+            store.close()
+
+    async def cmd_settings(self) -> None:
+        """Show current settings."""
+        import yaml
+
+        print(f"\n{Colors.HEADER}═══ CURRENT SETTINGS ═══{Colors.RESET}\n")
+
+        # AI config
+        ai_config = self._config.get("ai", {})
+        provider = ai_config.get("primary", "anthropic")
+        model = ai_config.get(provider, {}).get("model", "unknown")
+        budget = ai_config.get("budget", {})
+        daily_tokens = budget.get("daily_tokens", 10000)
+        per_request = budget.get("per_request_max", 500)
+
+        print(f"  {Colors.HEADER}AI Provider:{Colors.RESET} {provider}")
+        print(f"  {Colors.HEADER}Model:{Colors.RESET} {model}")
+        print(f"  {Colors.HEADER}Daily token budget:{Colors.RESET} {daily_tokens}")
+        print(f"  {Colors.HEADER}Per-request max:{Colors.RESET} {per_request}")
+
+        # Personality
+        traits = self.personality.traits
+        print(f"\n  {Colors.HEADER}Personality Traits:{Colors.RESET}")
+        for name, val in traits.to_dict().items():
+            bar = "█" * int(val * 10) + "░" * (10 - int(val * 10))
+            print(f"    {name:14s} [{bar}] {val:.1f}")
+
+        # Heartbeat
+        hb_config = self._config.get("heartbeat", {})
+        print(f"\n  {Colors.HEADER}Heartbeat:{Colors.RESET} {'enabled' if hb_config.get('enabled', True) else 'disabled'}")
+        print(f"    Tick interval:     {hb_config.get('tick_interval', 60)}s")
+        print(f"    Mood behaviors:    {'on' if hb_config.get('enable_mood_behaviors', True) else 'off'}")
+        print(f"    Time behaviors:    {'on' if hb_config.get('enable_time_behaviors', True) else 'off'}")
+        print(f"    Quiet hours:       {hb_config.get('quiet_hours_start', 23)}:00 - {hb_config.get('quiet_hours_end', 7)}:00")
+
+        # Device
+        device_config = self._config.get("device", {})
+        print(f"\n  {Colors.HEADER}Device:{Colors.RESET} {device_config.get('name', self.personality.name)}")
+        print(f"  {Colors.HEADER}Display:{Colors.RESET} {self._config.get('display', {}).get('type', 'auto')}")
+        print()
+
+    async def cmd_backup(self) -> None:
+        """Create a backup of Inkling data."""
+        import shutil
+        from pathlib import Path
+        from datetime import datetime
+
+        data_dir = Path("~/.inkling").expanduser()
+        if not data_dir.exists():
+            print(f"{Colors.ERROR}No data directory found at {data_dir}{Colors.RESET}")
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"inkling_backup_{timestamp}"
+        backup_path = data_dir.parent / f"{backup_name}.tar.gz"
+
+        print(f"\n{Colors.INFO}Creating backup...{Colors.RESET}")
+
+        try:
+            shutil.make_archive(
+                str(data_dir.parent / backup_name),
+                'gztar',
+                root_dir=str(data_dir.parent),
+                base_dir='.inkling'
+            )
+            size_mb = backup_path.stat().st_size / (1024 * 1024)
+            print(f"{Colors.SUCCESS}Backup created: {backup_path}{Colors.RESET}")
+            print(f"  Size: {size_mb:.1f} MB")
+        except Exception as e:
+            print(f"{Colors.ERROR}Backup failed: {e}{Colors.RESET}")
+
+    async def cmd_journal(self) -> None:
+        """Show recent journal entries."""
+        from pathlib import Path
+
+        journal_path = Path("~/.inkling/journal.log").expanduser()
+        if not journal_path.exists():
+            print(f"\n{Colors.DIM}No journal entries yet. Journal entries are written daily by the heartbeat system.{Colors.RESET}")
+            return
+
+        lines = journal_path.read_text().strip().splitlines()
+        recent = lines[-10:]
+
+        print(f"\n{Colors.HEADER}═══ JOURNAL ({len(recent)} of {len(lines)} entries) ═══{Colors.RESET}\n")
+
+        for line in recent:
+            parts = line.split(" | ", 1)
+            if len(parts) == 2:
+                ts, entry = parts
+                print(f"{Colors.DIM}{ts}{Colors.RESET}")
+                print(f"  {entry}")
+            else:
+                print(f"  {line}")
+            print()

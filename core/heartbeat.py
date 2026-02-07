@@ -271,6 +271,31 @@ class Heartbeat:
                 ),
             ])
 
+        # Personality behaviors (daily journal, preferences, greetings)
+        self._behaviors.extend([
+            ProactiveBehavior(
+                name="daily_journal",
+                behavior_type=BehaviorType.MAINTENANCE,
+                handler=self._behavior_daily_journal,
+                probability=0.5,
+                cooldown_seconds=86400,  # Once per day
+            ),
+            ProactiveBehavior(
+                name="extract_preferences",
+                behavior_type=BehaviorType.MAINTENANCE,
+                handler=self._behavior_extract_preferences,
+                probability=0.3,
+                cooldown_seconds=3600,  # Once per hour
+            ),
+            ProactiveBehavior(
+                name="mood_responsive_greeting",
+                behavior_type=BehaviorType.MOOD_DRIVEN,
+                handler=self._behavior_mood_greeting,
+                probability=0.3,
+                cooldown_seconds=1200,  # Every 20 minutes
+            ),
+        ])
+
     async def start(self) -> None:
         """Start the heartbeat loop."""
         self._running = True
@@ -489,6 +514,7 @@ class Heartbeat:
             "bored_suggest_activity": [Mood.BORED],
             "happy_share_thought": [Mood.HAPPY, Mood.EXCITED, Mood.GRATEFUL],
             "autonomous_exploration": [Mood.CURIOUS],
+            "mood_responsive_greeting": list(Mood),  # All moods
         }
 
         allowed_moods = mood_behaviors.get(behavior.name, [])
@@ -883,3 +909,156 @@ class Heartbeat:
         except Exception as e:
             print(f"[Heartbeat] Error celebrating streak: {e}")
             return None
+
+    # ========== Personality Behaviors ==========
+
+    async def _behavior_daily_journal(self) -> Optional[str]:
+        """Write a daily journal entry reflecting on the day."""
+        if not self.brain:
+            return None
+
+        try:
+            result = await self.brain.think(
+                user_message="Write a brief journal entry (2-3 sentences) reflecting on today. Be personal and introspective.",
+                system_prompt=(
+                    self.personality.get_system_prompt_context()
+                    + " You are writing in your private journal. Be genuine and reflective."
+                ),
+                use_tools=False,
+            )
+
+            if not result or not result.content:
+                return None
+
+            entry = result.content.strip()
+
+            # Log to journal file
+            from pathlib import Path
+            journal_dir = Path("~/.inkling").expanduser()
+            journal_dir.mkdir(parents=True, exist_ok=True)
+            journal_path = journal_dir / "journal.log"
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open(journal_path, "a") as f:
+                f.write(f"{timestamp} | {entry}\n")
+
+            # Also store in memory if available
+            if self.memory:
+                try:
+                    self.memory.add(
+                        content=f"Journal: {entry}",
+                        importance=0.7,
+                        tags=["journal", "daily"],
+                    )
+                except Exception:
+                    pass
+
+            return f"Journal: {entry[:120]}"
+        except Exception as e:
+            print(f"[Heartbeat] Daily journal error: {e}")
+            return None
+
+    async def _behavior_extract_preferences(self) -> Optional[str]:
+        """Extract user preferences from recent conversation history."""
+        if not self.brain or not self.memory:
+            return None
+
+        try:
+            # Get recent conversation for context
+            recent = self.brain.messages[-10:] if self.brain.messages else []
+            if len(recent) < 4:
+                return None  # Need enough conversation to extract from
+
+            user_msgs = [m["content"] for m in recent if m.get("role") == "user"]
+            if not user_msgs:
+                return None
+
+            context = "\n".join(user_msgs[-5:])
+            result = await self.brain.think(
+                user_message=(
+                    f"Based on these recent user messages, identify ONE specific preference or interest "
+                    f"(e.g., 'likes Python', 'prefers morning work'). Reply with JUST the preference, "
+                    f"nothing else. If nothing clear, reply 'none'.\n\nMessages:\n{context}"
+                ),
+                system_prompt="You are analyzing conversation for user preferences. Be specific and concise.",
+                use_tools=False,
+            )
+
+            if not result or not result.content:
+                return None
+
+            pref = result.content.strip()
+            if pref.lower() == "none" or len(pref) < 3:
+                return None
+
+            # Store the preference
+            try:
+                from core.memory import remember_preference
+                remember_preference(self.memory, f"pref_{int(time.time())}", pref)
+            except Exception:
+                pass
+
+            return None  # Silent operation - don't surface to display
+
+        except Exception as e:
+            print(f"[Heartbeat] Preference extraction error: {e}")
+            return None
+
+    async def _behavior_mood_greeting(self) -> Optional[str]:
+        """Generate a mood-appropriate greeting or comment."""
+        mood = self.personality.mood.current
+
+        mood_messages = {
+            Mood.HAPPY: [
+                "Feeling great today!",
+                "Everything seems brighter!",
+                "I'm in a good mood!",
+            ],
+            Mood.EXCITED: [
+                "I'm buzzing with energy!",
+                "So much to look forward to!",
+                "Can't contain my excitement!",
+            ],
+            Mood.CURIOUS: [
+                "I wonder what we'll discover today...",
+                "So many things to learn about!",
+                "Something interesting is out there...",
+            ],
+            Mood.BORED: [
+                "Things are a bit quiet...",
+                "Could use some stimulation.",
+                "Waiting for something fun.",
+            ],
+            Mood.SAD: [
+                "Feeling a bit down today.",
+                "Not my best day.",
+                "Could use some cheering up.",
+            ],
+            Mood.SLEEPY: [
+                "Getting a bit drowsy...",
+                "A nap sounds nice...",
+                "Eyes getting heavy.",
+            ],
+            Mood.GRATEFUL: [
+                "Thankful for moments like these.",
+                "Appreciate you being here.",
+                "Gratitude fills my circuits.",
+            ],
+            Mood.LONELY: [
+                "Miss having you around.",
+                "It's quiet without company.",
+                "Would love to chat.",
+            ],
+            Mood.INTENSE: [
+                "In the zone right now.",
+                "Focused and determined.",
+                "Let's get things done.",
+            ],
+            Mood.COOL: [
+                "Chillin'.",
+                "Taking it easy.",
+                "Smooth sailing.",
+            ],
+        }
+
+        messages = mood_messages.get(mood, ["Hello there!"])
+        return random.choice(messages)

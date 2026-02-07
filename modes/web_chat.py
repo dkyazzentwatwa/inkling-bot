@@ -202,6 +202,7 @@ HTML_TEMPLATE = """
         .nav {
             display: flex;
             gap: 12px;
+            align-items: center;
         }
         .nav a {
             color: var(--text);
@@ -215,6 +216,50 @@ HTML_TEMPLATE = """
         .nav a:hover {
             background: var(--accent);
             color: white;
+            transform: translateY(-2px);
+        }
+        /* Connection indicator */
+        .conn-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #52d9a6;
+            transition: background 0.3s;
+            flex-shrink: 0;
+        }
+        .conn-dot.offline {
+            background: #ff6b9d;
+            animation: blink-dot 1s infinite;
+        }
+        @keyframes blink-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        /* Chat search bar */
+        .search-bar {
+            display: none;
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg);
+        }
+        .search-bar.visible { display: flex; gap: 0.5rem; align-items: center; }
+        .search-bar input {
+            flex: 1; padding: 0.4rem 0.6rem;
+            font-family: inherit; font-size: 0.85rem;
+            border: 1px solid var(--border);
+            background: var(--bg); color: var(--text);
+        }
+        .search-bar button {
+            background: none; border: none;
+            color: var(--muted); cursor: pointer; font-size: 1rem;
+        }
+        .nav .search-toggle {
+            background: none; border: 2px solid var(--border);
+            color: var(--text); cursor: pointer;
+            padding: 6px 10px; border-radius: 4px;
+            font-size: 0.875rem; transition: all 0.2s;
+        }
+        .nav .search-toggle:hover {
+            background: var(--accent); color: white;
             transform: translateY(-2px);
         }
         .messages {
@@ -240,11 +285,57 @@ HTML_TEMPLATE = """
             font-family: 'Courier New', monospace;
             white-space: pre-wrap;
         }
+        .message.hidden { display: none; }
         .message .meta {
             font-size: 0.75rem;
             color: var(--muted);
             margin-top: 0.5rem;
         }
+        /* Markdown styles inside messages */
+        .message .text code {
+            background: rgba(0,0,0,0.06); padding: 0.15em 0.35em;
+            border-radius: 3px; font-size: 0.9em;
+        }
+        .message .text pre {
+            background: rgba(0,0,0,0.06); padding: 0.75rem;
+            border-radius: 4px; overflow-x: auto;
+            margin: 0.5rem 0; border: 1px solid var(--border);
+        }
+        .message .text pre code {
+            background: none; padding: 0;
+        }
+        .message .text ul, .message .text ol {
+            margin: 0.25rem 0; padding-left: 1.5rem;
+        }
+        .message .text blockquote {
+            border-left: 3px solid var(--muted);
+            margin: 0.5rem 0; padding-left: 0.75rem;
+            color: var(--muted);
+        }
+        .message .text h1, .message .text h2, .message .text h3 {
+            margin: 0.5rem 0 0.25rem; font-size: 1em;
+        }
+        /* Toast notifications */
+        .toast-container {
+            position: fixed; bottom: 1rem; left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000; display: flex;
+            flex-direction: column-reverse; gap: 0.5rem;
+            pointer-events: none;
+        }
+        .toast {
+            padding: 0.75rem 1.25rem; border-radius: 6px;
+            font-family: inherit; font-size: 0.85rem;
+            opacity: 0; transform: translateY(20px);
+            transition: all 0.3s ease;
+            pointer-events: auto; text-align: center;
+            border: 2px solid var(--border);
+            background: var(--bg); color: var(--text);
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { border-color: #52d9a6; }
+        .toast.error { border-color: #ff6b9d; }
+        .toast.info { border-color: var(--accent); }
         .input-area {
             padding: 1rem;
             border-top: 2px solid var(--border);
@@ -355,7 +446,7 @@ HTML_TEMPLATE = """
                 justify-content: space-between;
                 gap: 6px;
             }
-            .nav a {
+            .nav a, .nav .search-toggle {
                 flex: 1;
                 text-align: center;
                 padding: 6px 8px;
@@ -454,10 +545,18 @@ HTML_TEMPLATE = """
             <a href="/tasks">📋 Tasks</a>
             <a href="/files">📁 Files</a>
             <a href="/settings">⚙️ Settings</a>
+            <button class="search-toggle" onclick="toggleSearch()" title="Search messages">🔍</button>
+            <span class="conn-dot" id="conn-dot" title="Connected"></span>
         </div>
     </header>
 
+    <div class="search-bar" id="search-bar">
+        <input type="text" id="search-input" placeholder="Filter messages..." oninput="filterMessages(this.value)">
+        <button onclick="clearSearch()">✕</button>
+    </div>
+
     <div class="messages" id="messages"></div>
+    <div class="toast-container" id="toast-container"></div>
 
     <details class="command-palette" open>
         <summary>⚙️ Commands</summary>
@@ -508,9 +607,20 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
-        // Apply saved theme
-        const savedTheme = localStorage.getItem('inklingTheme') || 'cream';
+        // Apply saved theme with auto day/night support
+        function getAutoTheme() {
+            const hour = new Date().getHours();
+            return (hour >= 20 || hour < 7) ? 'midnight' : 'cream';
+        }
+        const themeAuto = localStorage.getItem('inklingThemeAuto') === 'true';
+        const savedTheme = themeAuto ? getAutoTheme() : (localStorage.getItem('inklingTheme') || 'cream');
         document.documentElement.setAttribute('data-theme', savedTheme);
+        // Re-check auto theme every 5 minutes
+        if (themeAuto) {
+            setInterval(() => {
+                document.documentElement.setAttribute('data-theme', getAutoTheme());
+            }, 300000);
+        }
 
         const messagesEl = document.getElementById('messages');
         const inputEl = document.getElementById('input');
@@ -518,12 +628,60 @@ HTML_TEMPLATE = """
         const faceEl = document.getElementById('face');
         const statusEl = document.getElementById('status');
         const thoughtEl = document.getElementById('thought');
+        const connDot = document.getElementById('conn-dot');
 
         // Handle enter key
         inputEl.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMessage();
         });
 
+        // --- Toast notification system ---
+        function showToast(message, type, duration) {
+            type = type || 'info';
+            duration = duration || 3000;
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(function() { toast.classList.add('show'); }, 10);
+            setTimeout(function() {
+                toast.classList.remove('show');
+                setTimeout(function() { toast.remove(); }, 300);
+            }, duration);
+        }
+
+        // --- Markdown rendering ---
+        function renderMarkdown(text) {
+            let html = escapeHtml(text);
+            // Code blocks (``` ... ```)
+            html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function(m, lang, code) {
+                return '<pre><code>' + code.trim() + '</code></pre>';
+            });
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            // Bold
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            // Italic
+            html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            // Headers (must be at start of line)
+            html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+            html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+            // Blockquote
+            html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+            // Unordered list items
+            html = html.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+            // Line breaks (but not inside pre blocks)
+            html = html.replace(/\n/g, '<br>');
+            // Clean up extra <br> around block elements
+            html = html.replace(/<br>\s*(<\/?(?:pre|ul|ol|li|blockquote|h[1-3]))/g, '$1');
+            html = html.replace(/(<\/(?:pre|ul|ol|li|blockquote|h[1-3])>)\s*<br>/g, '$1');
+            return html;
+        }
+
+        // --- Chat message sending ---
         async function sendMessage() {
             const text = inputEl.value.trim();
             if (!text) return;
@@ -531,7 +689,6 @@ HTML_TEMPLATE = """
             inputEl.value = '';
             sendBtn.disabled = true;
 
-            // Add user message
             addMessage('user', text);
 
             try {
@@ -544,12 +701,14 @@ HTML_TEMPLATE = """
 
                 if (data.error) {
                     addMessage('assistant', 'Error: ' + data.error);
+                    showToast('Error: ' + data.error, 'error');
                 } else {
                     addMessage('assistant', data.response, data.meta);
                     updateState(data);
                 }
             } catch (e) {
                 addMessage('assistant', 'Connection error: ' + e.message);
+                showToast('Connection lost', 'error');
             }
 
             sendBtn.disabled = false;
@@ -575,6 +734,7 @@ HTML_TEMPLATE = """
                 }
             } catch (e) {
                 addMessage('system', 'Connection error: ' + e.message);
+                showToast('Connection lost', 'error');
             }
 
             sendBtn.disabled = false;
@@ -588,9 +748,19 @@ HTML_TEMPLATE = """
         function addMessage(role, text, meta) {
             const div = document.createElement('div');
             div.className = 'message ' + role;
-            div.innerHTML = `<div class="text">${escapeHtml(text)}</div>`;
+            // Use markdown rendering for assistant messages, escape-only for user/system
+            if (role === 'assistant') {
+                div.innerHTML = '<div class="text">' + renderMarkdown(text) + '</div>';
+            } else if (role === 'system') {
+                div.innerHTML = '<div class="text">' + escapeHtml(text) + '</div>';
+            } else {
+                div.innerHTML = '<div class="text">' + escapeHtml(text) + '</div>';
+            }
             if (meta) {
-                div.innerHTML += `<div class="meta">${meta}</div>`;
+                const metaDiv = document.createElement('div');
+                metaDiv.className = 'meta';
+                metaDiv.textContent = meta;
+                div.appendChild(metaDiv);
             }
             messagesEl.appendChild(div);
             messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -608,13 +778,54 @@ HTML_TEMPLATE = """
             return div.innerHTML;
         }
 
-        // Poll for state updates
-        setInterval(async () => {
+        // --- Chat search ---
+        function toggleSearch() {
+            const bar = document.getElementById('search-bar');
+            bar.classList.toggle('visible');
+            if (bar.classList.contains('visible')) {
+                document.getElementById('search-input').focus();
+            } else {
+                clearSearch();
+            }
+        }
+
+        function filterMessages(query) {
+            const q = query.toLowerCase();
+            document.querySelectorAll('.message').forEach(function(msg) {
+                const text = msg.textContent.toLowerCase();
+                msg.classList.toggle('hidden', q.length > 0 && text.indexOf(q) === -1);
+            });
+        }
+
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            document.querySelectorAll('.message.hidden').forEach(function(msg) {
+                msg.classList.remove('hidden');
+            });
+            document.getElementById('search-bar').classList.remove('visible');
+        }
+
+        // --- Connection indicator + state polling ---
+        let wasOffline = false;
+        setInterval(async function() {
             try {
                 const resp = await fetch('/api/state');
                 const data = await resp.json();
                 updateState(data);
-            } catch (e) {}
+                connDot.classList.remove('offline');
+                connDot.title = 'Connected';
+                if (wasOffline) {
+                    showToast('Reconnected', 'success');
+                    wasOffline = false;
+                }
+            } catch (e) {
+                connDot.classList.add('offline');
+                connDot.title = 'Disconnected';
+                if (!wasOffline) {
+                    showToast('Connection lost', 'error', 5000);
+                    wasOffline = true;
+                }
+            }
         }, 5000);
     </script>
 </body>
@@ -1004,6 +1215,10 @@ SETTINGS_TEMPLATE = """
                 <option value="midnight">Midnight Blue</option>
                 <option value="charcoal">Charcoal</option>
             </select>
+            <label style="display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.875rem; cursor: pointer;">
+                <input type="checkbox" id="theme-auto" style="width: 18px; height: 18px; cursor: pointer;">
+                Auto day/night (cream by day, midnight at night)
+            </label>
         </div>
 
         <h2>👤 Device & Personality</h2>
@@ -1135,9 +1350,14 @@ SETTINGS_TEMPLATE = """
 
     <script>
         // Load and apply saved theme
+        const themeAutoEnabled = localStorage.getItem('inklingThemeAuto') === 'true';
         const savedTheme = localStorage.getItem('inklingTheme') || 'cream';
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.getElementById('theme').value = savedTheme;
+        document.getElementById('theme-auto').checked = themeAutoEnabled;
+        if (themeAutoEnabled) {
+            document.getElementById('theme').disabled = true;
+        }
         const statusEl = document.getElementById('status');
         const thoughtEl = document.getElementById('thought');
 
@@ -1146,6 +1366,20 @@ SETTINGS_TEMPLATE = """
             const theme = this.value;
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('inklingTheme', theme);
+        });
+
+        // Auto-theme toggle
+        document.getElementById('theme-auto').addEventListener('change', function() {
+            const auto = this.checked;
+            localStorage.setItem('inklingThemeAuto', auto ? 'true' : 'false');
+            document.getElementById('theme').disabled = auto;
+            if (auto) {
+                const hour = new Date().getHours();
+                const autoTheme = (hour >= 20 || hour < 7) ? 'midnight' : 'cream';
+                document.documentElement.setAttribute('data-theme', autoTheme);
+                localStorage.setItem('inklingTheme', autoTheme);
+                document.getElementById('theme').value = autoTheme;
+            }
         });
 
         function updateHeader() {
@@ -1665,6 +1899,149 @@ TASKS_TEMPLATE = """
             font-weight: bold;
         }
 
+        /* Edit Modal */
+        .edit-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .edit-modal.show {
+            display: flex;
+        }
+
+        .edit-modal-content {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 24px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .edit-modal h3 {
+            margin-bottom: 16px;
+            font-size: 18px;
+        }
+
+        .edit-field {
+            margin-bottom: 12px;
+        }
+
+        .edit-field label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+
+        .edit-field input,
+        .edit-field select,
+        .edit-field textarea {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .edit-field textarea {
+            height: 80px;
+            resize: vertical;
+        }
+
+        .edit-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+
+        .edit-actions .btn {
+            padding: 8px 16px;
+        }
+
+        .btn-secondary {
+            padding: 8px 16px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        /* Search/Filter Bar */
+        .search-filter-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-filter-bar input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: inherit;
+        }
+
+        .search-filter-bar select {
+            padding: 10px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: inherit;
+        }
+
+        .filter-count {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        /* Drag and Drop */
+        .task-card[draggable="true"] {
+            cursor: grab;
+        }
+
+        .task-card[draggable="true"]:active {
+            cursor: grabbing;
+        }
+
+        .task-card.dragging {
+            opacity: 0.4;
+            border-style: dashed;
+        }
+
+        .column.drag-over {
+            background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+            border-color: var(--accent);
+            border-style: dashed;
+        }
+
+        /* Streak */
+        .streak-fire {
+            color: #ff6b35;
+        }
+
         /* Loading */
         .loading {
             text-align: center;
@@ -1753,6 +2130,22 @@ TASKS_TEMPLATE = """
                 padding: 6px 10px;
                 font-size: 0.75rem;
             }
+            .search-filter-bar {
+                gap: 8px;
+            }
+            .search-filter-bar input {
+                min-width: 100%;
+                font-size: 16px;
+            }
+            .edit-modal-content {
+                padding: 16px;
+                width: 95%;
+            }
+            .edit-field input,
+            .edit-field select,
+            .edit-field textarea {
+                font-size: 16px;
+            }
         }
 
         @media (max-width: 480px) {
@@ -1834,6 +2227,10 @@ TASKS_TEMPLATE = """
             <div class="stat-number" id="stat-overdue">-</div>
             <div class="stat-label">Overdue</div>
         </div>
+        <div class="stat-card">
+            <div class="stat-number" id="stat-streak"><span class="streak-fire">-</span></div>
+            <div class="stat-label">Streak</div>
+        </div>
     </div>
 
     <div class="quick-add">
@@ -1849,13 +2246,26 @@ TASKS_TEMPLATE = """
         </form>
     </div>
 
+    <div class="search-filter-bar">
+        <input type="text" id="task-search" placeholder="Search tasks...">
+        <select id="task-filter-priority">
+            <option value="">All Priorities</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+        </select>
+        <span class="filter-count" id="filter-count"></span>
+    </div>
+
     <div class="kanban">
         <div class="column">
             <div class="column-header">
                 📋 To Do
                 <span class="task-count" id="count-pending">0</span>
             </div>
-            <div class="tasks-list" id="tasks-pending" data-status="pending">
+            <div class="tasks-list" id="tasks-pending" data-status="pending"
+                 ondragover="dragOver(event)" ondrop="drop(event, 'pending')" ondragleave="dragLeave(event)">
                 <div class="loading">Loading tasks...</div>
             </div>
         </div>
@@ -1865,7 +2275,8 @@ TASKS_TEMPLATE = """
                 ⏳ In Progress
                 <span class="task-count" id="count-progress">0</span>
             </div>
-            <div class="tasks-list" id="tasks-in_progress" data-status="in_progress">
+            <div class="tasks-list" id="tasks-in_progress" data-status="in_progress"
+                 ondragover="dragOver(event)" ondrop="drop(event, 'in_progress')" ondragleave="dragLeave(event)">
                 <div class="loading">Loading tasks...</div>
             </div>
         </div>
@@ -1875,8 +2286,45 @@ TASKS_TEMPLATE = """
                 ✅ Completed
                 <span class="task-count" id="count-completed">0</span>
             </div>
-            <div class="tasks-list" id="tasks-completed" data-status="completed">
+            <div class="tasks-list" id="tasks-completed" data-status="completed"
+                 ondragover="dragOver(event)" ondrop="drop(event, 'completed')" ondragleave="dragLeave(event)">
                 <div class="loading">Loading tasks...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="edit-modal" id="edit-modal">
+        <div class="edit-modal-content">
+            <h3>Edit Task</h3>
+            <input type="hidden" id="edit-task-id">
+            <div class="edit-field">
+                <label>Title</label>
+                <input type="text" id="edit-title" placeholder="Task title">
+            </div>
+            <div class="edit-field">
+                <label>Description</label>
+                <textarea id="edit-description" placeholder="Optional description"></textarea>
+            </div>
+            <div class="edit-field">
+                <label>Priority</label>
+                <select id="edit-priority">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                </select>
+            </div>
+            <div class="edit-field">
+                <label>Due Date</label>
+                <input type="date" id="edit-due-date">
+            </div>
+            <div class="edit-field">
+                <label>Tags (comma-separated)</label>
+                <input type="text" id="edit-tags" placeholder="tag1, tag2, tag3">
+            </div>
+            <div class="edit-actions">
+                <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button class="btn" onclick="saveEdit()">Save</button>
             </div>
         </div>
     </div>
@@ -1895,6 +2343,8 @@ TASKS_TEMPLATE = """
         document.documentElement.setAttribute('data-theme', theme);
 
         let tasks = [];
+        let searchQuery = '';
+        let filterPriority = '';
         const statusEl = document.getElementById('status');
         const thoughtEl = document.getElementById('thought');
 
@@ -1923,6 +2373,11 @@ TASKS_TEMPLATE = """
                     document.getElementById('stat-progress').textContent = stats.in_progress || 0;
                     document.getElementById('stat-completed').textContent = stats.completed || 0;
                     document.getElementById('stat-overdue').textContent = stats.overdue || 0;
+                    const streak = stats.current_streak || 0;
+                    const streakEl = document.getElementById('stat-streak');
+                    streakEl.innerHTML = streak > 0
+                        ? '<span class="streak-fire">' + streak + 'd 🔥</span>'
+                        : '<span style="color: var(--muted)">0d</span>';
                 })
                 .catch(err => console.error('Stats error:', err));
         }
@@ -1941,9 +2396,29 @@ TASKS_TEMPLATE = """
 
         // Render tasks
         function renderTasks() {
-            const pending = tasks.filter(t => t.status === 'pending');
-            const inProgress = tasks.filter(t => t.status === 'in_progress');
-            const completed = tasks.filter(t => t.status === 'completed');
+            let filtered = tasks;
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                filtered = filtered.filter(t =>
+                    t.title.toLowerCase().includes(q) ||
+                    (t.description && t.description.toLowerCase().includes(q)) ||
+                    t.tags.some(tag => tag.toLowerCase().includes(q))
+                );
+            }
+            if (filterPriority) {
+                filtered = filtered.filter(t => t.priority === filterPriority);
+            }
+
+            const countEl = document.getElementById('filter-count');
+            if (searchQuery || filterPriority) {
+                countEl.textContent = filtered.length + ' of ' + tasks.length + ' tasks';
+            } else {
+                countEl.textContent = '';
+            }
+
+            const pending = filtered.filter(t => t.status === 'pending');
+            const inProgress = filtered.filter(t => t.status === 'in_progress');
+            const completed = filtered.filter(t => t.status === 'completed');
 
             renderColumn('pending', pending);
             renderColumn('in_progress', inProgress);
@@ -1964,7 +2439,7 @@ TASKS_TEMPLATE = """
             }
 
             container.innerHTML = taskList.map(task => `
-                <div class="task-card" data-id="${task.id}">
+                <div class="task-card" data-id="${task.id}" draggable="true" ondragstart="dragStart(event, '${task.id}')" ondragend="dragEnd(event)">
                     <div class="task-header">
                         <div class="task-title">${escapeHtml(task.title)}</div>
                         <span class="priority priority-${task.priority}">${task.priority.toUpperCase()}</span>
@@ -2080,22 +2555,64 @@ TASKS_TEMPLATE = """
             }
         }
 
-        // Edit task (placeholder)
+        // Edit task modal
         function editTask(taskId) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
 
-            const newTitle = prompt('Edit task:', task.title);
-            if (!newTitle || newTitle === task.title) return;
+            document.getElementById('edit-task-id').value = task.id;
+            document.getElementById('edit-title').value = task.title;
+            document.getElementById('edit-description').value = task.description || '';
+            document.getElementById('edit-priority').value = task.priority;
+            document.getElementById('edit-due-date').value = task.due_date ? task.due_date.split('T')[0] : '';
+            document.getElementById('edit-tags').value = (task.tags || []).join(', ');
 
-            fetch(`/api/tasks/${taskId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: newTitle })
-            })
-            .then(() => loadTasks())
-            .catch(err => console.error('Failed to edit task:', err));
+            document.getElementById('edit-modal').classList.add('show');
         }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.remove('show');
+        }
+
+        async function saveEdit() {
+            const taskId = document.getElementById('edit-task-id').value;
+            const title = document.getElementById('edit-title').value.trim();
+            if (!title) return;
+
+            const tagsStr = document.getElementById('edit-tags').value;
+            const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
+            const dueDate = document.getElementById('edit-due-date').value || null;
+
+            try {
+                const res = await fetch(`/api/tasks/${taskId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: title,
+                        description: document.getElementById('edit-description').value.trim(),
+                        priority: document.getElementById('edit-priority').value,
+                        due_date: dueDate,
+                        tags: tags
+                    })
+                });
+                if (res.ok) {
+                    closeEditModal();
+                    await loadTasks();
+                }
+            } catch (err) {
+                console.error('Failed to save task:', err);
+            }
+        }
+
+        // Close modal on backdrop click
+        document.getElementById('edit-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeEditModal();
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeEditModal();
+        });
 
         // Show celebration
         function showCelebration(message, xp, emoji) {
@@ -2115,6 +2632,61 @@ TASKS_TEMPLATE = """
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // Drag and drop
+        function dragStart(event, taskId) {
+            event.dataTransfer.setData('text/plain', taskId);
+            event.dataTransfer.effectAllowed = 'move';
+            event.target.classList.add('dragging');
+        }
+
+        function dragEnd(event) {
+            event.target.classList.remove('dragging');
+            document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
+        }
+
+        function dragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            const col = event.currentTarget.closest('.column');
+            if (col) col.classList.add('drag-over');
+        }
+
+        function dragLeave(event) {
+            const col = event.currentTarget.closest('.column');
+            if (col && !col.contains(event.relatedTarget)) {
+                col.classList.remove('drag-over');
+            }
+        }
+
+        async function drop(event, newStatus) {
+            event.preventDefault();
+            const col = event.currentTarget.closest('.column');
+            if (col) col.classList.remove('drag-over');
+
+            const taskId = event.dataTransfer.getData('text/plain');
+            if (!taskId) return;
+
+            const task = tasks.find(t => t.id === taskId);
+            if (!task || task.status === newStatus) return;
+
+            if (newStatus === 'completed') {
+                await completeTask(taskId);
+            } else {
+                await changeStatus(taskId, newStatus);
+            }
+        }
+
+        // Search and filter
+        document.getElementById('task-search').addEventListener('input', function(e) {
+            searchQuery = e.target.value;
+            renderTasks();
+        });
+
+        document.getElementById('task-filter-priority').addEventListener('change', function(e) {
+            filterPriority = e.target.value;
+            renderTasks();
+        });
 
         // Initial load
         loadTasks();
@@ -3470,6 +4042,15 @@ class WebChatMode:
                     task.status = TaskStatus(data["status"])
                 except ValueError:
                     pass
+            if "due_date" in data:
+                if data["due_date"]:
+                    from datetime import datetime as dt
+                    try:
+                        task.due_date = dt.fromisoformat(data["due_date"]).timestamp()
+                    except (ValueError, TypeError):
+                        pass
+                else:
+                    task.due_date = None
             if "tags" in data:
                 task.tags = data["tags"]
             if "project" in data:
@@ -3511,6 +4092,12 @@ class WebChatMode:
                 return json.dumps({"error": "Task manager not available"})
 
             stats = self.task_manager.get_stats()
+
+            # Include streak from progression
+            try:
+                stats["current_streak"] = self.personality.progression.current_streak
+            except Exception:
+                stats["current_streak"] = 0
 
             return json.dumps({
                 "stats": stats
@@ -4393,6 +4980,177 @@ class WebChatMode:
             "face": self.personality.face,
         }
 
+    def _cmd_thoughts(self) -> Dict[str, Any]:
+        """Show recent autonomous thoughts."""
+        from pathlib import Path
+
+        log_path = Path("~/.inkling/thoughts.log").expanduser()
+        if not log_path.exists():
+            return {
+                "response": "No thoughts yet. Thoughts are generated automatically over time.",
+                "face": self.personality.face,
+            }
+
+        lines = log_path.read_text().strip().splitlines()
+        recent = lines[-10:]
+
+        output = [f"**Recent Thoughts** ({len(recent)} of {len(lines)})\n"]
+        for line in recent:
+            parts = line.split(" | ", 1)
+            if len(parts) == 2:
+                ts, thought = parts
+                output.append(f"`{ts}` {thought}")
+            else:
+                output.append(line)
+
+        if self.personality.last_thought:
+            output.append(f"\n*Latest: {self.personality.last_thought}*")
+
+        return {
+            "response": "\n".join(output),
+            "face": self.personality.face,
+        }
+
+    def _cmd_find(self, args: str = "") -> Dict[str, Any]:
+        """Search tasks by keyword."""
+        if not args.strip():
+            return {"response": "Usage: `/find <keyword>`", "face": self.personality.face}
+
+        if not self.task_manager:
+            return {"response": "Task manager not available.", "face": self.personality.face, "error": True}
+
+        query = args.strip().lower()
+        all_tasks = self.task_manager.list_tasks()
+        matches = [
+            t for t in all_tasks
+            if query in t.title.lower()
+            or (t.description and query in t.description.lower())
+            or any(query in tag.lower() for tag in t.tags)
+        ]
+
+        if not matches:
+            return {"response": f"No tasks found matching '{args.strip()}'.", "face": self.personality.face}
+
+        status_icons = {"pending": "📋", "in_progress": "⏳", "completed": "✅", "cancelled": "❌"}
+        output = [f"**Search Results** ({len(matches)} matches)\n"]
+        for task in matches:
+            icon = status_icons.get(task.status.value, "·")
+            tags = " ".join(f"#{t}" for t in task.tags) if task.tags else ""
+            output.append(f"{icon} `{task.id[:8]}` **{task.title}** [{task.priority.value}]")
+            if task.description:
+                output.append(f"   {task.description[:80]}")
+            if tags:
+                output.append(f"   {tags}")
+
+        return {
+            "response": "\n".join(output),
+            "face": self.personality.face,
+        }
+
+    def _cmd_memory(self) -> Dict[str, Any]:
+        """Show memory stats and recent entries."""
+        from core.memory import MemoryStore
+
+        store = MemoryStore()
+        try:
+            store.initialize()
+
+            total = store.count()
+            user_count = store.count(MemoryStore.CATEGORY_USER)
+            pref_count = store.count(MemoryStore.CATEGORY_PREFERENCE)
+            fact_count = store.count(MemoryStore.CATEGORY_FACT)
+            event_count = store.count(MemoryStore.CATEGORY_EVENT)
+
+            output = ["**Memory Store**\n"]
+            output.append(f"Total: **{total}** memories")
+            output.append(f"  User info: {user_count}")
+            output.append(f"  Preferences: {pref_count}")
+            output.append(f"  Facts: {fact_count}")
+            output.append(f"  Events: {event_count}")
+
+            recent = store.recall_recent(limit=5)
+            if recent:
+                output.append("\n**Recent:**")
+                for mem in recent:
+                    output.append(f"  `[{mem.category}]` {mem.key}: {mem.value[:60]}")
+
+            important = store.recall_important(limit=3)
+            if important:
+                output.append("\n**Most Important:**")
+                for mem in important:
+                    output.append(f"  ★{mem.importance:.1f} `[{mem.category}]` {mem.key}: {mem.value[:60]}")
+
+            return {
+                "response": "\n".join(output),
+                "face": self.personality.face,
+            }
+        finally:
+            store.close()
+
+    def _cmd_settings(self) -> Dict[str, Any]:
+        """Show current settings (redirects to settings page in web mode)."""
+        return {
+            "response": "Visit the [Settings](/settings) page to view and change settings.",
+            "face": self.personality.face,
+        }
+
+    def _cmd_backup(self) -> Dict[str, Any]:
+        """Create a backup of Inkling data."""
+        import shutil
+        from pathlib import Path
+        from datetime import datetime
+
+        data_dir = Path("~/.inkling").expanduser()
+        if not data_dir.exists():
+            return {"response": "No data directory found.", "face": self.personality.face, "error": True}
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"inkling_backup_{timestamp}"
+        backup_path = data_dir.parent / f"{backup_name}.tar.gz"
+
+        try:
+            shutil.make_archive(
+                str(data_dir.parent / backup_name),
+                'gztar',
+                root_dir=str(data_dir.parent),
+                base_dir='.inkling'
+            )
+            size_mb = backup_path.stat().st_size / (1024 * 1024)
+            return {
+                "response": f"Backup created!\n\n**File:** `{backup_path}`\n**Size:** {size_mb:.1f} MB",
+                "face": "happy",
+            }
+        except Exception as e:
+            return {"response": f"Backup failed: {e}", "face": self.personality.face, "error": True}
+
+    def _cmd_journal(self) -> Dict[str, Any]:
+        """Show recent journal entries."""
+        from pathlib import Path
+
+        journal_path = Path("~/.inkling/journal.log").expanduser()
+        if not journal_path.exists():
+            return {
+                "response": "No journal entries yet. Journal entries are written daily by the heartbeat system.",
+                "face": self.personality.face,
+            }
+
+        lines = journal_path.read_text().strip().splitlines()
+        recent = lines[-10:]
+
+        output = [f"**Journal** ({len(recent)} of {len(lines)} entries)\n"]
+        for line in recent:
+            parts = line.split(" | ", 1)
+            if len(parts) == 2:
+                ts, entry = parts
+                output.append(f"`{ts}` {entry}")
+            else:
+                output.append(line)
+
+        return {
+            "response": "\n".join(output),
+            "face": self.personality.face,
+        }
+
     def _handle_command_sync(self, command: str) -> Dict[str, Any]:
         """Handle slash commands (sync wrapper)."""
         parts = command.split(maxsplit=1)
@@ -4418,8 +5176,8 @@ class WebChatMode:
             return {"response": f"Command handler not implemented: {cmd_obj.name}", "error": True}
 
         # Call handler with args if needed
-        if cmd_obj.name in ("face", "dream", "ask", "schedule", "bash", "task", "done", "cancel", "delete", "tasks"):
-            return handler(args) if args or cmd_obj.name in ("tasks", "schedule") else handler()
+        if cmd_obj.name in ("face", "dream", "ask", "schedule", "bash", "task", "done", "cancel", "delete", "tasks", "find"):
+            return handler(args) if args or cmd_obj.name in ("tasks", "schedule", "find") else handler()
         else:
             return handler()
 

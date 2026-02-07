@@ -344,6 +344,30 @@ class Inkling:
                 await self._mode.run()
 
             elif mode == "web":
+                port = self.config.get("web", {}).get("port", 8081)
+
+                # Show QR code on first boot for easy mobile connection
+                first_boot_marker = os.path.join(
+                    os.path.expanduser("~"), ".inkling", ".first_boot_done"
+                )
+                if not os.path.exists(first_boot_marker):
+                    try:
+                        import socket
+                        hostname = socket.gethostname()
+                        try:
+                            ip = socket.gethostbyname(hostname)
+                        except socket.gaierror:
+                            ip = "localhost"
+                        url = f"http://{ip}:{port}"
+                        await self.display.show_qr_code(url, f"Connect: {url}")
+                        await asyncio.sleep(8)  # Show QR for 8 seconds
+                        # Mark first boot done
+                        os.makedirs(os.path.dirname(first_boot_marker), exist_ok=True)
+                        with open(first_boot_marker, "w") as f:
+                            f.write("done")
+                    except Exception as e:
+                        print(f"[Main] QR code display skipped: {e}")
+
                 self._mode = WebChatMode(
                     brain=self.brain,
                     display=self.display,
@@ -352,7 +376,7 @@ class Inkling:
                     scheduler=self.scheduler,
                     identity=self.identity,
                     config=self.config,
-                    port=self.config.get("web", {}).get("port", 8081),
+                    port=port,
                 )
                 await self._mode.run()
 

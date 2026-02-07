@@ -54,6 +54,14 @@ COMMANDS: List[Command] = [
     # Scheduler commands
     Command("schedule", "Manage scheduled tasks", "cmd_schedule", "scheduler"),
 
+    # New utility commands
+    Command("thoughts", "Show recent autonomous thoughts", "cmd_thoughts", "info"),
+    Command("find", "Search tasks by keyword", "cmd_find", "tasks"),
+    Command("memory", "Show memory stats and entries", "cmd_memory", "info"),
+    Command("settings", "Show current settings (SSH)", "cmd_settings", "system"),
+    Command("backup", "Create backup of Inkling data", "cmd_backup", "system"),
+    Command("journal", "Show recent journal entries", "cmd_journal", "info"),
+
     # WiFi commands
     Command("wifi", "Show WiFi status and saved networks", "cmd_wifi", "system"),
     Command("btcfg", "Start BLE WiFi configuration (15 min)", "cmd_btcfg", "system"),
