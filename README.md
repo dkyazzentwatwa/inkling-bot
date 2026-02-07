@@ -65,8 +65,10 @@ Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant—but it live
 <td width="50%">
 
 #### 🖥️ **E-ink Display**
-- ASCII/Unicode mood faces
+- Visual XP progress bar with percentage
+- WiFi signal strength in header
 - Pwnagotchi-style UI layout
+- Battery status (with PiSugar integration)
 - Support for Waveshare V3/V4 displays
 - Mock display for development
 - Smart rate limiting to prevent burn-in
@@ -79,7 +81,7 @@ Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant—but it live
 
 ```
 ╔════════════════════════════════════════════╗
-║  Inkling>_              Curious  UP 02:15  ║
+║  inkling> Curious          ▂▄▆ UP 02:15   ║  ← Mood + WiFi bars in header
 ╠════════════════════════════════════════════╣
 ║                                            ║
 ║     What a beautiful day for learning!     ║
@@ -87,10 +89,16 @@ Think Tamagotchi meets Pwnagotchi meets your favorite AI assistant—but it live
 ║     together?                              ║
 ║                                            ║
 ╠════════════════════════════════════════════╣
-║ (^_^) │ L12 EXPL │ 54%mem 1%cpu 43° │ CH3 ║
-║                 SSH    14:23               ║
+║  [████████░░] 80% │ L12 EXPL │ SSH        ║  ← XP progress bar
+║  BAT 92% 54%m 1%c 43° │ CH3 │ 14:23       ║  ← Battery + stats
 ╚════════════════════════════════════════════╝
 ```
+
+**New in this layout:**
+- 🎯 **Visual XP Bar**: See your progress to the next level at a glance
+- 📶 **WiFi in Header**: Signal strength displayed prominently in top bar
+- 🎭 **Mood Next to Name**: Cleaner, more natural layout
+- 🔋 **Battery Status**: Shows charge percentage and charging indicator (when PiSugar is connected)
 
 ---
 
@@ -214,18 +222,22 @@ Inkling includes built-in WiFi management commands:
 
 ### On-Screen WiFi Indicator
 
-The e-ink display shows WiFi status in the footer:
+The e-ink display shows WiFi status in the **header bar** (top of screen):
 ```
-▂▄▆█ 54%m 1%c 43° | CH3 | 10:42
+inkling> Curious          ▂▄▆█ UP 02:15
 ```
-- **▂▄▆█** - WiFi signal bars (excellent signal)
+- **▂▄▆█** - Excellent signal (80-100%)
+- **▂▄▆** - Good signal (60-79%)
+- **▂▄** - Fair signal (40-59%)
+- **▂** - Poor signal (20-39%)
+- **○** - Very poor signal (<20%)
 - Automatically updates when you connect/disconnect
 
 ---
 
-## PiSugar Battery Management (PiSugar 2)
+## 🔋 PiSugar Battery Management (PiSugar 2)
 
-Inkling can read battery percentage and charging status from PiSugar and surface it in the footer and personality mood.
+Inkling supports **PiSugar 2** battery monitoring, displaying charge percentage and charging status directly on the e-ink display footer and integrating with personality behaviors (e.g., getting sleepy when battery is low).
 
 ### Install PiSugar Power Manager
 
@@ -273,6 +285,16 @@ Restart Inkling after updating config:
 ```bash
 python main.py --mode ssh
 ```
+
+### Display Integration
+
+Battery status appears in the **footer bar** of the e-ink display:
+```
+BAT 92% 54%m 1%c 43° │ CH3 │ 14:23
+```
+- **BAT 92%** - Battery percentage (shows **CHG** when charging)
+- **⚡** or **🔋** - Unicode charging/battery icons (when using Unicode faces)
+- Low battery triggers personality behaviors (sleepiness, warnings)
 
 ---
 
@@ -363,7 +385,12 @@ The web interface (`http://localhost:8081`) includes:
 
 - 💬 **Chat Interface**: Clean, mobile-friendly design with conversation persistence
 - 📋 **Task Board**: Kanban-style task management with drag-and-drop
-- 📁 **File Browser**: Browse your Inkling's data and optional SD card storage
+- 📁 **File Browser**: Full-featured code editor with support for all file types
+  - ✏️ **Edit files** directly in browser (Python, JS, HTML, CSS, config files, and more)
+  - 🗑️ **Delete files** with confirmation dialog
+  - 📥 **Download files** to your computer
+  - 💾 **Auto-backup** creates `.bak` files before editing
+  - 🔒 **Protected system files** (tasks.db, conversation.json, etc.)
 - ⚙️ **Settings Page**: Edit personality traits, AI configuration, and themes
 - 🎨 **13 Themes**: 10 pastel (Cream, Pink, Mint, Lavender, Peach, Sky, Butter, Rose, Sage, Periwinkle) + 3 dark (Dark, Midnight, Charcoal)
 
@@ -546,6 +573,9 @@ Your Inkling has a living personality that evolves:
 - **6 Personality Traits**: Curiosity, cheerfulness, verbosity, playfulness, empathy, independence (adjustable 0.0-1.0)
 - **10 Moods**: Happy, excited, curious, bored, sad, sleepy, grateful, lonely, intense, cool
 - **XP & Leveling**: Earn XP from conversations and completed tasks
+  - Visual progress bar on display: `[████████░░] 80%`
+  - Shows exact percentage to next level
+  - XP awarded for task completion, conversations, and achievements
 - **Achievements**: Unlock special milestones as you progress
 - **Prestige System**: Reset with bonuses for hardcore users
 

@@ -2444,6 +2444,15 @@ FILES_TEMPLATE = """
             color: white;
         }
 
+        .btn-danger {
+            background: #dc3545 !important;
+            color: white !important;
+        }
+
+        .btn-danger:hover {
+            background: #c82333 !important;
+        }
+
         .empty-state {
             text-align: center;
             padding: 3rem;
@@ -2502,10 +2511,11 @@ FILES_TEMPLATE = """
             color: var(--text);
         }
 
-        .file-content {
+        #file-content {
             white-space: pre-wrap;
-            font-family: 'Courier New', monospace;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
             font-size: 0.9em;
+            line-height: 1.5;
             background: rgba(0, 0, 0, 0.03);
             padding: 1rem;
             border-radius: 4px;
@@ -2513,10 +2523,57 @@ FILES_TEMPLATE = """
             overflow: auto;
         }
 
+        #file-content.editable {
+            border: 2px solid var(--accent);
+            padding: 1rem;
+            min-height: 400px;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            justify-content: flex-end;
+        }
+
+        .confirm-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg);
+            border: 2px solid var(--border);
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 2000;
+            max-width: 400px;
+        }
+
+        .confirm-dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1999;
+        }
+
         .error {
             color: #d9534f;
             padding: 1rem;
             background: rgba(217, 83, 79, 0.1);
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .success {
+            background: #28a745;
+            color: white;
+            padding: 1rem;
             border-radius: 4px;
             margin-bottom: 1rem;
         }
@@ -2858,6 +2915,8 @@ FILES_TEMPLATE = """
                     actions.className = 'file-actions';
                     actions.innerHTML = `
                         <button class="btn" onclick="viewFile('${item.path}', event)">View</button>
+                        <button class="btn" onclick="editFile('${item.path}', event)">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteFile('${item.path}', '${item.name}', event)">Delete</button>
                         <a class="btn" href="/api/files/download?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(item.path)}" download>Download</a>
                     `;
                     li.appendChild(actions);
@@ -2890,6 +2949,148 @@ FILES_TEMPLATE = """
 
         function closeModal() {
             document.getElementById('file-modal').classList.remove('active');
+            // Clean up edit mode
+            const contentEl = document.getElementById('file-content');
+            contentEl.contentEditable = false;
+            contentEl.classList.remove('editable');
+            const modal = document.getElementById('file-modal');
+            const actionsDiv = modal.querySelector('.modal-actions');
+            if (actionsDiv) {
+                actionsDiv.remove();
+            }
+        }
+
+        let editMode = false;
+        let currentEditPath = null;
+
+        async function editFile(path, event) {
+            event.stopPropagation();
+
+            try {
+                const response = await fetch(`/api/files/view?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(path)}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                editMode = true;
+                currentEditPath = path;
+
+                document.getElementById('modal-title').textContent = data.name + ' (Editing)';
+                const contentEl = document.getElementById('file-content');
+                contentEl.contentEditable = true;
+                contentEl.classList.add('editable');
+                contentEl.textContent = data.content;
+
+                // Add save/cancel buttons
+                const modal = document.getElementById('file-modal');
+                let actionsDiv = modal.querySelector('.modal-actions');
+                if (!actionsDiv) {
+                    actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'modal-actions';
+                    modal.querySelector('.modal-content').appendChild(actionsDiv);
+                }
+                actionsDiv.innerHTML = `
+                    <button class="btn" onclick="saveFile()">Save</button>
+                    <button class="btn" onclick="cancelEdit()">Cancel</button>
+                `;
+
+                modal.classList.add('active');
+
+            } catch (error) {
+                showError('Failed to load file for editing: ' + error.message);
+            }
+        }
+
+        async function saveFile() {
+            if (!editMode || !currentEditPath) return;
+
+            const content = document.getElementById('file-content').textContent;
+
+            try {
+                const response = await fetch(`/api/files/edit?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(currentEditPath)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                showSuccess('File saved successfully!');
+                cancelEdit();
+
+            } catch (error) {
+                showError('Failed to save file: ' + error.message);
+            }
+        }
+
+        function cancelEdit() {
+            editMode = false;
+            currentEditPath = null;
+            closeModal();
+        }
+
+        async function deleteFile(path, name, event) {
+            event.stopPropagation();
+
+            // Show confirmation dialog
+            const overlay = document.createElement('div');
+            overlay.className = 'confirm-dialog-overlay';
+
+            const dialog = document.createElement('div');
+            dialog.className = 'confirm-dialog';
+            dialog.innerHTML = `
+                <h3>Delete File?</h3>
+                <p>Are you sure you want to delete <strong>${name}</strong>?</p>
+                <p style="color: var(--muted); font-size: 0.9em;">This action cannot be undone.</p>
+                <div style="display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end;">
+                    <button class="btn" onclick="this.closest('.confirm-dialog').remove(); document.querySelector('.confirm-dialog-overlay').remove();">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDelete('${path}', this)">Delete</button>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+            document.body.appendChild(dialog);
+        }
+
+        async function confirmDelete(path, button) {
+            try {
+                const response = await fetch(`/api/files/delete?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(path)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ confirmed: true })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                showSuccess(data.message);
+
+                // Close dialog
+                button.closest('.confirm-dialog').remove();
+                document.querySelector('.confirm-dialog-overlay').remove();
+
+                // Reload file list
+                loadFiles(currentPath);
+
+            } catch (error) {
+                showError('Failed to delete file: ' + error.message);
+            }
         }
 
         function formatSize(bytes) {
@@ -2906,6 +3107,14 @@ FILES_TEMPLATE = """
             setTimeout(() => {
                 container.innerHTML = '';
             }, 5000);
+        }
+
+        function showSuccess(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div class="success">${message}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 3000);
         }
 
         // Close modal on background click
@@ -3469,11 +3678,10 @@ class WebChatMode:
                     if entry.name.startswith('.') or entry.name.endswith(('.db', '.pyc')):
                         continue
 
-                    # For files, only show viewable types
+                    # For files, show all types (filtering handled by view endpoint)
+                    # Skip system files only
                     if entry.is_file():
-                        ext = os.path.splitext(entry.name)[1].lower()
-                        if ext not in ['.txt', '.md', '.csv', '.json', '.log']:
-                            continue
+                        pass  # Allow all file types to be listed
 
                     stat = entry.stat()
                     items.append({
@@ -3520,10 +3728,25 @@ class WebChatMode:
                 if not os.path.isfile(full_path):
                     return json.dumps({"error": "Not a file"})
 
-                # Check file extension
+                # Check file extension - support common code and text files
+                SUPPORTED_EXTENSIONS = {
+                    # Text/Docs
+                    '.txt', '.md', '.rst', '.log',
+                    # Data
+                    '.json', '.yaml', '.yml', '.csv', '.xml', '.toml',
+                    # Code
+                    '.py', '.js', '.ts', '.jsx', '.tsx', '.html', '.css', '.scss', '.sass',
+                    '.sh', '.bash', '.zsh', '.fish',
+                    '.c', '.cpp', '.h', '.hpp', '.java', '.go', '.rs', '.rb', '.php',
+                    # Config
+                    '.conf', '.ini', '.cfg', '.env',
+                    # Other
+                    '.sql', '.graphql', '.vue', '.svelte'
+                }
+
                 ext = os.path.splitext(full_path)[1].lower()
-                if ext not in ['.txt', '.md', '.csv', '.json', '.log']:
-                    return json.dumps({"error": "File type not supported"})
+                if ext not in SUPPORTED_EXTENSIONS and ext != '':  # Allow extensionless files
+                    return json.dumps({"error": f"File type '{ext}' not supported for viewing"})
 
                 # Read file (limit size to prevent memory issues)
                 max_size = 1024 * 1024  # 1MB
@@ -3574,6 +3797,134 @@ class WebChatMode:
 
             except Exception as e:
                 return str(e)
+
+        @self._app.route("/api/files/edit", method="POST")
+        def edit_file():
+            """Edit/update file contents."""
+            response.content_type = "application/json"
+
+            storage = request.query.get("storage", "inkling")
+            path = request.query.get("path", "")
+
+            if not path:
+                return json.dumps({"error": "No path specified"})
+
+            try:
+                # Get request body (new file content)
+                data = request.json
+                if not data or "content" not in data:
+                    return json.dumps({"error": "No content provided"})
+
+                new_content = data["content"]
+
+                # Get base directory for storage location
+                base_dir = get_base_dir(storage)
+                if not base_dir:
+                    return json.dumps({"error": f"Storage '{storage}' not available"})
+
+                full_path = os.path.normpath(os.path.join(base_dir, path))
+
+                # Security: Ensure path is within base directory
+                if not full_path.startswith(base_dir):
+                    return json.dumps({"error": "Invalid path"})
+
+                if not os.path.isfile(full_path):
+                    return json.dumps({"error": "Not a file"})
+
+                # Check file extension (same as view endpoint)
+                SUPPORTED_EXTENSIONS = {
+                    # Text/Docs
+                    '.txt', '.md', '.rst', '.log',
+                    # Data
+                    '.json', '.yaml', '.yml', '.csv', '.xml', '.toml',
+                    # Code
+                    '.py', '.js', '.ts', '.jsx', '.tsx', '.html', '.css', '.scss', '.sass',
+                    '.sh', '.bash', '.zsh', '.fish',
+                    '.c', '.cpp', '.h', '.hpp', '.java', '.go', '.rs', '.rb', '.php',
+                    # Config
+                    '.conf', '.ini', '.cfg', '.env',
+                    # Other
+                    '.sql', '.graphql', '.vue', '.svelte'
+                }
+
+                ext = os.path.splitext(full_path)[1].lower()
+                if ext not in SUPPORTED_EXTENSIONS and ext != '':
+                    return json.dumps({"error": f"File type '{ext}' cannot be edited"})
+
+                # Create backup before editing
+                backup_path = full_path + ".bak"
+                import shutil
+                shutil.copy2(full_path, backup_path)
+
+                # Write new content
+                with open(full_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+
+                return json.dumps({
+                    "success": True,
+                    "message": f"File '{os.path.basename(full_path)}' updated successfully",
+                    "backup": os.path.basename(backup_path)
+                })
+
+            except Exception as e:
+                return json.dumps({"error": str(e)})
+
+        @self._app.route("/api/files/delete", method="POST")
+        def delete_file():
+            """Delete a file with confirmation."""
+            response.content_type = "application/json"
+
+            storage = request.query.get("storage", "inkling")
+            path = request.query.get("path", "")
+
+            if not path:
+                return json.dumps({"error": "No path specified"})
+
+            try:
+                # Get request body (confirmation flag)
+                data = request.json
+                if not data or not data.get("confirmed", False):
+                    return json.dumps({"error": "Deletion not confirmed"})
+
+                # Get base directory for storage location
+                base_dir = get_base_dir(storage)
+                if not base_dir:
+                    return json.dumps({"error": f"Storage '{storage}' not available"})
+
+                full_path = os.path.normpath(os.path.join(base_dir, path))
+
+                # Security: Ensure path is within base directory
+                if not full_path.startswith(base_dir):
+                    return json.dumps({"error": "Invalid path"})
+
+                if not os.path.exists(full_path):
+                    return json.dumps({"error": "File not found"})
+
+                # Prevent deleting critical system files
+                filename = os.path.basename(full_path)
+                if filename in ['tasks.db', 'conversation.json', 'memory.db', 'personality.json']:
+                    return json.dumps({"error": "Cannot delete system file"})
+
+                # Delete the file
+                if os.path.isfile(full_path):
+                    os.remove(full_path)
+                    return json.dumps({
+                        "success": True,
+                        "message": f"File '{filename}' deleted successfully"
+                    })
+                elif os.path.isdir(full_path):
+                    # Optional: Allow directory deletion (empty only)
+                    if len(os.listdir(full_path)) == 0:
+                        os.rmdir(full_path)
+                        return json.dumps({
+                            "success": True,
+                            "message": f"Directory '{filename}' deleted successfully"
+                        })
+                    else:
+                        return json.dumps({"error": "Directory not empty"})
+
+            except Exception as e:
+                return json.dumps({"error": str(e)})
 
     def _task_to_dict(self, task: Task) -> Dict[str, Any]:
         """Convert Task to JSON-serializable dict."""
