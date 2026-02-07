@@ -140,6 +140,7 @@ class FilesystemMCPServer:
     def _safe_path(self, path: str) -> Optional[str]:
         """
         Validate and resolve a path within the base directory.
+        Uses realpath to resolve symlinks and commonpath for containment.
 
         Args:
             path: User-provided path
@@ -147,18 +148,23 @@ class FilesystemMCPServer:
         Returns:
             Absolute safe path, or None if invalid
         """
-        # Handle empty path (root)
-        if not path or path == ".":
-            return self.base_path
+        try:
+            base_real = os.path.realpath(self.base_path)
 
-        # Resolve relative to base
-        full_path = os.path.abspath(os.path.join(self.base_path, path))
+            # Handle empty path (root)
+            if not path or path == ".":
+                return base_real
 
-        # Security: Ensure path is within base directory
-        if not full_path.startswith(self.base_path):
+            # Resolve relative to base, following symlinks
+            full_path = os.path.realpath(os.path.normpath(os.path.join(base_real, path)))
+
+            # Security: Ensure path is within base directory using commonpath
+            if os.path.commonpath([base_real, full_path]) != base_real:
+                return None
+
+            return full_path
+        except (ValueError, OSError):
             return None
-
-        return full_path
 
     def _error(self, request_id: int, message: str) -> Dict[str, Any]:
         """Create an error response."""
@@ -378,29 +384,39 @@ class FilesystemMCPServer:
             return {"success": False, "error": "Path does not exist"}
 
         try:
-            # Use glob to search
+            base_real = os.path.realpath(self.base_path)
+            # Use glob to search with result limit
             search_pattern = os.path.join(safe_path, pattern)
             matches = []
+            max_results = 100
 
             for match in glob.glob(search_pattern, recursive=True):
-                # Security check
-                if not match.startswith(self.base_path):
+                # Security check using realpath + commonpath
+                try:
+                    real_match = os.path.realpath(match)
+                    if os.path.commonpath([base_real, real_match]) != base_real:
+                        continue
+                except (ValueError, OSError):
                     continue
 
-                stat = os.stat(match)
+                stat = os.stat(real_match)
                 matches.append({
-                    "path": os.path.relpath(match, self.base_path),
-                    "name": os.path.basename(match),
-                    "type": "directory" if os.path.isdir(match) else "file",
-                    "size": stat.st_size if os.path.isfile(match) else None,
+                    "path": os.path.relpath(real_match, base_real),
+                    "name": os.path.basename(real_match),
+                    "type": "directory" if os.path.isdir(real_match) else "file",
+                    "size": stat.st_size if os.path.isfile(real_match) else None,
                     "modified": stat.st_mtime
                 })
+
+                if len(matches) >= max_results:
+                    break
 
             return {
                 "success": True,
                 "pattern": pattern,
                 "count": len(matches),
-                "matches": matches
+                "matches": matches,
+                "truncated": len(matches) >= max_results
             }
 
         except Exception as e:

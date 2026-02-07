@@ -7,6 +7,7 @@ Implements retry logic, token budgeting, and rate limiting.
 
 import asyncio
 import json
+import re
 import time
 import os
 from abc import ABC, abstractmethod
@@ -16,6 +17,14 @@ from enum import Enum
 from pathlib import Path
 
 from .progression import ChatQuality
+
+
+def _sanitize_error(msg: str) -> str:
+    """Remove potential API keys and sensitive data from error messages."""
+    msg = re.sub(r'sk-[a-zA-Z0-9\-]{10,}', '[REDACTED]', msg)
+    msg = re.sub(r'sk-ant-[a-zA-Z0-9\-]{10,}', '[REDACTED]', msg)
+    msg = re.sub(r'key[=:\s]+\S{10,}', 'key=[REDACTED]', msg, flags=re.IGNORECASE)
+    return msg
 
 
 class ProviderError(Exception):
@@ -40,13 +49,21 @@ class AllProvidersExhaustedError(ProviderError):
 
 @dataclass
 class TokenBudget:
-    """Track token usage and enforce budgets."""
+    """Track token usage and enforce budgets. Persists across restarts."""
     daily_limit: int = 10000
     per_request_max: int = 500
 
     # Usage tracking
     tokens_used_today: int = 0
     last_reset: float = field(default_factory=time.time)
+
+    # Persistence path
+    _persist_path: str = field(default="", repr=False)
+
+    def __post_init__(self):
+        if not self._persist_path:
+            self._persist_path = str(Path("~/.inkling/token_budget.json").expanduser())
+        self._load()
 
     def check_budget(self, estimated_tokens: int) -> bool:
         """Check if we have budget for this request."""
@@ -57,6 +74,7 @@ class TokenBudget:
         """Record token usage."""
         self._maybe_reset()
         self.tokens_used_today += tokens
+        self._save()
 
     def _maybe_reset(self) -> None:
         """Reset daily counter if new day."""
@@ -65,6 +83,35 @@ class TokenBudget:
         if now - self.last_reset > 86400:
             self.tokens_used_today = 0
             self.last_reset = now
+            self._save()
+
+    def _save(self) -> None:
+        """Persist token usage to disk."""
+        try:
+            data = {
+                "tokens_used_today": self.tokens_used_today,
+                "last_reset": self.last_reset,
+            }
+            persist_path = Path(self._persist_path)
+            persist_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(persist_path, 'w') as f:
+                json.dump(data, f)
+        except Exception:
+            pass  # Non-critical — budget still works in-memory
+
+    def _load(self) -> None:
+        """Load persisted token usage from disk."""
+        try:
+            persist_path = Path(self._persist_path)
+            if persist_path.exists():
+                with open(persist_path, 'r') as f:
+                    data = json.load(f)
+                self.tokens_used_today = data.get("tokens_used_today", 0)
+                self.last_reset = data.get("last_reset", time.time())
+                # Check if budget needs resetting after load
+                self._maybe_reset()
+        except Exception:
+            pass  # Start fresh if load fails
 
     @property
     def remaining(self) -> int:
@@ -207,11 +254,12 @@ class AnthropicProvider(AIProvider):
 
         except Exception as e:
             error_str = str(e).lower()
+            sanitized = _sanitize_error(str(e))
             if "rate" in error_str or "429" in error_str:
-                raise RateLimitError(f"Anthropic rate limit: {e}")
+                raise RateLimitError(f"Anthropic rate limit: {sanitized}")
             if "quota" in error_str or "insufficient" in error_str:
-                raise QuotaExceededError(f"Anthropic quota: {e}")
-            raise ProviderError(f"Anthropic error: {e}")
+                raise QuotaExceededError(f"Anthropic quota: {sanitized}")
+            raise ProviderError(f"Anthropic error: {sanitized}")
 
 
 class OpenAIProvider(AIProvider):
@@ -327,11 +375,12 @@ class OpenAIProvider(AIProvider):
 
         except Exception as e:
             error_str = str(e).lower()
+            sanitized = _sanitize_error(str(e))
             if "rate" in error_str or "429" in error_str:
-                raise RateLimitError(f"OpenAI rate limit: {e}")
+                raise RateLimitError(f"OpenAI rate limit: {sanitized}")
             if "quota" in error_str or "insufficient" in error_str:
-                raise QuotaExceededError(f"OpenAI quota: {e}")
-            raise ProviderError(f"OpenAI error: {e}")
+                raise QuotaExceededError(f"OpenAI quota: {sanitized}")
+            raise ProviderError(f"OpenAI error: {sanitized}")
 
 
 class GeminiProvider(AIProvider):
@@ -420,11 +469,12 @@ class GeminiProvider(AIProvider):
 
         except Exception as e:
             error_str = str(e).lower()
+            sanitized = _sanitize_error(str(e))
             if "rate" in error_str or "429" in error_str or "quota" in error_str:
-                raise RateLimitError(f"Gemini rate limit: {e}")
+                raise RateLimitError(f"Gemini rate limit: {sanitized}")
             if "resource" in error_str or "exhausted" in error_str:
-                raise QuotaExceededError(f"Gemini quota: {e}")
-            raise ProviderError(f"Gemini error: {e}")
+                raise QuotaExceededError(f"Gemini quota: {sanitized}")
+            raise ProviderError(f"Gemini error: {sanitized}")
 
     def _convert_tools(self, tools: List[Dict[str, Any]]) -> List[Dict]:
         """Convert MCP tools to Gemini function declaration format."""
@@ -510,7 +560,7 @@ class OllamaProvider(AIProvider):
                 async with session.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        raise ProviderError(f"Ollama API error {response.status}: {error_text}")
+                        raise ProviderError(f"Ollama API error {response.status}: {_sanitize_error(error_text)}")
 
                     data = await response.json()
 
@@ -549,14 +599,15 @@ class OllamaProvider(AIProvider):
                     )
 
         except aiohttp.ClientError as e:
-            raise ProviderError(f"Ollama connection error: {e}")
+            raise ProviderError(f"Ollama connection error: {_sanitize_error(str(e))}")
         except Exception as e:
             error_str = str(e).lower()
+            sanitized = _sanitize_error(str(e))
             if "rate" in error_str or "429" in error_str:
-                raise RateLimitError(f"Ollama rate limit: {e}")
+                raise RateLimitError(f"Ollama rate limit: {sanitized}")
             if "quota" in error_str or "insufficient" in error_str:
-                raise QuotaExceededError(f"Ollama quota: {e}")
-            raise ProviderError(f"Ollama error: {e}")
+                raise QuotaExceededError(f"Ollama quota: {sanitized}")
+            raise ProviderError(f"Ollama error: {sanitized}")
 
 
 class Brain:

@@ -71,7 +71,7 @@ MOOD_ENERGY = {
 class PersonalityTraits:
     """
     Core personality traits that influence behavior.
-    Values range from 0.0 to 1.0.
+    Values are clamped to 0.0-1.0 range.
     """
     curiosity: float = 0.7      # How eager to learn/explore
     cheerfulness: float = 0.6   # Baseline happiness
@@ -79,6 +79,24 @@ class PersonalityTraits:
     playfulness: float = 0.6    # Tendency for jokes/games
     empathy: float = 0.7        # Response to user emotions
     independence: float = 0.4   # Self-initiated actions
+
+    def __post_init__(self):
+        """Clamp all trait values to 0.0-1.0 on initialization."""
+        self._clamp_all()
+
+    def __setattr__(self, name: str, value):
+        """Clamp trait values to 0.0-1.0 when set."""
+        trait_names = {"curiosity", "cheerfulness", "verbosity", "playfulness", "empathy", "independence"}
+        if name in trait_names and isinstance(value, (int, float)):
+            value = max(0.0, min(1.0, float(value)))
+        super().__setattr__(name, value)
+
+    def _clamp_all(self):
+        """Clamp all traits to valid range."""
+        for attr in ["curiosity", "cheerfulness", "verbosity", "playfulness", "empathy", "independence"]:
+            val = getattr(self, attr)
+            if isinstance(val, (int, float)):
+                super().__setattr__(attr, max(0.0, min(1.0, float(val))))
 
     def to_dict(self) -> Dict[str, float]:
         return {

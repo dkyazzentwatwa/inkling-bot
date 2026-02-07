@@ -12,8 +12,10 @@ import threading
 import hashlib
 import hmac
 import secrets
+import time
 from typing import Optional, Dict, Any
 from queue import Queue
+from collections import defaultdict
 
 from bottle import Bottle, request, response, static_file, template, redirect
 
@@ -2753,7 +2755,12 @@ FILES_TEMPLATE = """
                 if (data.error) {
                     showError(data.error);
                     // Still show empty state
-                    document.getElementById('file-list').innerHTML = '<li class="empty-state">Error: ' + data.error + '</li>';
+                    const errorLi = document.createElement('li');
+                    errorLi.className = 'empty-state';
+                    errorLi.textContent = 'Error: ' + data.error;
+                    const fileList = document.getElementById('file-list');
+                    fileList.innerHTML = '';
+                    fileList.appendChild(errorLi);
                     return;
                 }
 
@@ -2902,7 +2909,11 @@ FILES_TEMPLATE = """
 
         function showError(message) {
             const container = document.getElementById('error-container');
-            container.innerHTML = `<div class="error">${message}</div>`;
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            container.innerHTML = '';
+            container.appendChild(errorDiv);
             setTimeout(() => {
                 container.innerHTML = '';
             }, 5000);
@@ -2954,9 +2965,20 @@ class WebChatMode:
         # Authentication setup
         self._config = config or {}
         self._web_password = self._config.get("network", {}).get("web_password", "")
+        if not self._web_password:
+            self._web_password = os.environ.get("SERVER_PW", "")
         self._auth_enabled = bool(self._web_password)
         # Generate a secret key for signing cookies (persistent per session)
         self._secret_key = secrets.token_hex(32)
+
+        # Rate limiting for login attempts
+        self._login_attempts: Dict[str, list] = defaultdict(list)
+        self._login_max_attempts = 5
+        self._login_window_seconds = 300  # 5 minutes
+
+        # Detect HTTPS (ngrok always uses HTTPS)
+        ngrok_config = self._config.get("network", {}).get("ngrok", {})
+        self._use_secure_cookies = ngrok_config.get("enabled", False)
 
         self._app = Bottle()
         self._running = False
@@ -3008,10 +3030,47 @@ class WebChatMode:
         return self._verify_auth_token(token)
 
     def _require_auth(self):
-        """Decorator/check that requires authentication."""
+        """Decorator/check that requires authentication for page routes."""
         if not self._check_auth():
             return redirect("/login")
         return None
+
+    def _require_api_auth(self):
+        """Check authentication for API routes. Returns error JSON or None."""
+        if not self._check_auth():
+            response.status = 401
+            response.content_type = "application/json"
+            return json.dumps({"error": "Authentication required"})
+        return None
+
+    @staticmethod
+    def _safe_resolve_path(base_dir: str, path: str) -> Optional[str]:
+        """Safely resolve a path within a base directory.
+        Uses realpath to resolve symlinks and commonpath for containment check.
+        Returns the resolved path or None if it escapes the base directory.
+        """
+        try:
+            base_real = os.path.realpath(base_dir)
+            full_path = os.path.realpath(os.path.normpath(os.path.join(base_real, path)))
+            if os.path.commonpath([base_real, full_path]) != base_real:
+                return None
+            return full_path
+        except (ValueError, OSError):
+            return None
+
+    def _check_rate_limit(self, ip: str) -> bool:
+        """Check if IP is rate-limited for login. Returns True if allowed."""
+        now = time.time()
+        # Prune old attempts outside window
+        self._login_attempts[ip] = [
+            t for t in self._login_attempts[ip]
+            if now - t < self._login_window_seconds
+        ]
+        return len(self._login_attempts[ip]) < self._login_max_attempts
+
+    def _record_login_attempt(self, ip: str):
+        """Record a failed login attempt."""
+        self._login_attempts[ip].append(time.time())
 
     def _setup_routes(self) -> None:
         """Set up Bottle routes."""
@@ -3026,17 +3085,25 @@ class WebChatMode:
         @self._app.route("/login", method="POST")
         def login_post():
             """Handle login form submission."""
+            ip = request.remote_addr or "unknown"
+
+            # Rate limiting
+            if not self._check_rate_limit(ip):
+                return template(LOGIN_TEMPLATE, error="Too many attempts. Try again later.")
+
             password = request.forms.get("password", "")
 
-            if password == self._web_password:
+            if hmac.compare_digest(password, self._web_password):
                 # Correct password
                 response.set_cookie("auth_token", self._create_auth_token(),
-                                   max_age=86400 * 30,  # 30 days
+                                   max_age=86400 * 7,  # 7 days
                                    httponly=True,
-                                   secure=False)  # Set to True if using HTTPS
+                                   secure=self._use_secure_cookies,
+                                   samesite="Strict")
                 return redirect("/")
             else:
-                # Wrong password
+                # Wrong password — record attempt
+                self._record_login_attempt(ip)
                 return template(LOGIN_TEMPLATE, error="Invalid password")
 
         @self._app.route("/logout")
@@ -3111,6 +3178,9 @@ class WebChatMode:
 
         @self._app.route("/api/chat", method="POST")
         def chat():
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
             data = request.json or {}
             message = data.get("message", "").strip()
@@ -3129,6 +3199,9 @@ class WebChatMode:
 
         @self._app.route("/api/command", method="POST")
         def command():
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
             data = request.json or {}
             cmd = data.get("command", "").strip()
@@ -3141,6 +3214,9 @@ class WebChatMode:
 
         @self._app.route("/api/state")
         def state():
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
             return json.dumps({
                 "face": self._get_face_str(),
@@ -3151,6 +3227,9 @@ class WebChatMode:
 
         @self._app.route("/api/settings", method="GET")
         def get_settings():
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
 
             # Get AI config from Brain
@@ -3182,6 +3261,9 @@ class WebChatMode:
 
         @self._app.route("/api/settings", method="POST")
         def save_settings():
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
             data = request.json or {}
 
@@ -3217,6 +3299,9 @@ class WebChatMode:
         # Task Management API Routes
         @self._app.route("/api/tasks", method="GET")
         def get_tasks():
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
 
             if not self.task_manager:
@@ -3244,6 +3329,9 @@ class WebChatMode:
 
         @self._app.route("/api/tasks", method="POST")
         def create_task():
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
 
             if not self.task_manager:
@@ -3292,6 +3380,9 @@ class WebChatMode:
 
         @self._app.route("/api/tasks/<task_id>", method="GET")
         def get_task(task_id):
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
 
             if not self.task_manager:
@@ -3309,6 +3400,9 @@ class WebChatMode:
 
         @self._app.route("/api/tasks/<task_id>/complete", method="POST")
         def complete_task(task_id):
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
 
             if not self.task_manager:
@@ -3345,6 +3439,9 @@ class WebChatMode:
 
         @self._app.route("/api/tasks/<task_id>", method="PUT")
         def update_task(task_id):
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
 
             if not self.task_manager:
@@ -3387,6 +3484,9 @@ class WebChatMode:
 
         @self._app.route("/api/tasks/<task_id>", method="DELETE")
         def delete_task(task_id):
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
 
             if not self.task_manager:
@@ -3402,6 +3502,9 @@ class WebChatMode:
 
         @self._app.route("/api/tasks/stats", method="GET")
         def get_task_stats():
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
 
             if not self.task_manager:
@@ -3438,6 +3541,9 @@ class WebChatMode:
         @self._app.route("/api/files/list", method="GET")
         def list_files():
             """List files in storage directory (inkling or SD card)."""
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
 
             # Get storage and path from query params
@@ -3449,15 +3555,14 @@ class WebChatMode:
                 base_dir = get_base_dir(storage)
                 if not base_dir:
                     return json.dumps({"error": f"Storage '{storage}' not available"})
+                base_dir_real = os.path.realpath(base_dir)
 
                 if path:
-                    full_path = os.path.normpath(os.path.join(base_dir, path))
+                    full_path = self._safe_resolve_path(base_dir, path)
+                    if not full_path:
+                        return json.dumps({"error": "Invalid path"})
                 else:
-                    full_path = base_dir
-
-                # Security: Prevent path traversal attacks
-                if not full_path.startswith(base_dir):
-                    return json.dumps({"error": "Invalid path"})
+                    full_path = base_dir_real
 
                 if not os.path.exists(full_path):
                     return json.dumps({"error": "Path not found"})
@@ -3481,7 +3586,7 @@ class WebChatMode:
                         "type": "dir" if entry.is_dir() else "file",
                         "size": stat.st_size,
                         "modified": stat.st_mtime,
-                        "path": os.path.relpath(entry.path, base_dir),
+                        "path": os.path.relpath(os.path.realpath(entry.path), base_dir_real),
                     })
 
                 # Sort: directories first, then by name
@@ -3489,16 +3594,19 @@ class WebChatMode:
 
                 return json.dumps({
                     "success": True,
-                    "path": os.path.relpath(full_path, base_dir) if full_path != base_dir else "",
+                    "path": os.path.relpath(full_path, base_dir_real) if full_path != base_dir_real else "",
                     "items": items,
                 })
 
             except Exception as e:
-                return json.dumps({"error": str(e)})
+                return json.dumps({"error": "Failed to list files"})
 
         @self._app.route("/api/files/view", method="GET")
         def view_file():
             """Read file contents for viewing."""
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             response.content_type = "application/json"
 
             storage = request.query.get("storage", "inkling")
@@ -3512,9 +3620,8 @@ class WebChatMode:
                 if not base_dir:
                     return json.dumps({"error": f"Storage '{storage}' not available"})
 
-                full_path = os.path.normpath(os.path.join(base_dir, path))
-
-                if not full_path.startswith(base_dir):
+                full_path = self._safe_resolve_path(base_dir, path)
+                if not full_path:
                     return json.dumps({"error": "Invalid path"})
 
                 if not os.path.isfile(full_path):
@@ -3543,11 +3650,14 @@ class WebChatMode:
                 })
 
             except Exception as e:
-                return json.dumps({"error": str(e)})
+                return json.dumps({"error": "Failed to read file"})
 
         @self._app.route("/api/files/download")
         def download_file():
             """Download a file."""
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
             storage = request.query.get("storage", "inkling")
             path = request.query.get("path", "")
             if not path:
@@ -3559,13 +3669,17 @@ class WebChatMode:
                 if not base_dir:
                     return f"Storage '{storage}' not available"
 
-                full_path = os.path.normpath(os.path.join(base_dir, path))
-
-                if not full_path.startswith(base_dir):
+                full_path = self._safe_resolve_path(base_dir, path)
+                if not full_path:
                     return "Invalid path"
 
                 if not os.path.isfile(full_path):
                     return "Not a file"
+
+                # Check file extension (match view endpoint restrictions)
+                ext = os.path.splitext(full_path)[1].lower()
+                if ext not in ['.txt', '.md', '.csv', '.json', '.log']:
+                    return "File type not supported for download"
 
                 # Use Bottle's static_file for proper download handling
                 directory = os.path.dirname(full_path)
@@ -3573,7 +3687,7 @@ class WebChatMode:
                 return static_file(filename, root=directory, download=True)
 
             except Exception as e:
-                return str(e)
+                return "An error occurred"
 
     def _task_to_dict(self, task: Task) -> Dict[str, Any]:
         """Convert Task to JSON-serializable dict."""
