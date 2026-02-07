@@ -42,6 +42,8 @@ COMMANDS: List[Command] = [
     Command("face", "Test a face expression", "cmd_face", "display"),
     Command("faces", "List all available faces", "cmd_faces", "display"),
     Command("refresh", "Force display refresh", "cmd_refresh", "display"),
+    Command("screensaver", "Toggle screen saver on/off", "cmd_screensaver", "display"),
+    Command("darkmode", "Toggle dark mode (inverted display)", "cmd_darkmode", "display"),
 
     # Task management commands
     Command("tasks", "List all tasks", "cmd_tasks", "tasks"),

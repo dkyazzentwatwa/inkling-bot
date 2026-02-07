@@ -63,6 +63,20 @@ display:
   partial_refresh: true      # V3 only
   pagination_loop_seconds: 5.0  # seconds between paginated pages
 
+  # Dark mode (inverted colors: white-on-black instead of black-on-white)
+  dark_mode: false
+
+  # Screen saver settings
+  screensaver:
+    enabled: true  # Set to false to disable screen saver
+    idle_timeout_minutes: 5  # Activate after 5 minutes of idle time
+    page_duration_seconds: 10  # Time to show each page before cycling
+    pages:
+      - type: "stats"         # System stats summary (CPU, memory, temp, uptime)
+      - type: "quote"         # AI-generated thoughtful quote
+      - type: "faces"         # Random face expressions
+      - type: "progression"   # XP/level progress
+
 # Personality Configuration
 personality:
   # Base traits (0.0 - 1.0)

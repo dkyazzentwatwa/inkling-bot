@@ -1,0 +1,63 @@
+# Test configuration for screen saver and dark mode
+device:
+  name: "TestBot"
+  timezone: "America/Los_Angeles"
+
+ai:
+  primary: "anthropic"
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+    model: "claude-haiku-4-5"
+    max_tokens: 500
+  budget:
+    daily_tokens: 10000
+    per_request_max: 500
+
+display:
+  type: "mock"
+  width: 250
+  height: 122
+  min_refresh_interval: 0.5
+  partial_refresh: true
+  pagination_loop_seconds: 3.0
+
+  # Dark mode (inverted colors)
+  dark_mode: false
+
+  # Screen saver settings
+  screensaver:
+    enabled: true
+    idle_timeout_minutes: 0.5  # 30 seconds for quick testing
+    page_duration_seconds: 3   # 3 seconds per page
+    pages:
+      - type: "stats"
+      - type: "quote"
+      - type: "faces"
+      - type: "progression"
+
+personality:
+  curiosity: 0.7
+  cheerfulness: 0.6
+  verbosity: 0.5
+  playfulness: 0.6
+  empathy: 0.7
+  independence: 0.5
+
+heartbeat:
+  enabled: true
+  tick_interval: 10  # Check every 10 seconds for quick testing
+  enable_mood_behaviors: true
+  enable_time_behaviors: true
+  enable_maintenance: false
+  enable_thoughts: false
+  quiet_hours_start: 23
+  quiet_hours_end: 7
+
+mcp:
+  enabled: false
+
+scheduler:
+  enabled: false
+
+battery:
+  enabled: false

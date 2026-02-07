@@ -321,6 +321,11 @@ class Heartbeat:
         # Natural mood decay
         self.personality.update()
 
+        # Check if screen saver should activate
+        if self.display and self.display.should_activate_screensaver():
+            print("[Heartbeat] Activating screen saver (idle detected)")
+            await self.display.start_screensaver()
+
         # Run scheduled tasks (if scheduler is available)
         if self.scheduler:
             self.scheduler.run_pending()

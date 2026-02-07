@@ -186,6 +186,7 @@ class Inkling:
         # Display
         print("  - Initializing display...")
         display_config = self.config.get("display", {})
+        dark_mode = display_config.get("dark_mode", False)
         self.display = DisplayManager(
             display_type=display_config.get("type", "mock"),
             width=display_config.get("width", 250),
@@ -195,8 +196,27 @@ class Inkling:
             device_name=device_name.lower()[:8],  # Truncate for header
             personality=self.personality,
             timezone=self.config.get("device", {}).get("timezone"),
+            dark_mode=dark_mode,
         )
         self.display.init()
+
+        # Configure screen saver if enabled
+        screensaver_config = display_config.get("screensaver", {})
+        if screensaver_config.get("enabled", False):
+            self.display.configure_screensaver(
+                enabled=True,
+                idle_minutes=screensaver_config.get("idle_timeout_minutes", 5.0),
+                page_duration=screensaver_config.get("page_duration_seconds", 10.0),
+                pages=screensaver_config.get("pages", [
+                    {"type": "stats"},
+                    {"type": "quote"},
+                    {"type": "faces"},
+                    {"type": "progression"},
+                ])
+            )
+            print(f"    Screen saver enabled (idle: {screensaver_config.get('idle_timeout_minutes', 5)}m)")
+        if dark_mode:
+            print("    Dark mode enabled")
 
         # Register mood change callback to update display
         self.personality.on_mood_change(self._on_mood_change)

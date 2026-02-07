@@ -5021,6 +5021,59 @@ class WebChatMode:
             "status": self.personality.get_status_line(),
         }
 
+    def _cmd_screensaver(self, args: str = "") -> Dict[str, Any]:
+        """Toggle screen saver."""
+        if args.lower() == "on":
+            self.display.configure_screensaver(enabled=True)
+            response = "✓ Screen saver enabled"
+        elif args.lower() == "off":
+            self.display.configure_screensaver(enabled=False)
+            if self.display._screensaver_active and self._loop:
+                asyncio.run_coroutine_threadsafe(
+                    self.display.stop_screensaver(),
+                    self._loop
+                )
+            response = "✓ Screen saver disabled"
+        else:
+            # Toggle
+            current = self.display._screensaver_enabled
+            self.display.configure_screensaver(enabled=not current)
+            status = "enabled" if not current else "disabled"
+            response = f"✓ Screen saver {status}"
+
+        return {
+            "response": response,
+            "face": self._get_face_str(),
+            "status": self.personality.get_status_line(),
+        }
+
+    def _cmd_darkmode(self, args: str = "") -> Dict[str, Any]:
+        """Toggle dark mode."""
+        if args.lower() == "on":
+            self.display._dark_mode = True
+            response = "✓ Dark mode enabled"
+        elif args.lower() == "off":
+            self.display._dark_mode = False
+            response = "✓ Dark mode disabled"
+        else:
+            # Toggle
+            self.display._dark_mode = not self.display._dark_mode
+            status = "enabled" if self.display._dark_mode else "disabled"
+            response = f"✓ Dark mode {status}"
+
+        # Force refresh to apply dark mode change
+        if self._loop:
+            asyncio.run_coroutine_threadsafe(
+                self.display.update(force=True),
+                self._loop
+            )
+
+        return {
+            "response": response,
+            "face": self._get_face_str(),
+            "status": self.personality.get_status_line(),
+        }
+
     def _cmd_schedule(self, args: str = "") -> Dict[str, Any]:
         """Manage scheduled tasks."""
         if not hasattr(self, 'scheduler') or not self.scheduler:

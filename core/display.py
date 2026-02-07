@@ -16,7 +16,7 @@ from enum import Enum
 from typing import Optional, Tuple, Dict, Any
 from io import BytesIO
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from .ui import PwnagotchiUI, DisplayContext, FACES, UNICODE_FACES
 
@@ -273,6 +273,7 @@ class DisplayManager:
         personality=None,
         timezone: Optional[str] = None,
         prefer_ascii_faces: Optional[bool] = None,
+        dark_mode: bool = False,
     ):
         self.width = width
         self.height = height
@@ -281,6 +282,7 @@ class DisplayManager:
         self.device_name = device_name
         self.personality = personality
         self.timezone = timezone
+        self._dark_mode = dark_mode
 
         self._driver: Optional[DisplayDriver] = None
         self._display_type = display_type
@@ -322,6 +324,15 @@ class DisplayManager:
         self._current_face: str = "default"
         self._current_text: str = ""
         self._current_mood: str = "Happy"
+
+        # Screen saver state
+        self._screensaver_enabled = False
+        self._screensaver_idle_minutes = 5.0
+        self._screensaver_page_duration = 10.0
+        self._screensaver_pages = []  # List of page configs
+        self._screensaver_active = False
+        self._screensaver_task: Optional[asyncio.Task] = None
+        self._screensaver_current_page = 0
 
     def init(self) -> None:
         """Initialize the display driver and UI."""
@@ -529,7 +540,13 @@ class DisplayManager:
 
         # Render using Pwnagotchi UI
         if self._ui:
-            return self._ui.render(ctx)
+            image = self._ui.render(ctx)
+
+            # Apply dark mode inversion if enabled
+            if self._dark_mode:
+                image = ImageOps.invert(image.convert('L')).convert('1')
+
+            return image
 
         # Fallback to simple rendering if UI not initialized
         return self._render_simple(face_str, text, status)
@@ -583,6 +600,143 @@ class DisplayManager:
 
         return lines
 
+    def configure_screensaver(
+        self,
+        enabled: bool = True,
+        idle_minutes: float = 5.0,
+        page_duration: float = 10.0,
+        pages: Optional[list] = None,
+    ) -> None:
+        """Configure screen saver settings."""
+        self._screensaver_enabled = enabled
+        self._screensaver_idle_minutes = idle_minutes
+        self._screensaver_page_duration = page_duration
+        self._screensaver_pages = pages or [
+            {"type": "stats"},
+            {"type": "quote"},
+            {"type": "faces"},
+        ]
+
+    def should_activate_screensaver(self) -> bool:
+        """Check if screen saver should activate based on idle time."""
+        if not self._screensaver_enabled:
+            return False
+
+        if self._screensaver_active:
+            return False  # Already active
+
+        if not self.personality:
+            return False
+
+        # Check idle time
+        idle_minutes = (time.time() - self.personality._last_interaction) / 60.0
+        return idle_minutes >= self._screensaver_idle_minutes
+
+    async def start_screensaver(self) -> None:
+        """Start the screen saver loop."""
+        if self._screensaver_active:
+            return
+
+        self._screensaver_active = True
+        self._screensaver_current_page = 0
+
+        async def _screensaver_loop():
+            while self._screensaver_active:
+                # Render current page
+                page_config = self._screensaver_pages[self._screensaver_current_page]
+                await self._render_screensaver_page(page_config)
+
+                # Wait before next page
+                await asyncio.sleep(self._screensaver_page_duration)
+
+                # Next page (cycle)
+                self._screensaver_current_page = (self._screensaver_current_page + 1) % len(self._screensaver_pages)
+
+        self._screensaver_task = asyncio.create_task(_screensaver_loop())
+
+    async def stop_screensaver(self) -> None:
+        """Stop the screen saver loop."""
+        if not self._screensaver_active:
+            return
+
+        self._screensaver_active = False
+
+        if self._screensaver_task:
+            self._screensaver_task.cancel()
+            try:
+                await self._screensaver_task
+            except asyncio.CancelledError:
+                pass
+            self._screensaver_task = None
+
+    async def _render_screensaver_page(self, page_config: Dict[str, str]) -> None:
+        """Render a specific screen saver page."""
+        page_type = page_config.get("type", "stats")
+
+        if page_type == "stats":
+            # System stats summary
+            stats = system_stats.get_all_stats()
+            text = (
+                f"System Stats:\n"
+                f"Uptime: {stats['uptime']}\n"
+                f"CPU: {stats['cpu']}%\n"
+                f"Memory: {stats['memory']}%\n"
+                f"Temp: {stats['temperature']}°C"
+            )
+            face = "monitoring"
+
+        elif page_type == "quote":
+            # AI-generated quote (would need Brain integration)
+            text = await self._get_screensaver_quote()
+            face = "thinking"
+
+        elif page_type == "faces":
+            # Random face expression
+            import random
+            face = random.choice(list(FACES.keys()))
+            text = f"Face: {face}\n{FACES[face]}"
+
+        elif page_type == "progression":
+            # XP and level progress
+            if self.personality and hasattr(self.personality, 'progression'):
+                prog = self.personality.progression
+                from .progression import LevelCalculator
+                xp_to_next = LevelCalculator.xp_to_next_level(prog.xp)
+                progress_pct = int(LevelCalculator.progress_to_next_level(prog.xp) * 100)
+                text = (
+                    f"Level {prog.level}: {LevelCalculator.level_name(prog.level)}\n"
+                    f"Progress: {progress_pct}% to next level\n"
+                    f"XP needed: {xp_to_next}\n"
+                    f"Total XP: {prog.xp}"
+                )
+                face = "motivated"
+            else:
+                text = "Progression system not available"
+                face = "default"
+
+        else:
+            text = f"Unknown page type: {page_type}"
+            face = "confused"
+
+        # Render the page
+        await self.update(face=face, text=text, status="SCREENSAVER", force=True, cancel_page_loop=False)
+
+    async def _get_screensaver_quote(self) -> str:
+        """Generate an AI quote for screensaver (optional)."""
+        # Fallback to predefined quotes (Brain integration optional)
+        quotes = [
+            "Curiosity is the spark\nthat lights the path\nto knowledge.",
+            "Every question asked\nis a step toward\nunderstanding.",
+            "Learning never exhausts\nthe mind. Stay curious!",
+            "The future belongs\nto those who learn.",
+            "Small steps daily\nlead to great journeys.",
+            "In every moment,\nthere is beauty\nwaiting to be found.",
+            "Growth happens\nwhen we embrace\nthe unknown.",
+            "Every interaction\nteaches us something\nabout the world.",
+        ]
+        import random
+        return random.choice(quotes)
+
     async def update(
         self,
         face: str = "default",
@@ -607,6 +761,10 @@ class DisplayManager:
             True if display was updated, False if rate-limited
         """
         async with self._lock:
+            # Stop screensaver if active (user interaction)
+            if self._screensaver_active and status != "SCREENSAVER":
+                await self.stop_screensaver()
+
             if cancel_page_loop and self._page_loop_task:
                 if asyncio.current_task() is not self._page_loop_task:
                     await self.stop_page_loop()

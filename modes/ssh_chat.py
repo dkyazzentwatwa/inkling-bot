@@ -402,6 +402,40 @@ class SSHChatMode:
         )
         print("Display refreshed.")
 
+    async def cmd_screensaver(self, args: str = "") -> None:
+        """Toggle screen saver."""
+        if args.lower() == "on":
+            self.display.configure_screensaver(enabled=True)
+            print("✓ Screen saver enabled")
+        elif args.lower() == "off":
+            self.display.configure_screensaver(enabled=False)
+            if self.display._screensaver_active:
+                await self.display.stop_screensaver()
+            print("✓ Screen saver disabled")
+        else:
+            # Toggle
+            current = self.display._screensaver_enabled
+            self.display.configure_screensaver(enabled=not current)
+            status = "enabled" if not current else "disabled"
+            print(f"✓ Screen saver {status}")
+
+    async def cmd_darkmode(self, args: str = "") -> None:
+        """Toggle dark mode."""
+        if args.lower() == "on":
+            self.display._dark_mode = True
+            await self.display.update(force=True)
+            print("✓ Dark mode enabled")
+        elif args.lower() == "off":
+            self.display._dark_mode = False
+            await self.display.update(force=True)
+            print("✓ Dark mode disabled")
+        else:
+            # Toggle
+            self.display._dark_mode = not self.display._dark_mode
+            await self.display.update(force=True)
+            status = "enabled" if self.display._dark_mode else "disabled"
+            print(f"✓ Dark mode {status}")
+
     # Helper methods for printing info
 
     def _print_faces(self) -> None:
