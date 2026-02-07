@@ -15,6 +15,8 @@ Actions are defined as async functions that get called when scheduled.
 
 import asyncio
 import logging
+import os
+import re
 from typing import Callable, List, Dict, Any, Optional, Coroutine
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -49,6 +51,7 @@ class ScheduledTaskManager:
         self.tasks: List[ScheduledTask] = []
         self.action_handlers: Dict[str, Callable[[], Coroutine]] = {}
         self.enabled = True
+        self._config_path: Optional[str] = None
         logger.info("[Scheduler] Initialized")
 
     def register_action(self, name: str, handler: Callable[[], Coroutine]):
@@ -122,22 +125,58 @@ class ScheduledTaskManager:
         return False
 
     def enable_task(self, name: str) -> bool:
-        """Enable a task by name."""
+        """Enable a task by name. Persists to config."""
         for task in self.tasks:
             if task.name == name:
                 task.enabled = True
                 logger.info(f"[Scheduler] Enabled task: {name}")
+                self._persist_task_state(name, True)
                 return True
         return False
 
     def disable_task(self, name: str) -> bool:
-        """Disable a task by name."""
+        """Disable a task by name. Persists to config."""
         for task in self.tasks:
             if task.name == name:
                 task.enabled = False
                 logger.info(f"[Scheduler] Disabled task: {name}")
+                self._persist_task_state(name, False)
                 return True
         return False
+
+    def _persist_task_state(self, name: str, enabled: bool):
+        """Persist task enable/disable state to config.local.yml."""
+        try:
+            import yaml
+            config_path = self._config_path or "config.local.yml"
+            config = {}
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f) or {}
+
+            # Update the specific task's enabled state
+            scheduler_tasks = config.setdefault("scheduler", {}).setdefault("tasks", [])
+            for task_cfg in scheduler_tasks:
+                if task_cfg.get("name") == name:
+                    task_cfg["enabled"] = enabled
+                    break
+            else:
+                # Task not in config yet — find it and add
+                for task in self.tasks:
+                    if task.name == name:
+                        scheduler_tasks.append({
+                            "name": name,
+                            "schedule": task.schedule_expr,
+                            "action": task.action,
+                            "enabled": enabled,
+                        })
+                        break
+
+            with open(config_path, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False)
+            logger.debug(f"[Scheduler] Persisted state for {name}: enabled={enabled}")
+        except Exception as e:
+            logger.warning(f"[Scheduler] Failed to persist task state: {e}")
 
     def get_task(self, name: str) -> Optional[ScheduledTask]:
         """Get a task by name."""
@@ -193,14 +232,22 @@ class ScheduledTaskManager:
             logger.error(f"[Scheduler] {error_msg} (task: {task_name})")
             task.last_error = error_msg
 
+    # Allowed day names for schedule expressions
+    _VALID_DAYS = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+    # Allowed interval units
+    _VALID_UNITS = {"seconds", "minutes", "hours", "days", "weeks",
+                    "second", "minute", "hour", "day", "week"}
+
     def _parse_schedule(self, expr: str) -> Optional[schedule.Job]:
-        """Parse a schedule expression into a schedule.Job.
+        """Parse a schedule expression into a schedule.Job safely.
 
         Supports expressions like:
         - "every().day.at('14:30')"
         - "every().hour"
         - "every().monday.at('09:00')"
         - "every(5).minutes"
+
+        Uses regex validation instead of eval() for safety.
 
         Args:
             expr: Schedule expression string
@@ -209,15 +256,48 @@ class ScheduledTaskManager:
             schedule.Job object or None if parse failed
         """
         try:
-            # Parse the expression by evaluating it in a safe context
-            # This is safe because we control the expression format
-            safe_globals = {"every": schedule.every}
-            job = eval(expr, safe_globals)
+            # Validate expression format with regex before parsing
+            # Match: every(N). or every(). followed by unit/day and optional .at('HH:MM')
+            pattern = r"^every\((\d*)\)\.([\w]+)(?:\.at\('(\d{1,2}:\d{2})'\))?$"
+            match = re.match(pattern, expr.strip())
+            if not match:
+                logger.error(f"[Scheduler] Invalid schedule expression format: {expr}")
+                return None
+
+            interval_str, unit_or_day, at_time = match.groups()
+            interval = int(interval_str) if interval_str else None
+            unit_or_day = unit_or_day.lower()
+
+            # Validate unit/day name against whitelist
+            if unit_or_day not in self._VALID_UNITS and unit_or_day not in self._VALID_DAYS:
+                logger.error(f"[Scheduler] Invalid schedule unit/day: {unit_or_day}")
+                return None
+
+            # Validate time format if present
+            if at_time:
+                parts = at_time.split(":")
+                hour, minute = int(parts[0]), int(parts[1])
+                if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                    logger.error(f"[Scheduler] Invalid time in schedule: {at_time}")
+                    return None
+
+            # Build the job safely
+            if interval:
+                job = schedule.every(interval)
+            else:
+                job = schedule.every()
+
+            # Chain the unit/day
+            job = getattr(job, unit_or_day)
+
+            # Chain .at() if specified
+            if at_time:
+                job = job.at(at_time)
 
             if isinstance(job, schedule.Job):
                 return job
             else:
-                logger.error(f"[Scheduler] Invalid schedule expression (not a Job): {expr}")
+                logger.error(f"[Scheduler] Expression did not produce a Job: {expr}")
                 return None
 
         except Exception as e:
@@ -270,12 +350,12 @@ class ScheduledTaskManager:
         for task in self.tasks:
             if task.enabled and task.job:
                 try:
-                    next_run = schedule.next_run()
+                    next_run = task.job.next_run
                     if next_run:
                         next_runs[task.name] = next_run.strftime("%Y-%m-%d %H:%M:%S")
                     else:
                         next_runs[task.name] = "Not scheduled"
-                except:
+                except Exception:
                     next_runs[task.name] = "Unknown"
             else:
                 next_runs[task.name] = "Disabled"

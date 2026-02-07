@@ -696,15 +696,17 @@ class DisplayManager:
             await self.start_page_loop(pages, face=face, page_delay=page_delay)
             return len(pages)
 
-        # Display each page with delay
+        # Display each page with delay and page indicator
+        total = len(pages)
         for i, page_text in enumerate(pages):
-            await self.update(face=face, text=page_text, force=True)
+            indicator = f" [{i+1}/{total}]" if total > 1 else ""
+            await self.update(face=face, text=page_text + indicator, force=True)
 
             # Don't wait after the last page
-            if i < len(pages) - 1:
+            if i < total - 1:
                 await asyncio.sleep(page_delay)
 
-        return len(pages)
+        return total
 
     async def start_page_loop(
         self,
@@ -717,14 +719,16 @@ class DisplayManager:
 
         async def _loop() -> None:
             idx = 0
+            total = len(pages)
             while True:
+                indicator = f" [{idx+1}/{total}]" if total > 1 else ""
                 await self.update(
                     face=face,
-                    text=pages[idx],
+                    text=pages[idx] + indicator,
                     force=True,
                     cancel_page_loop=False,
                 )
-                idx = (idx + 1) % len(pages)
+                idx = (idx + 1) % total
                 await asyncio.sleep(page_delay)
 
         self._page_loop_task = asyncio.create_task(_loop())
@@ -738,6 +742,121 @@ class DisplayManager:
             except asyncio.CancelledError:
                 pass
             self._page_loop_task = None
+
+    # ========================================================================
+    # QR Code Display (first boot)
+    # ========================================================================
+
+    async def show_qr_code(self, url: str, label: str = "Scan to connect") -> bool:
+        """Display a QR code on the e-ink screen for the given URL.
+
+        Args:
+            url: URL to encode in the QR code
+            label: Text label below the QR code
+
+        Returns:
+            True if QR code was displayed, False on failure
+        """
+        try:
+            import qrcode
+            from PIL import Image as PILImage, ImageDraw as PILDraw
+
+            from .ui import DISPLAY_WIDTH, DISPLAY_HEIGHT, Fonts
+
+            # Generate QR code
+            qr = qrcode.QRCode(version=1, box_size=2, border=1)
+            qr.add_data(url)
+            qr.make(fit=True)
+            qr_img = qr.make_image(fill_color="black", back_color="white").convert("1")
+
+            # Create display-size image
+            img = PILImage.new("1", (DISPLAY_WIDTH, DISPLAY_HEIGHT), 255)
+
+            # Center QR code in available space
+            qr_w, qr_h = qr_img.size
+            max_h = DISPLAY_HEIGHT - 20  # Leave room for label
+            if qr_h > max_h:
+                ratio = max_h / qr_h
+                qr_img = qr_img.resize((int(qr_w * ratio), int(qr_h * ratio)))
+                qr_w, qr_h = qr_img.size
+
+            x = (DISPLAY_WIDTH - qr_w) // 2
+            y = max(2, (max_h - qr_h) // 2)
+            img.paste(qr_img, (x, y))
+
+            # Draw label at bottom
+            draw = PILDraw.Draw(img)
+            fonts = Fonts()
+            draw.text((4, DISPLAY_HEIGHT - 14), label, font=fonts.small, fill=0)
+
+            # Display it
+            if self._driver:
+                self._driver.display(img)
+                self._last_refresh = time.time()
+                self._refresh_count += 1
+                return True
+        except ImportError:
+            # qrcode library not available - show URL as text instead
+            await self.update(face="happy", text=f"Connect: {url}", force=True)
+            return True
+        except Exception as e:
+            print(f"[Display] QR code error: {e}")
+        return False
+
+    # ========================================================================
+    # Achievement Flash
+    # ========================================================================
+
+    async def show_achievement(self, name: str, description: str, xp: int = 0) -> None:
+        """Briefly flash an achievement on the display.
+
+        Shows achievement text for 4 seconds, then restores previous display.
+        """
+        # Save current state
+        prev_face = self._current_face
+        prev_text = self._current_text
+
+        # Show achievement
+        achievement_text = f"ACHIEVEMENT!\n{name}\n{description}"
+        if xp > 0:
+            achievement_text += f"\n+{xp} XP"
+
+        await self.update(face="excited", text=achievement_text, force=True)
+        await asyncio.sleep(4)
+
+        # Restore previous display
+        await self.update(face=prev_face, text=prev_text, force=True)
+
+    # ========================================================================
+    # Status Card Rotation (Idle Screen)
+    # ========================================================================
+
+    def _get_idle_cards(self) -> list:
+        """Generate status cards for idle screen rotation."""
+        from . import system_stats
+
+        cards = []
+
+        # Card 1: System stats
+        stats = system_stats.get_all_stats()
+        cards.append(f"CPU {stats['cpu']}% | Mem {stats['memory']}% | {stats['temperature']}C")
+
+        # Card 2: Progression
+        if self.personality and hasattr(self.personality, 'progression'):
+            prog = self.personality.progression
+            from .progression import LevelCalculator
+            name = LevelCalculator.level_name(prog.level)
+            cards.append(f"L{prog.level} {name} | {prog.xp} XP | Streak: {prog.current_streak}d")
+
+        # Card 3: Uptime + refreshes
+        cards.append(f"Up: {stats['uptime']} | Refreshes: {self._refresh_count}")
+
+        # Card 4: Last thought
+        if self.personality and self.personality.last_thought:
+            thought = self.personality.last_thought[:80]
+            cards.append(thought)
+
+        return cards
 
     # ========================================================================
     # Auto-Refresh Loop
@@ -760,7 +879,13 @@ class DisplayManager:
             self._refresh_task = None
 
     async def _auto_refresh_loop(self) -> None:
-        """Continuously refresh display with current state (live stats)."""
+        """Continuously refresh display with current state (live stats).
+
+        When idle (no active message), cycles through status info cards.
+        """
+        idle_card_idx = 0
+        idle_ticks = 0
+
         while True:
             await asyncio.sleep(self._auto_refresh_interval)
 
@@ -768,15 +893,30 @@ class DisplayManager:
             # V4 full refresh is too slow and wears the display
             if self._driver and self._driver.supports_partial:
                 face = self._current_face
+                text = self._current_text
+
                 # Flip every refresh for a visible animation cadence
                 self._face_anim_toggle = not self._face_anim_toggle
                 if self._face_anim_toggle:
                     face = self._get_animated_face(face)
 
+                # Status card rotation when idle (no user message)
+                if not text and not self._page_loop_task:
+                    idle_ticks += 1
+                    # Rotate cards every ~10 ticks (5 seconds at 0.5s interval)
+                    if idle_ticks >= 10:
+                        idle_ticks = 0
+                        cards = self._get_idle_cards()
+                        if cards:
+                            text = cards[idle_card_idx % len(cards)]
+                            idle_card_idx += 1
+                else:
+                    idle_ticks = 0
+
                 # Re-render with updated stats (uptime, CPU, etc.)
                 await self.update(
                     face=face,
-                    text=self._current_text,
+                    text=text,
                     mood_text=self._current_mood,
                     force=True,
                     cancel_page_loop=False,

@@ -218,6 +218,18 @@ class SystemMCPServer:
         except Exception as e:
             return self._error(request_id, f"Tool execution failed: {str(e)}")
 
+    @staticmethod
+    def _is_private_ip(hostname: str) -> bool:
+        """Check if a hostname resolves to a private/reserved IP address."""
+        import ipaddress
+        try:
+            # Resolve hostname to IP
+            ip_str = socket.gethostbyname(hostname)
+            ip = ipaddress.ip_address(ip_str)
+            return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+        except (socket.gaierror, ValueError):
+            return True  # Fail closed — if we can't resolve, block it
+
     def _curl(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Make HTTP request."""
         url = args.get("url")
@@ -229,6 +241,11 @@ class SystemMCPServer:
         parsed = urlparse(url)
         if parsed.scheme not in ["http", "https"]:
             raise ValueError("Only HTTP and HTTPS URLs are allowed")
+
+        # SSRF protection: block requests to private/internal IPs
+        hostname = parsed.hostname or ""
+        if self._is_private_ip(hostname):
+            raise ValueError("Requests to private/internal IP addresses are not allowed")
 
         # Make request with timeout and size limit
         try:
@@ -365,8 +382,16 @@ class SystemMCPServer:
                     if filter_str and filter_str not in info['name'].lower():
                         continue
 
-                    # Get command line (truncated)
+                    # Get command line (truncated, with sensitive args redacted)
                     cmdline = ' '.join(info['cmdline']) if info['cmdline'] else info['name']
+                    # Redact common credential patterns
+                    import re as _re
+                    cmdline = _re.sub(r'(?<=-p\s).+?(?=\s|$)', '[REDACTED]', cmdline)
+                    cmdline = _re.sub(r'(?<=password[=:\s]).+?(?=\s|$)', '[REDACTED]', cmdline, flags=_re.IGNORECASE)
+                    cmdline = _re.sub(r'(?<=key[=:\s])\S+', '[REDACTED]', cmdline, flags=_re.IGNORECASE)
+                    cmdline = _re.sub(r'(?<=token[=:\s])\S+', '[REDACTED]', cmdline, flags=_re.IGNORECASE)
+                    cmdline = _re.sub(r'(?<=secret[=:\s])\S+', '[REDACTED]', cmdline, flags=_re.IGNORECASE)
+                    cmdline = _re.sub(r'sk-[a-zA-Z0-9]{10,}', '[REDACTED]', cmdline)
                     if len(cmdline) > 80:
                         cmdline = cmdline[:77] + "..."
 

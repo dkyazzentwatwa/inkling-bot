@@ -270,7 +270,8 @@ class TaskManager:
         query += "due_date ASC NULLS LAST, created_at DESC"
 
         if limit:
-            query += f" LIMIT {limit}"
+            query += " LIMIT ?"
+            params.append(int(limit))
 
         cursor.execute(query, params)
         rows = cursor.fetchall()

@@ -204,7 +204,11 @@ class Inkling:
 
         # Task Manager
         print("  - Initializing task manager...")
-        self.task_manager = TaskManager()
+        try:
+            self.task_manager = TaskManager()
+        except Exception as e:
+            print(f"    Task manager failed to initialize: {e}")
+            self.task_manager = None
 
         # Scheduler (cron-style task scheduling)
         scheduler_config_data = self.config.get("scheduler", {})
@@ -212,15 +216,45 @@ class Inkling:
 
         if scheduler_enabled:
             print("  - Starting scheduler...")
-            from core.scheduler import ScheduledTaskManager
-            self.scheduler = ScheduledTaskManager()
-            self.scheduler.load_from_config(scheduler_config_data)
-            print(f"    Scheduled tasks: {len(self.scheduler.tasks)}")
+            try:
+                from core.scheduler import ScheduledTaskManager
+                self.scheduler = ScheduledTaskManager()
+                self.scheduler.load_from_config(scheduler_config_data)
+                print(f"    Scheduled tasks: {len(self.scheduler.tasks)}")
+            except Exception as e:
+                print(f"    Scheduler failed to initialize: {e}")
+                self.scheduler = None
         else:
             self.scheduler = None
             print("  - Scheduler disabled")
 
-        # Heartbeat (proactive behaviors)
+        # MCP Client (tool integration) — before Brain so tools are available
+        mcp_config = self.config.get("mcp", {})
+        if mcp_config.get("enabled", False):
+            print("  - Starting MCP servers...")
+            try:
+                self.mcp_client = MCPClientManager(mcp_config)
+                await self.mcp_client.start_all()
+                if self.mcp_client.has_tools:
+                    print(f"    Tools available: {self.mcp_client.tool_count}")
+                else:
+                    print("    No tools loaded (check server configs)")
+            except Exception as e:
+                print(f"    MCP startup failed: {e}")
+                self.mcp_client = None
+
+        # Brain (AI) — before Heartbeat so autonomous behaviors have access
+        print("  - Connecting brain...")
+        ai_config = self.config.get("ai", {})
+        self.brain = Brain(ai_config, mcp_client=self.mcp_client)
+
+        if self.brain.has_providers:
+            print(f"    Providers: {', '.join(self.brain.available_providers)}")
+        else:
+            print("    Warning: No AI providers configured!")
+            print("    Set ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, or OLLAMA_API_KEY environment variables.")
+
+        # Heartbeat (proactive behaviors) — after Brain so it's available
         heartbeat_config_data = self.config.get("heartbeat", {})
         heartbeat_enabled = heartbeat_config_data.get("enabled", True)
 
@@ -263,28 +297,6 @@ class Inkling:
             print(f"    Tick interval: {heartbeat_config.tick_interval_seconds}s")
         else:
             print("  - Heartbeat disabled")
-
-        # MCP Client (tool integration)
-        mcp_config = self.config.get("mcp", {})
-        if mcp_config.get("enabled", False):
-            print("  - Starting MCP servers...")
-            self.mcp_client = MCPClientManager(mcp_config)
-            await self.mcp_client.start_all()
-            if self.mcp_client.has_tools:
-                print(f"    Tools available: {self.mcp_client.tool_count}")
-            else:
-                print("    No tools loaded (check server configs)")
-
-        # Brain (AI)
-        print("  - Connecting brain...")
-        ai_config = self.config.get("ai", {})
-        self.brain = Brain(ai_config, mcp_client=self.mcp_client)
-
-        if self.brain.has_providers:
-            print(f"    Providers: {', '.join(self.brain.available_providers)}")
-        else:
-            print("    Warning: No AI providers configured!")
-            print("    Set ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, or OLLAMA_API_KEY environment variables.")
 
         print("Initialization complete!")
 
@@ -332,6 +344,30 @@ class Inkling:
                 await self._mode.run()
 
             elif mode == "web":
+                port = self.config.get("web", {}).get("port", 8081)
+
+                # Show QR code on first boot for easy mobile connection
+                first_boot_marker = os.path.join(
+                    os.path.expanduser("~"), ".inkling", ".first_boot_done"
+                )
+                if not os.path.exists(first_boot_marker):
+                    try:
+                        import socket
+                        hostname = socket.gethostname()
+                        try:
+                            ip = socket.gethostbyname(hostname)
+                        except socket.gaierror:
+                            ip = "localhost"
+                        url = f"http://{ip}:{port}"
+                        await self.display.show_qr_code(url, f"Connect: {url}")
+                        await asyncio.sleep(8)  # Show QR for 8 seconds
+                        # Mark first boot done
+                        os.makedirs(os.path.dirname(first_boot_marker), exist_ok=True)
+                        with open(first_boot_marker, "w") as f:
+                            f.write("done")
+                    except Exception as e:
+                        print(f"[Main] QR code display skipped: {e}")
+
                 self._mode = WebChatMode(
                     brain=self.brain,
                     display=self.display,
@@ -340,7 +376,7 @@ class Inkling:
                     scheduler=self.scheduler,
                     identity=self.identity,
                     config=self.config,
-                    port=self.config.get("web", {}).get("port", 8081),
+                    port=port,
                 )
                 await self._mode.run()
 
