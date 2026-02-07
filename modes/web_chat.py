@@ -655,15 +655,15 @@ HTML_TEMPLATE = """
         function renderMarkdown(text) {
             let html = escapeHtml(text);
             // Code blocks (``` ... ```)
-            html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function(m, lang, code) {
+            html = html.replace(/```(\\w*)\\n([\\s\\S]*?)```/g, function(m, lang, code) {
                 return '<pre><code>' + code.trim() + '</code></pre>';
             });
             // Inline code
             html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
             // Bold
-            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
             // Italic
-            html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            html = html.replace(/\\*(.+?)\\*/g, '<em>$1</em>');
             // Headers (must be at start of line)
             html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
             html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
@@ -672,12 +672,12 @@ HTML_TEMPLATE = """
             html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
             // Unordered list items
             html = html.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
-            html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+            html = html.replace(/(<li>.*<\\/li>\\n?)+/g, '<ul>$&</ul>');
             // Line breaks (but not inside pre blocks)
-            html = html.replace(/\n/g, '<br>');
+            html = html.replace(/\\n/g, '<br>');
             // Clean up extra <br> around block elements
-            html = html.replace(/<br>\s*(<\/?(?:pre|ul|ol|li|blockquote|h[1-3]))/g, '$1');
-            html = html.replace(/(<\/(?:pre|ul|ol|li|blockquote|h[1-3])>)\s*<br>/g, '$1');
+            html = html.replace(/<br>\\s*(<\\/?(?:pre|ul|ol|li|blockquote|h[1-3]))/g, '$1');
+            html = html.replace(/(<\\/(?:pre|ul|ol|li|blockquote|h[1-3])>)\\s*<br>/g, '$1');
             return html;
         }
 
