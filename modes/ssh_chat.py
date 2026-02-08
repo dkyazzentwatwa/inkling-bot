@@ -1401,6 +1401,11 @@ class SSHChatMode:
         # Print SSH emote
         print(f"{Colors.EMOTE}*{self.personality.name} {emote_text}*{Colors.RESET}")
 
+        # Set sprite animation for this action
+        mood_key = mood.name.lower()
+        if self.display:
+            self.display.set_animation(action_name, mood_key)
+
         # Show animation on display (if available)
         if self.display:
             for i, face in enumerate(faces):
@@ -1413,6 +1418,9 @@ class SSHChatMode:
                 )
                 if not is_last:
                     await asyncio.sleep(0.8)  # Animation delay
+
+            # Return to idle animation
+            self.display.set_animation("idle", mood_key)
 
         # Boost mood and intensity
         old_mood = self.personality.mood.current

@@ -187,6 +187,7 @@ class Inkling:
         print("  - Initializing display...")
         display_config = self.config.get("display", {})
         dark_mode = display_config.get("dark_mode", False)
+        sprite_config = display_config.get("sprites", {})
         self.display = DisplayManager(
             display_type=display_config.get("type", "mock"),
             width=display_config.get("width", 250),
@@ -197,6 +198,7 @@ class Inkling:
             personality=self.personality,
             timezone=self.config.get("device", {}).get("timezone"),
             dark_mode=dark_mode,
+            sprite_config=sprite_config,
         )
         self.display.init()
 

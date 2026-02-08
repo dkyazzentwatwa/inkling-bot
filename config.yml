@@ -66,6 +66,13 @@ display:
   # Dark mode (inverted colors: white-on-black instead of black-on-white)
   dark_mode: false
 
+  # Sprite animation system
+  sprites:
+    enabled: true  # Enable animated sprite system
+    size: 48  # Sprite size in pixels (32 or 48)
+    directory: "assets/sprites"  # Path to sprite assets
+    fallback_to_text: true  # Use text faces if sprite not found
+
   # Screen saver settings
   screensaver:
     enabled: true  # Set to false to disable screen saver
@@ -74,7 +81,9 @@ display:
     pages:
       - type: "stats"         # System stats summary (CPU, memory, temp, uptime)
       - type: "quote"         # AI-generated thoughtful quote
-      - type: "faces"         # Random face expressions
+      - type: "faces"         # Random animated idle sprites (moods)
+      - type: "walk"          # Walking animation
+      - type: "dance"         # Dancing animation
       - type: "progression"   # XP/level progress
 
 # Personality Configuration

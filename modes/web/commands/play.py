@@ -29,6 +29,11 @@ class PlayCommands(CommandHandler):
         # Update interaction time
         self.personality._last_interaction = time.time()
 
+        # Set sprite animation for this action
+        mood_key = mood.name.lower()
+        if self.display:
+            self.display.set_animation(action_name, mood_key)
+
         # Show animation on display
         if self.display:
             for i, face in enumerate(faces):
@@ -41,6 +46,9 @@ class PlayCommands(CommandHandler):
                 )
                 if not is_last:
                     await asyncio.sleep(0.8)
+
+            # Return to idle animation
+            self.display.set_animation("idle", mood_key)
 
         # Boost mood and intensity
         old_mood = self.personality.mood.current

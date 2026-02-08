@@ -290,6 +290,11 @@ class DisplayContext:
     face_str: str = "(^_^)"
     prefer_ascii: bool = True
 
+    # Animation support
+    animation_action: str = "idle"  # Current action (idle, walk, dance, etc.)
+    mood_key: str = "happy"         # Current mood from Personality
+    message_y_offset: int = 0       # Push message down if sprite rendered above
+
     # System stats
     memory_percent: int = 0
     cpu_percent: int = 0
@@ -321,6 +326,95 @@ class DisplayContext:
 
     # Mode indicator
     mode: str = "AUTO"
+
+
+class FaceSprite:
+    """
+    Render animated face sprite in the message area.
+
+    Positioned above the text message, centered horizontally.
+    Supports mood-based animated sprites with frame cycling.
+    """
+
+    def __init__(self, sprite_manager, fonts: Fonts, sprite_size: int = 48):
+        """
+        Initialize FaceSprite component.
+
+        Args:
+            sprite_manager: SpriteManager instance for loading sprites
+            fonts: Fonts instance for fallback text rendering
+            sprite_size: Size of sprites in pixels (default 48x48)
+        """
+        from core.sprites import AnimationState
+
+        self.sprite_manager = sprite_manager
+        self.fonts = fonts
+        self.sprite_size = sprite_size
+        self.animation_state = AnimationState()
+
+    def set_action(self, action: str, mood: str):
+        """Set current action/mood for animation."""
+        self.animation_state.set_action(action, mood)
+
+    def update_animation(self) -> bool:
+        """
+        Advance animation frame if needed.
+
+        Returns:
+            True if frame changed, False otherwise
+        """
+        return self.animation_state.update()
+
+    def render(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> Tuple[int, int]:
+        """
+        Render animated face sprite.
+
+        Args:
+            draw: PIL ImageDraw instance
+            ctx: Display context with animation state
+
+        Returns:
+            (x, y) position where sprite was drawn, or (0, 0) if no sprite
+        """
+        # Get current animation frame
+        action = ctx.animation_action or self.animation_state.action
+        mood = ctx.mood_key or self.animation_state.mood
+        frame_idx = self.animation_state.frame_index
+
+        # Get sprite from manager
+        face_sprite = self.sprite_manager.get_animation_frame(action, mood, frame_idx)
+
+        if not face_sprite:
+            # Fallback: try idle sprite
+            if action != "idle":
+                face_sprite = self.sprite_manager.get_idle_sprite(mood)
+
+        if not face_sprite:
+            # Final fallback: draw text face
+            return self._render_text_face(draw, ctx)
+
+        # Calculate center position in message area
+        sprite_x = (DISPLAY_WIDTH - self.sprite_size) // 2
+        sprite_y = HEADER_HEIGHT + 10  # 10px below header
+
+        # Paste sprite onto image
+        try:
+            draw._image.paste(face_sprite, (sprite_x, sprite_y))
+        except Exception as e:
+            # If paste fails, fall back to text
+            return self._render_text_face(draw, ctx)
+
+        return (sprite_x, sprite_y)
+
+    def _render_text_face(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> Tuple[int, int]:
+        """Fallback to text-based face if sprite not found."""
+        text = ctx.face_str
+        bbox = draw.textbbox((0, 0), text, font=self.fonts.face)
+        text_width_px = bbox[2] - bbox[0]
+        x = (DISPLAY_WIDTH - text_width_px) // 2
+        y = HEADER_HEIGHT + 15
+        draw.text((x, y), text, font=self.fonts.face, fill=0)
+        return (x, y)
 
 
 class HeaderBar:
@@ -395,10 +489,16 @@ class MessagePanel:
         lines = word_wrap_pixels(ctx.message, max_width, self.fonts.normal, draw)
 
         # Calculate starting Y to position text block (slightly below center)
+        # Respect message_y_offset if sprite was rendered above
         line_height = MESSAGE_LINE_HEIGHT
         total_text_height = len(lines) * line_height
         vertical_offset = 8  # Pixels to push text down from center
-        start_y = self.y + (self.height - total_text_height) // 2 + vertical_offset
+
+        # Adjust for sprite if present
+        effective_y = self.y + ctx.message_y_offset
+        effective_height = self.height - ctx.message_y_offset
+
+        start_y = effective_y + max(0, (effective_height - total_text_height) // 2) + vertical_offset
 
         # Draw each line centered horizontally
         text_y = start_y
@@ -546,11 +646,18 @@ class PwnagotchiUI:
     New layout: Full-width message area with compact footer containing all stats.
     """
 
-    def __init__(self):
+    def __init__(self, sprite_manager=None):
+        """
+        Initialize PwnagotchiUI.
+
+        Args:
+            sprite_manager: Optional SpriteManager for animated sprites
+        """
         self.fonts = Fonts.load()
         self.header = HeaderBar(self.fonts)
         self.message_panel = MessagePanel(self.fonts)
         self.footer = FooterBar(self.fonts)
+        self.face_sprite = FaceSprite(sprite_manager, self.fonts) if sprite_manager else None
 
     def render(self, ctx: DisplayContext) -> Image.Image:
         """
@@ -569,9 +676,25 @@ class PwnagotchiUI:
         # Draw outer border
         draw_box(draw, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, fill=255, outline=0)
 
-        # Render all components
+        # Render header
         self.header.render(draw, ctx)
-        self.message_panel.render(draw, ctx)
+
+        # Render face sprite if enabled
+        sprite_y_end = 0
+        if self.face_sprite and self.face_sprite.sprite_manager.is_enabled():
+            sprite_pos = self.face_sprite.render(draw, ctx)
+            sprite_y_end = sprite_pos[1] + self.face_sprite.sprite_size
+
+        # Adjust message panel to start below sprite if rendered
+        if sprite_y_end > 0:
+            # Create adjusted context with message offset
+            from dataclasses import replace as dataclass_replace
+            ctx_adjusted = dataclass_replace(ctx, message_y_offset=sprite_y_end + 5)
+            self.message_panel.render(draw, ctx_adjusted)
+        else:
+            self.message_panel.render(draw, ctx)
+
+        # Render footer
         self.footer.render(draw, ctx)
 
         return image

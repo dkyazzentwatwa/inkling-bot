@@ -274,6 +274,7 @@ class DisplayManager:
         timezone: Optional[str] = None,
         prefer_ascii_faces: Optional[bool] = None,
         dark_mode: bool = False,
+        sprite_config: Optional[dict] = None,
     ):
         self.width = width
         self.height = height
@@ -293,6 +294,10 @@ class DisplayManager:
         # Face preference: ASCII for e-ink (better rendering), Unicode for mock (prettier)
         # Will be set to True for v3/v4, False for mock if not specified
         self._prefer_ascii_faces = prefer_ascii_faces
+
+        # Sprite configuration
+        self._sprite_config = sprite_config or {}
+        self._sprite_manager = None
 
         # Pwnagotchi UI renderer
         self._ui: Optional[PwnagotchiUI] = None
@@ -334,12 +339,25 @@ class DisplayManager:
         self._screensaver_task: Optional[asyncio.Task] = None
         self._screensaver_current_page = 0
 
+        # Animation state
+        self._current_animation_action = "idle"
+        self._current_animation_mood = "happy"
+
     def init(self) -> None:
         """Initialize the display driver and UI."""
         self._driver = self._create_driver()
         self._driver.init()
         self._load_fonts()
-        self._ui = PwnagotchiUI()
+
+        # Initialize sprite system
+        from core.sprites import SpriteManager
+        sprite_enabled = self._sprite_config.get("enabled", True)
+        sprite_dir = self._sprite_config.get("directory", "assets/sprites")
+        self._sprite_manager = SpriteManager(sprite_dir=sprite_dir, enabled=sprite_enabled)
+
+        # Initialize UI with sprite manager
+        self._ui = PwnagotchiUI(sprite_manager=self._sprite_manager)
+
         # Align auto-refresh to configured interval for partial refresh displays
         if self._driver.supports_partial:
             base_interval = max(0.0, self.min_refresh_interval)
@@ -518,6 +536,9 @@ class DisplayManager:
             uptime=stats["uptime"],
             face_str=face_str,
             prefer_ascii=bool(self._prefer_ascii_faces),
+            animation_action=self._current_animation_action,
+            mood_key=self._current_animation_mood,
+            message_y_offset=0,
             memory_percent=stats["memory"],
             cpu_percent=stats["cpu"],
             temperature=stats["temperature"],
@@ -708,10 +729,26 @@ class DisplayManager:
             face = "thinking"
 
         elif page_type == "faces":
-            # Random face expression
+            # Show animated idle sprite cycling through moods
             import random
-            face = random.choice(list(FACES.keys()))
-            text = f"Face: {face}\n{FACES[face]}"
+            mood = random.choice(["happy", "curious", "excited", "sleepy", "bored", "sad"])
+            self.set_animation("idle", mood)
+            face = mood
+            text = f"Mood: {mood.title()}"
+
+        elif page_type == "walk":
+            # Walking animation
+            import random
+            mood = random.choice(["happy", "sad", "excited"])
+            self.set_animation("walk", mood)
+            face = "walking"
+            text = "Taking a walk..."
+
+        elif page_type == "dance":
+            # Dancing animation
+            self.set_animation("dance", "excited")
+            face = "dancing"
+            text = "Dancing!"
 
         elif page_type == "progression":
             # XP and level progress
@@ -1179,6 +1216,21 @@ class DisplayManager:
             mode: Mode string (e.g., "AUTO", "SSH", "WEB", "GOSSIP")
         """
         self._mode = mode.upper()[:10]
+
+    def set_animation(self, action: str, mood: str) -> None:
+        """
+        Set the current sprite animation.
+
+        Args:
+            action: Animation action (idle, walk, dance, sleep, etc.)
+            mood: Mood name (happy, sad, excited, etc.)
+        """
+        self._current_animation_action = action
+        self._current_animation_mood = mood
+
+        # Update UI animation state if available
+        if self._ui and self._ui.face_sprite:
+            self._ui.face_sprite.set_action(action, mood)
 
     @property
     def chat_count(self) -> int:
