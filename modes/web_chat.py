@@ -114,13 +114,7 @@ class WebChatMode:
 
         self._app = Bottle()
         self._running = False
-        # Create event loop early so command handlers can use it
-        try:
-            self._loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # No running loop, create a new one
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._message_queue: Queue = Queue()
 
         # Import faces from UI module
@@ -1417,9 +1411,8 @@ class WebChatMode:
     async def run(self) -> None:
         """Start the web server."""
         self._running = True
-        # Event loop already created in __init__, just ensure it's set
-        if not self._loop:
-            self._loop = asyncio.get_event_loop()
+        # Get the currently running event loop
+        self._loop = asyncio.get_running_loop()
 
         # Start ngrok tunnel if enabled
         ngrok_tunnel = None
