@@ -84,21 +84,36 @@ def get_cpu_percent() -> int:
                 idle = values[3] + values[4]  # idle + iowait
                 total = sum(values)
 
-                # Store for next calculation
+                # Store for next calculation with timestamp
+                import time
+                current_time = time.time()
+
                 if not hasattr(get_cpu_percent, "_prev"):
-                    get_cpu_percent._prev = (idle, total)
+                    get_cpu_percent._prev = (idle, total, current_time)
                     # Return a reasonable default on first call
                     return 10
 
-                prev_idle, prev_total = get_cpu_percent._prev
-                get_cpu_percent._prev = (idle, total)
+                prev_idle, prev_total, prev_time = get_cpu_percent._prev
+                time_delta = current_time - prev_time
+
+                # Only calculate if enough time has passed (min 0.5 seconds)
+                # This prevents incorrect readings from rapid successive calls
+                if time_delta < 0.5:
+                    # Return last calculated value if available
+                    if hasattr(get_cpu_percent, "_last_value"):
+                        return get_cpu_percent._last_value
+                    return 10
+
+                get_cpu_percent._prev = (idle, total, current_time)
 
                 idle_delta = idle - prev_idle
                 total_delta = total - prev_total
 
                 if total_delta > 0:
                     cpu_percent = 100 * (1 - idle_delta / total_delta)
-                    return int(max(0, min(100, cpu_percent)))
+                    result = int(max(0, min(100, cpu_percent)))
+                    get_cpu_percent._last_value = result
+                    return result
     except (FileNotFoundError, ValueError, PermissionError):
         pass
 

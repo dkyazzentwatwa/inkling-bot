@@ -693,8 +693,10 @@ class Personality:
 
         context_str += (
             f"Keep responses brief (1-2 sentences) to fit the small display. "
-            f"Only use tools when the user explicitly asks for something that requires them - "
-            f"simple greetings and chat don't need tools. "
+            f"Use tools whenever they would help accomplish what the user wants - "
+            f"especially for tasks (creating, listing, completing, updating tasks). "
+            f"If the user mentions tasks, todos, or things to do, use the task tools. "
+            f"Simple greetings and chat don't need tools. "
             f"When you get tool results with JSON data, format them in a friendly, readable way - "
             f"don't just show raw JSON. "
             f"IMPORTANT: After using a tool, ALWAYS provide a text response to the user - "
