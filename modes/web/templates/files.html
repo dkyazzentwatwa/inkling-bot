@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Files - {{name}}</title>
+    <style>
+        :root {
+            --bg: #f5f5f0;
+            --text: #1a1a1a;
+            --border: #333;
+            --muted: #666;
+            --accent: #4a90d9;
+        }
+        /* Pastel Color Themes */
+        [data-theme="cream"] { --bg: #f5f5f0; --text: #1a1a1a; --border: #333; --muted: #666; --accent: #4a90d9; }
+        [data-theme="pink"] { --bg: #ffe4e9; --text: #4a1a28; --border: #d4758f; --muted: #8f5066; --accent: #ff6b9d; }
+        [data-theme="mint"] { --bg: #e0f5f0; --text: #1a3a33; --border: #6eb5a3; --muted: #4d8073; --accent: #52d9a6; }
+        [data-theme="lavender"] { --bg: #f0e9ff; --text: #2a1a4a; --border: #9d85d4; --muted: #6b5a8f; --accent: #a78bfa; }
+        [data-theme="peach"] { --bg: #ffe9dc; --text: #4a2a1a; --border: #d49675; --muted: #8f6650; --accent: #ffab7a; }
+        [data-theme="sky"] { --bg: #e0f0ff; --text: #1a2e4a; --border: #6ba3d4; --muted: #4d708f; --accent: #5eb3ff; }
+        [data-theme="butter"] { --bg: #fff9e0; --text: #4a3f1a; --border: #d4c175; --muted: #8f8350; --accent: #ffd952; }
+        [data-theme="rose"] { --bg: #fff0f3; --text: #4a1a2a; --border: #d47590; --muted: #8f5068; --accent: #ff9eb8; }
+        [data-theme="sage"] { --bg: #e8f5e8; --text: #1a3a1a; --border: #75a375; --muted: #507050; --accent: #6dbf6d; }
+        [data-theme="periwinkle"] { --bg: #e8e8ff; --text: #1a1a4a; --border: #7575d4; --muted: #505068; --accent: #8c8cff; }
+        [data-theme="dark"] { --bg: #1a1a1a; --text: #e5e5e5; --border: #444; --muted: #888; --accent: #6ab0f3; }
+        [data-theme="midnight"] { --bg: #0d1117; --text: #c9d1d9; --border: #30363d; --muted: #8b949e; --accent: #58a6ff; }
+        [data-theme="charcoal"] { --bg: #2b2b2b; --text: #e8e6e3; --border: #555; --muted: #999; --accent: #ffa657; }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        header {
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .status-line,
+        .thought-line {
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+        .thought-line {
+            max-width: 60ch;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin: 0;
+        }
+
+        .nav {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .nav a {
+            color: var(--text);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+        }
+
+        .nav a:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .breadcrumb {
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            color: var(--muted);
+            font-size: 0.9em;
+        }
+
+        .breadcrumb a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        .file-list {
+            list-style: none;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .file-item {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg);
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-item:hover {
+            background: rgba(0, 0, 0, 0.03);
+        }
+
+        .file-item.directory {
+            cursor: pointer;
+        }
+
+        .file-info {
+            flex-grow: 1;
+        }
+
+        .file-name {
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+
+        .file-name.directory {
+            color: var(--accent);
+        }
+
+        .file-meta {
+            color: var(--muted);
+            font-size: 0.85em;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            cursor: pointer;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545 !important;
+            color: white !important;
+        }
+
+        .btn-danger:hover {
+            background: #c82333 !important;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--muted);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow: auto;
+            padding: 1.5rem;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .modal-header h2 {
+            font-size: 1.2rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--muted);
+        }
+
+        .close-btn:hover {
+            color: var(--text);
+        }
+
+        #file-content {
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+            background: rgba(0, 0, 0, 0.03);
+            padding: 1rem;
+            border-radius: 4px;
+            max-height: 60vh;
+            overflow: auto;
+        }
+
+        #file-content.editable {
+            border: 2px solid var(--accent);
+            padding: 1rem;
+            min-height: 400px;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            justify-content: flex-end;
+        }
+
+        .confirm-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg);
+            border: 2px solid var(--border);
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 2000;
+            max-width: 400px;
+        }
+
+        .confirm-dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1999;
+        }
+
+        .error {
+            color: #d9534f;
+            padding: 1rem;
+            background: rgba(217, 83, 79, 0.1);
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .success {
+            background: #28a745;
+            color: white;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .storage-selector {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .storage-selector label {
+            font-weight: bold;
+            color: var(--text);
+        }
+
+        .storage-selector select {
+            padding: 0.5rem;
+            border: 2px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            border-radius: 4px;
+            font-size: 1em;
+            cursor: pointer;
+            flex-grow: 1;
+        }
+
+        .storage-selector select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0.75rem;
+            }
+            header {
+                flex-wrap: wrap;
+                gap: 0.75rem;
+                padding-bottom: 0.75rem;
+                margin-bottom: 0.75rem;
+            }
+            h1 {
+                font-size: 1.25rem;
+            }
+            .header-left {
+                flex: 1 1 100%;
+            }
+            .status-line,
+            .thought-line {
+                font-size: 0.7rem;
+            }
+            .thought-line {
+                max-width: 40ch;
+            }
+            .nav {
+                width: 100%;
+                justify-content: space-between;
+                gap: 0.5rem;
+            }
+            .nav a {
+                flex: 1;
+                text-align: center;
+                padding: 0.4rem 0.5rem;
+                font-size: 0.85rem;
+            }
+            .storage-selector {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.5rem;
+                padding: 0.75rem;
+            }
+            .storage-selector label {
+                font-size: 0.9rem;
+            }
+            .storage-selector select {
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            .breadcrumb {
+                font-size: 0.8em;
+                padding: 0.4rem;
+            }
+            .file-item {
+                padding: 0.75rem;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+            .file-info {
+                width: 100%;
+            }
+            .file-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+            .btn {
+                padding: 0.4rem 0.75rem;
+                font-size: 0.85em;
+            }
+            .modal-content {
+                width: 95%;
+                max-width: 95%;
+                margin: 10% auto;
+                padding: 1rem;
+            }
+            .modal-header h2 {
+                font-size: 1.1rem;
+            }
+            .modal-body {
+                max-height: 60vh;
+                font-size: 0.85rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 0.5rem;
+            }
+            h1 {
+                font-size: 1.1rem;
+            }
+            .nav a {
+                padding: 0.3rem 0.4rem;
+                font-size: 0.75rem;
+            }
+            .status-line,
+            .thought-line {
+                font-size: 0.65rem;
+            }
+            .thought-line {
+                max-width: 30ch;
+            }
+            .file-item {
+                padding: 0.6rem;
+            }
+            .file-name {
+                font-size: 0.9rem;
+            }
+            .file-meta {
+                font-size: 0.75em;
+            }
+            .btn {
+                padding: 0.35rem 0.6rem;
+                font-size: 0.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <h1>📁 Files</h1>
+                <div class="status-line" id="status">{{status}}</div>
+                <div class="thought-line" id="thought">{{thought}}</div>
+            </div>
+            <div class="nav">
+                <a href="/">💬 Chat</a>
+                <a href="/tasks">📋 Tasks</a>
+                <a href="/files">📁 Files</a>
+                <a href="/settings">⚙️ Settings</a>
+            </div>
+        </header>
+
+        <div class="storage-selector">
+            <label>Storage Location:</label>
+            <select id="storageSelect" onchange="switchStorage()">
+                <option value="inkling">Inkling Data (~/.inkling/)</option>
+                <option value="sd" {{!'disabled' if not sd_available else ''}}>SD Card {{!'(not available)' if not sd_available else ''}}</option>
+            </select>
+        </div>
+
+        <div class="breadcrumb" id="breadcrumb">
+            <a href="#" data-path="">~/.inkling/</a>
+        </div>
+
+        <div id="error-container"></div>
+
+        <ul class="file-list" id="file-list">
+            <li class="empty-state">Loading...</li>
+        </ul>
+    </div>
+
+    <div class="modal" id="file-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">File</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="file-content" id="file-content"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentPath = '';
+        let currentStorage = 'inkling';  // Track current storage location
+        const statusEl = document.getElementById('status');
+        const thoughtEl = document.getElementById('thought');
+
+        // Apply saved theme
+        const theme = localStorage.getItem('inklingTheme') || 'cream';
+        document.documentElement.setAttribute('data-theme', theme);
+
+        function updateHeader() {
+            fetch('/api/state')
+                .then(r => r.json())
+                .then(data => {
+                    if (statusEl) statusEl.textContent = data.status || '';
+                    if (thoughtEl) thoughtEl.textContent = data.thought || '';
+                })
+                .catch(() => {});
+        }
+
+        updateHeader();
+        setInterval(updateHeader, 5000);
+
+        function switchStorage() {
+            currentStorage = document.getElementById('storageSelect').value;
+            console.log('Switched to storage:', currentStorage);
+            loadFiles('');  // Reload from root of new storage
+        }
+
+        async function loadFiles(path = '') {
+            try {
+                console.log('Loading files from path:', path, 'storage:', currentStorage);
+                const response = await fetch(`/api/files/list?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(path)}`);
+                const data = await response.json();
+                console.log('Received data:', data);
+
+                if (data.error) {
+                    showError(data.error);
+                    // Still show empty state
+                    const errorLi = document.createElement('li');
+                    errorLi.className = 'empty-state';
+                    errorLi.textContent = 'Error: ' + data.error;
+                    const fileList = document.getElementById('file-list');
+                    fileList.innerHTML = '';
+                    fileList.appendChild(errorLi);
+                    return;
+                }
+
+                currentPath = data.path || '';
+                updateBreadcrumb(currentPath);
+                renderFileList(data.items);
+
+            } catch (error) {
+                console.error('Load files error:', error);
+                showError('Failed to load files: ' + error.message);
+                document.getElementById('file-list').innerHTML = '<li class="empty-state">Failed to load files</li>';
+            }
+        }
+
+        function updateBreadcrumb(path) {
+            const breadcrumb = document.getElementById('breadcrumb');
+
+            // Get storage root label
+            const storageRoot = currentStorage === 'inkling' ? '~/.inkling/' : 'SD Card/';
+
+            if (!path) {
+                breadcrumb.innerHTML = `<a href="#" data-path="">${storageRoot}</a>`;
+                return;
+            }
+
+            const parts = path.split('/');
+            let html = `<a href="#" data-path="">${storageRoot}</a>`;
+            let buildPath = '';
+
+            parts.forEach((part, idx) => {
+                if (!part) return;
+                buildPath += (buildPath ? '/' : '') + part;
+                html += ` / <a href="#" data-path="${buildPath}">${part}</a>`;
+            });
+
+            breadcrumb.innerHTML = html;
+
+            // Add click handlers to breadcrumb links
+            breadcrumb.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    loadFiles(e.target.dataset.path);
+                });
+            });
+        }
+
+        function renderFileList(items) {
+            const list = document.getElementById('file-list');
+
+            if (items.length === 0) {
+                list.innerHTML = `
+                    <li class="empty-state">
+                        <div style="padding: 2rem;">
+                            <p style="margin-bottom: 1rem;">📁 No files found in this directory</p>
+                            <p style="font-size: 0.9em; color: var(--muted);">
+                                Only .txt, .md, .csv, .json, and .log files are shown.<br>
+                                System files (.db, .pyc) are hidden.
+                            </p>
+                        </div>
+                    </li>
+                `;
+                return;
+            }
+
+            list.innerHTML = '';
+
+            // Add parent directory link if not at root
+            if (currentPath) {
+                const parentPath = currentPath.split('/').slice(0, -1).join('/');
+                const li = document.createElement('li');
+                li.className = 'file-item directory';
+                li.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name directory">📁 ..</div>
+                        <div class="file-meta">Parent directory</div>
+                    </div>
+                `;
+                li.onclick = () => loadFiles(parentPath);
+                list.appendChild(li);
+            }
+
+            // Render items
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.className = item.type === 'dir' ? 'file-item directory' : 'file-item';
+
+                const icon = item.type === 'dir' ? '📁' : '📄';
+                const size = item.type === 'file' ? formatSize(item.size) : '';
+                const date = new Date(item.modified * 1000).toLocaleString();
+
+                li.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name ${item.type === 'dir' ? 'directory' : ''}">${icon} ${item.name}</div>
+                        <div class="file-meta">${size} ${size && date ? '•' : ''} ${date}</div>
+                    </div>
+                `;
+
+                if (item.type === 'dir') {
+                    li.onclick = () => loadFiles(item.path);
+                } else {
+                    const actions = document.createElement('div');
+                    actions.className = 'file-actions';
+                    actions.innerHTML = `
+                        <button class="btn" onclick="viewFile('${item.path}', event)">View</button>
+                        <button class="btn" onclick="editFile('${item.path}', event)">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteFile('${item.path}', '${item.name}', event)">Delete</button>
+                        <a class="btn" href="/api/files/download?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(item.path)}" download>Download</a>
+                    `;
+                    li.appendChild(actions);
+                }
+
+                list.appendChild(li);
+            });
+        }
+
+        async function viewFile(path, event) {
+            event.stopPropagation();
+
+            try {
+                const response = await fetch(`/api/files/view?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(path)}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                document.getElementById('modal-title').textContent = data.name;
+                document.getElementById('file-content').textContent = data.content;
+                document.getElementById('file-modal').classList.add('active');
+
+            } catch (error) {
+                showError('Failed to view file: ' + error.message);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('file-modal').classList.remove('active');
+            // Clean up edit mode
+            const contentEl = document.getElementById('file-content');
+            contentEl.contentEditable = false;
+            contentEl.classList.remove('editable');
+            const modal = document.getElementById('file-modal');
+            const actionsDiv = modal.querySelector('.modal-actions');
+            if (actionsDiv) {
+                actionsDiv.remove();
+            }
+        }
+
+        let editMode = false;
+        let currentEditPath = null;
+
+        async function editFile(path, event) {
+            event.stopPropagation();
+
+            try {
+                const response = await fetch(`/api/files/view?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(path)}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                editMode = true;
+                currentEditPath = path;
+
+                document.getElementById('modal-title').textContent = data.name + ' (Editing)';
+                const contentEl = document.getElementById('file-content');
+                contentEl.contentEditable = true;
+                contentEl.classList.add('editable');
+                contentEl.textContent = data.content;
+
+                // Add save/cancel buttons
+                const modal = document.getElementById('file-modal');
+                let actionsDiv = modal.querySelector('.modal-actions');
+                if (!actionsDiv) {
+                    actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'modal-actions';
+                    modal.querySelector('.modal-content').appendChild(actionsDiv);
+                }
+                actionsDiv.innerHTML = `
+                    <button class="btn" onclick="saveFile()">Save</button>
+                    <button class="btn" onclick="cancelEdit()">Cancel</button>
+                `;
+
+                modal.classList.add('active');
+
+            } catch (error) {
+                showError('Failed to load file for editing: ' + error.message);
+            }
+        }
+
+        async function saveFile() {
+            if (!editMode || !currentEditPath) return;
+
+            const content = document.getElementById('file-content').textContent;
+
+            try {
+                const response = await fetch(`/api/files/edit?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(currentEditPath)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                showSuccess('File saved successfully!');
+                cancelEdit();
+
+            } catch (error) {
+                showError('Failed to save file: ' + error.message);
+            }
+        }
+
+        function cancelEdit() {
+            editMode = false;
+            currentEditPath = null;
+            closeModal();
+        }
+
+        async function deleteFile(path, name, event) {
+            event.stopPropagation();
+
+            // Show confirmation dialog
+            const overlay = document.createElement('div');
+            overlay.className = 'confirm-dialog-overlay';
+
+            const dialog = document.createElement('div');
+            dialog.className = 'confirm-dialog';
+            dialog.innerHTML = `
+                <h3>Delete File?</h3>
+                <p>Are you sure you want to delete <strong>${name}</strong>?</p>
+                <p style="color: var(--muted); font-size: 0.9em;">This action cannot be undone.</p>
+                <div style="display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end;">
+                    <button class="btn" onclick="this.closest('.confirm-dialog').remove(); document.querySelector('.confirm-dialog-overlay').remove();">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDelete('${path}', this)">Delete</button>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+            document.body.appendChild(dialog);
+        }
+
+        async function confirmDelete(path, button) {
+            try {
+                const response = await fetch(`/api/files/delete?storage=${encodeURIComponent(currentStorage)}&path=${encodeURIComponent(path)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ confirmed: true })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                showSuccess(data.message);
+
+                // Close dialog
+                button.closest('.confirm-dialog').remove();
+                document.querySelector('.confirm-dialog-overlay').remove();
+
+                // Reload file list
+                loadFiles(currentPath);
+
+            } catch (error) {
+                showError('Failed to delete file: ' + error.message);
+            }
+        }
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function showError(message) {
+            const container = document.getElementById('error-container');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            container.innerHTML = '';
+            container.appendChild(errorDiv);
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div class="success">${message}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 3000);
+        }
+
+        // Close modal on background click
+        document.getElementById('file-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'file-modal') {
+                closeModal();
+            }
+        });
+
+        // Load files on page load
+        loadFiles();
+    </script>
+</body>
+</html>
+"""
+
+
+class WebChatMode:

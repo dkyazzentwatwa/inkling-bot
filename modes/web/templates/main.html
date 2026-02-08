@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>{{name}} - Inkling</title>
+    <style>
+        :root {
+            --bg: #f5f5f0;
+            --text: #1a1a1a;
+            --border: #333;
+            --muted: #666;
+            --accent: #4a90d9;
+        }
+        /* Pastel Color Themes */
+        [data-theme="cream"] {
+            --bg: #f5f5f0;
+            --text: #1a1a1a;
+            --border: #333;
+            --muted: #666;
+            --accent: #4a90d9;
+        }
+        [data-theme="pink"] {
+            --bg: #ffe4e9;
+            --text: #4a1a28;
+            --border: #d4758f;
+            --muted: #8f5066;
+            --accent: #ff6b9d;
+        }
+        [data-theme="mint"] {
+            --bg: #e0f5f0;
+            --text: #1a3a33;
+            --border: #6eb5a3;
+            --muted: #4d8073;
+            --accent: #52d9a6;
+        }
+        [data-theme="lavender"] {
+            --bg: #f0e9ff;
+            --text: #2a1a4a;
+            --border: #9d85d4;
+            --muted: #6b5a8f;
+            --accent: #a78bfa;
+        }
+        [data-theme="peach"] {
+            --bg: #ffe9dc;
+            --text: #4a2a1a;
+            --border: #d49675;
+            --muted: #8f6650;
+            --accent: #ffab7a;
+        }
+        [data-theme="sky"] {
+            --bg: #e0f0ff;
+            --text: #1a2e4a;
+            --border: #6ba3d4;
+            --muted: #4d708f;
+            --accent: #5eb3ff;
+        }
+        [data-theme="butter"] {
+            --bg: #fff9e0;
+            --text: #4a3f1a;
+            --border: #d4c175;
+            --muted: #8f8350;
+            --accent: #ffd952;
+        }
+        [data-theme="rose"] {
+            --bg: #fff0f3;
+            --text: #4a1a2a;
+            --border: #d47590;
+            --muted: #8f5068;
+            --accent: #ff9eb8;
+        }
+        [data-theme="sage"] {
+            --bg: #eff5e9;
+            --text: #2a331a;
+            --border: #8fb575;
+            --muted: #607a4d;
+            --accent: #9bc978;
+        }
+        [data-theme="periwinkle"] {
+            --bg: #e9f0ff;
+            --text: #1a2a4a;
+            --border: #758fd4;
+            --muted: #50638f;
+            --accent: #8ba3ff;
+        }
+        /* Dark Mode Themes */
+        [data-theme="dark"] {
+            --bg: #1a1a1a;
+            --text: #e5e5e5;
+            --border: #444;
+            --muted: #888;
+            --accent: #6ab0f3;
+        }
+        [data-theme="midnight"] {
+            --bg: #0d1117;
+            --text: #c9d1d9;
+            --border: #30363d;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+        }
+        [data-theme="charcoal"] {
+            --bg: #2b2b2b;
+            --text: #e8e6e3;
+            --border: #555;
+            --muted: #999;
+            --accent: #ffa657;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1a1a1a;
+                --text: #e5e5e0;
+                --border: #555;
+                --muted: #999;
+                --accent: #6ab0f3;
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            padding: 1rem;
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
+        }
+        header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 0;
+        }
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .status-line,
+        .thought-line {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-left: 44px;
+        }
+        .thought-line {
+            max-width: 60ch;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .face {
+            font-size: 32px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .nav {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .nav a {
+            color: var(--text);
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+        .nav a:hover {
+            background: var(--accent);
+            color: white;
+            transform: translateY(-2px);
+        }
+        /* Connection indicator */
+        .conn-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #52d9a6;
+            transition: background 0.3s;
+            flex-shrink: 0;
+        }
+        .conn-dot.offline {
+            background: #ff6b9d;
+            animation: blink-dot 1s infinite;
+        }
+        @keyframes blink-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        /* Chat search bar */
+        .search-bar {
+            display: none;
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg);
+        }
+        .search-bar.visible { display: flex; gap: 0.5rem; align-items: center; }
+        .search-bar input {
+            flex: 1; padding: 0.4rem 0.6rem;
+            font-family: inherit; font-size: 0.85rem;
+            border: 1px solid var(--border);
+            background: var(--bg); color: var(--text);
+        }
+        .search-bar button {
+            background: none; border: none;
+            color: var(--muted); cursor: pointer; font-size: 1rem;
+        }
+        .nav .search-toggle {
+            background: none; border: 2px solid var(--border);
+            color: var(--text); cursor: pointer;
+            padding: 6px 10px; border-radius: 4px;
+            font-size: 0.875rem; transition: all 0.2s;
+        }
+        .nav .search-toggle:hover {
+            background: var(--accent); color: white;
+            transform: translateY(-2px);
+        }
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        .message {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+        }
+        .message.user {
+            background: var(--bg);
+            border-left: 3px solid var(--accent);
+        }
+        .message.assistant {
+            background: var(--bg);
+        }
+        .message.system {
+            background: var(--bg);
+            border-left: 3px solid var(--muted);
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+        }
+        .message.hidden { display: none; }
+        .message .meta {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-top: 0.5rem;
+        }
+        /* Markdown styles inside messages */
+        .message .text code {
+            background: rgba(0,0,0,0.06); padding: 0.15em 0.35em;
+            border-radius: 3px; font-size: 0.9em;
+        }
+        .message .text pre {
+            background: rgba(0,0,0,0.06); padding: 0.75rem;
+            border-radius: 4px; overflow-x: auto;
+            margin: 0.5rem 0; border: 1px solid var(--border);
+        }
+        .message .text pre code {
+            background: none; padding: 0;
+        }
+        .message .text ul, .message .text ol {
+            margin: 0.25rem 0; padding-left: 1.5rem;
+        }
+        .message .text blockquote {
+            border-left: 3px solid var(--muted);
+            margin: 0.5rem 0; padding-left: 0.75rem;
+            color: var(--muted);
+        }
+        .message .text h1, .message .text h2, .message .text h3 {
+            margin: 0.5rem 0 0.25rem; font-size: 1em;
+        }
+        /* Toast notifications */
+        .toast-container {
+            position: fixed; bottom: 1rem; left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000; display: flex;
+            flex-direction: column-reverse; gap: 0.5rem;
+            pointer-events: none;
+        }
+        .toast {
+            padding: 0.75rem 1.25rem; border-radius: 6px;
+            font-family: inherit; font-size: 0.85rem;
+            opacity: 0; transform: translateY(20px);
+            transition: all 0.3s ease;
+            pointer-events: auto; text-align: center;
+            border: 2px solid var(--border);
+            background: var(--bg); color: var(--text);
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { border-color: #52d9a6; }
+        .toast.error { border-color: #ff6b9d; }
+        .toast.info { border-color: var(--accent); }
+        .input-area {
+            padding: 1rem;
+            border-top: 2px solid var(--border);
+            display: flex;
+            gap: 0.5rem;
+        }
+        .input-area input {
+            flex: 1;
+            padding: 0.75rem;
+            font-family: inherit;
+            font-size: 1rem;
+            border: 2px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+        }
+        .input-area button {
+            padding: 0.75rem 1.5rem;
+            font-family: inherit;
+            font-size: 1rem;
+            background: var(--text);
+            color: var(--bg);
+            border: none;
+            cursor: pointer;
+        }
+        .input-area button:disabled {
+            opacity: 0.5;
+        }
+        .command-palette {
+            border: 2px solid var(--border);
+            margin: 1rem;
+        }
+        .command-palette summary {
+            padding: 0.75rem;
+            cursor: pointer;
+            font-weight: bold;
+            background: var(--border);
+            color: var(--bg);
+            user-select: none;
+        }
+        .command-palette[open] summary {
+            border-bottom: 2px solid var(--border);
+        }
+        .command-groups {
+            padding: 1rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .command-group {
+            margin-bottom: 1rem;
+        }
+        .command-group:last-child {
+            margin-bottom: 0;
+        }
+        .command-group h4 {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .command-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .command-buttons button {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.75rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .command-buttons button:hover {
+            background: var(--text);
+            color: var(--bg);
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            header {
+                padding: 0.75rem;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            header h1 {
+                font-size: 1.25rem;
+                gap: 8px;
+            }
+            .face {
+                font-size: 24px;
+            }
+            .header-left {
+                flex: 1;
+                min-width: 0;
+            }
+            .status-line,
+            .thought-line {
+                font-size: 0.7rem;
+                margin-left: 34px;
+            }
+            .thought-line {
+                max-width: 40ch;
+            }
+            .nav {
+                width: 100%;
+                justify-content: space-between;
+                gap: 6px;
+            }
+            .nav a, .nav .search-toggle {
+                flex: 1;
+                text-align: center;
+                padding: 6px 8px;
+                font-size: 0.75rem;
+                white-space: nowrap;
+            }
+            .messages {
+                padding: 0.75rem;
+            }
+            .message {
+                padding: 0.6rem;
+                font-size: 0.9rem;
+            }
+            .input-area {
+                padding: 0.75rem;
+                gap: 0.5rem;
+                flex-direction: column;
+            }
+            .input-area input {
+                width: 100%;
+                padding: 0.875rem;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            .input-area button {
+                width: 100%;
+                padding: 0.875rem;
+                font-size: 16px;
+            }
+            .command-palette {
+                margin: 0.75rem;
+            }
+            .command-palette summary {
+                padding: 0.6rem;
+                font-size: 0.9rem;
+            }
+            .command-groups {
+                padding: 0.75rem;
+                max-height: 150px;
+            }
+            .command-group {
+                margin-bottom: 0.75rem;
+            }
+            .command-buttons {
+                gap: 0.4rem;
+            }
+            .command-buttons button {
+                padding: 0.6rem 0.75rem;
+                font-size: 0.7rem;
+                min-height: 44px; /* Better touch targets */
+            }
+        }
+
+        @media (max-width: 480px) {
+            header h1 {
+                font-size: 1.1rem;
+            }
+            .face {
+                font-size: 20px;
+            }
+            .nav a {
+                padding: 4px 6px;
+                font-size: 0.7rem;
+            }
+            .status-line,
+            .thought-line {
+                font-size: 0.65rem;
+                margin-left: 28px;
+            }
+            .thought-line {
+                max-width: 30ch;
+            }
+            .messages {
+                padding: 0.5rem;
+            }
+            .message {
+                padding: 0.5rem;
+                font-size: 0.85rem;
+            }
+            .command-palette {
+                margin: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>
+                <span class="face" id="face">{{face}}</span>
+                <span>Chat</span>
+            </h1>
+            <div class="status-line" id="status">{{status}}</div>
+            <div class="thought-line" id="thought">{{thought}}</div>
+        </div>
+        <div class="nav">
+            <a href="/tasks">📋 Tasks</a>
+            <a href="/files">📁 Files</a>
+            <a href="/settings">⚙️ Settings</a>
+            <button class="search-toggle" onclick="toggleSearch()" title="Search messages">🔍</button>
+            <span class="conn-dot" id="conn-dot" title="Connected"></span>
+        </div>
+    </header>
+
+    <div class="search-bar" id="search-bar">
+        <input type="text" id="search-input" placeholder="Filter messages..." oninput="filterMessages(this.value)">
+        <button onclick="clearSearch()">✕</button>
+    </div>
+
+    <div class="messages" id="messages"></div>
+    <div class="toast-container" id="toast-container"></div>
+
+    <details class="command-palette" open>
+        <summary>⚙️ Commands</summary>
+        <div class="command-groups">
+            <div class="command-group">
+                <h4>Info</h4>
+                <div class="command-buttons">
+                    <button onclick="runCommand('/help')">Help</button>
+                    <button onclick="runCommand('/level')">Level</button>
+                    <button onclick="runCommand('/stats')">Stats</button>
+                    <button onclick="runCommand('/history')">History</button>
+                </div>
+            </div>
+
+            <div class="command-group">
+                <h4>Personality</h4>
+                <div class="command-buttons">
+                    <button onclick="runCommand('/mood')">Mood</button>
+                    <button onclick="runCommand('/energy')">Energy</button>
+                    <button onclick="runCommand('/traits')">Traits</button>
+                </div>
+            </div>
+
+            <div class="command-group">
+                <h4>Tasks</h4>
+                <div class="command-buttons">
+                    <button onclick="runCommand('/tasks')">List Tasks</button>
+                    <button onclick="runCommand('/taskstats')">Stats</button>
+                </div>
+            </div>
+
+            <div class="command-group">
+                <h4>System</h4>
+                <div class="command-buttons">
+                    <button onclick="runCommand('/system')">System</button>
+                    <button onclick="runCommand('/config')">Config</button>
+                    <button onclick="runCommand('/faces')">Faces</button>
+                    <button onclick="runCommand('/refresh')">Refresh</button>
+                    <button onclick="runCommand('/clear')">Clear</button>
+                </div>
+            </div>
+        </div>
+    </details>
+
+    <div class="input-area">
+        <input type="text" id="input" placeholder="Say something..." autocomplete="off">
+        <button id="send" onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        // Apply saved theme with auto day/night support
+        function getAutoTheme() {
+            const hour = new Date().getHours();
+            return (hour >= 20 || hour < 7) ? 'midnight' : 'cream';
+        }
+        const themeAuto = localStorage.getItem('inklingThemeAuto') === 'true';
+        const savedTheme = themeAuto ? getAutoTheme() : (localStorage.getItem('inklingTheme') || 'cream');
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        // Re-check auto theme every 5 minutes
+        if (themeAuto) {
+            setInterval(() => {
+                document.documentElement.setAttribute('data-theme', getAutoTheme());
+            }, 300000);
+        }
+
+        const messagesEl = document.getElementById('messages');
+        const inputEl = document.getElementById('input');
+        const sendBtn = document.getElementById('send');
+        const faceEl = document.getElementById('face');
+        const statusEl = document.getElementById('status');
+        const thoughtEl = document.getElementById('thought');
+        const connDot = document.getElementById('conn-dot');
+
+        // Handle enter key
+        inputEl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // --- Toast notification system ---
+        function showToast(message, type, duration) {
+            type = type || 'info';
+            duration = duration || 3000;
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(function() { toast.classList.add('show'); }, 10);
+            setTimeout(function() {
+                toast.classList.remove('show');
+                setTimeout(function() { toast.remove(); }, 300);
+            }, duration);
+        }
+
+        // --- Markdown rendering ---
+        function renderMarkdown(text) {
+            let html = escapeHtml(text);
+            // Code blocks (``` ... ```)
+            html = html.replace(/```(\\w*)\\n([\\s\\S]*?)```/g, function(m, lang, code) {
+                return '<pre><code>' + code.trim() + '</code></pre>';
+            });
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            // Bold
+            html = html.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
+            // Italic
+            html = html.replace(/\\*(.+?)\\*/g, '<em>$1</em>');
+            // Headers (must be at start of line)
+            html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+            html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+            // Blockquote
+            html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+            // Unordered list items
+            html = html.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*<\\/li>\\n?)+/g, '<ul>$&</ul>');
+            // Line breaks (but not inside pre blocks)
+            html = html.replace(/\\n/g, '<br>');
+            // Clean up extra <br> around block elements
+            html = html.replace(/<br>\\s*(<\\/?(?:pre|ul|ol|li|blockquote|h[1-3]))/g, '$1');
+            html = html.replace(/(<\\/(?:pre|ul|ol|li|blockquote|h[1-3])>)\\s*<br>/g, '$1');
+            return html;
+        }
+
+        // --- Chat message sending ---
+        async function sendMessage() {
+            const text = inputEl.value.trim();
+            if (!text) return;
+
+            inputEl.value = '';
+            sendBtn.disabled = true;
+
+            addMessage('user', text);
+
+            try {
+                const resp = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message: text})
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    addMessage('assistant', 'Error: ' + data.error);
+                    showToast('Error: ' + data.error, 'error');
+                } else {
+                    addMessage('assistant', data.response, data.meta);
+                    updateState(data);
+                }
+            } catch (e) {
+                addMessage('assistant', 'Connection error: ' + e.message);
+                showToast('Connection lost', 'error');
+            }
+
+            sendBtn.disabled = false;
+            inputEl.focus();
+        }
+
+        async function runCommand(cmd) {
+            sendBtn.disabled = true;
+
+            try {
+                const resp = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({command: cmd})
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    addMessage('system', 'Error: ' + data.error);
+                } else {
+                    addMessage('system', data.response);
+                    updateState(data);
+                }
+            } catch (e) {
+                addMessage('system', 'Connection error: ' + e.message);
+                showToast('Connection lost', 'error');
+            }
+
+            sendBtn.disabled = false;
+        }
+
+        function sendCommand(cmd) {
+            inputEl.value = cmd;
+            sendMessage();
+        }
+
+        function addMessage(role, text, meta) {
+            const div = document.createElement('div');
+            div.className = 'message ' + role;
+            // Use markdown rendering for assistant messages, escape-only for user/system
+            if (role === 'assistant') {
+                div.innerHTML = '<div class="text">' + renderMarkdown(text) + '</div>';
+            } else if (role === 'system') {
+                div.innerHTML = '<div class="text">' + escapeHtml(text) + '</div>';
+            } else {
+                div.innerHTML = '<div class="text">' + escapeHtml(text) + '</div>';
+            }
+            if (meta) {
+                const metaDiv = document.createElement('div');
+                metaDiv.className = 'meta';
+                metaDiv.textContent = meta;
+                div.appendChild(metaDiv);
+            }
+            messagesEl.appendChild(div);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        function updateState(data) {
+            if (data.face && faceEl) faceEl.textContent = data.face;
+            if (data.status && statusEl) statusEl.textContent = data.status;
+            if (data.thought !== undefined && thoughtEl) thoughtEl.textContent = data.thought || '';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // --- Chat search ---
+        function toggleSearch() {
+            const bar = document.getElementById('search-bar');
+            bar.classList.toggle('visible');
+            if (bar.classList.contains('visible')) {
+                document.getElementById('search-input').focus();
+            } else {
+                clearSearch();
+            }
+        }
+
+        function filterMessages(query) {
+            const q = query.toLowerCase();
+            document.querySelectorAll('.message').forEach(function(msg) {
+                const text = msg.textContent.toLowerCase();
+                msg.classList.toggle('hidden', q.length > 0 && text.indexOf(q) === -1);
+            });
+        }
+
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            document.querySelectorAll('.message.hidden').forEach(function(msg) {
+                msg.classList.remove('hidden');
+            });
+            document.getElementById('search-bar').classList.remove('visible');
+        }
+
+        // --- Connection indicator + state polling ---
+        let wasOffline = false;
+        setInterval(async function() {
+            try {
+                const resp = await fetch('/api/state');
+                const data = await resp.json();
+                updateState(data);
+                connDot.classList.remove('offline');
+                connDot.title = 'Connected';
+                if (wasOffline) {
+                    showToast('Reconnected', 'success');
+                    wasOffline = false;
+                }
+            } catch (e) {
+                connDot.classList.add('offline');
+                connDot.title = 'Disconnected';
+                if (!wasOffline) {
+                    showToast('Connection lost', 'error', 5000);
+                    wasOffline = true;
+                }
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
+"""
