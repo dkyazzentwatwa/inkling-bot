@@ -1408,17 +1408,29 @@ class SSHChatMode:
         )
 
         # Show emoji animation on display (if available)
+        # Display each emoji face from the sequence without text
         if self.display:
-            for i, face in enumerate(face_sequence):
+            for i, emoji_face in enumerate(face_sequence):
                 is_last = (i == len(face_sequence) - 1)
-                text = f"{action_name.title()}!"
+
+                # Show just the emoji face (no text, so face won't hide)
                 await self.display.update(
-                    face="happy",  # Unused, AnimatedFace will hide during text
-                    text=text,
+                    face="happy",
+                    text="",  # Empty text - face will show
                     force=True,
                 )
+
+                # Manually render the action face by updating the UI
+                if self.display._ui and self.display._ui.animated_face:
+                    # Temporarily override to show action face
+                    self.display._ui.animated_face._current_action_face = emoji_face
+
                 if not is_last:
                     await asyncio.sleep(0.8)  # Animation delay between faces
+
+            # Clear action face override when done
+            if self.display._ui and self.display._ui.animated_face:
+                self.display._ui.animated_face._current_action_face = None
 
         # Boost mood and intensity
         old_mood = self.personality.mood.current

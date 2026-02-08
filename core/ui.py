@@ -388,6 +388,8 @@ class AnimatedFace:
         self.last_update = time.time()
         # Randomize interval between 3-5 seconds for natural feel
         self.update_interval = random.uniform(3.0, 5.0)
+        # Action face override (set during action commands)
+        self._current_action_face = None
 
     def _get_face_sequence(self, mood: str) -> list:
         """
@@ -431,19 +433,23 @@ class AnimatedFace:
         Returns:
             (x, y) position where face was drawn, or (0, 0) if hidden
         """
-        # Hide face when message text is present - maximize text area
-        if ctx.message and ctx.message.strip():
-            return (0, 0)
+        # Check if we're showing an action face (overrides normal behavior)
+        if self._current_action_face:
+            face_text = self._current_action_face
+        else:
+            # Hide face when message text is present - maximize text area
+            if ctx.message and ctx.message.strip():
+                return (0, 0)
 
-        # Get current mood (fallback to "happy" if not set)
-        mood = ctx.mood_key if ctx.mood_key else "happy"
+            # Get current mood (fallback to "happy" if not set)
+            mood = ctx.mood_key if ctx.mood_key else "happy"
 
-        # Update animation state
-        self.update_animation(mood)
+            # Update animation state
+            self.update_animation(mood)
 
-        # Get current face from sequence
-        sequence = self._get_face_sequence(mood)
-        face_text = sequence[self.current_index]
+            # Get current face from sequence
+            sequence = self._get_face_sequence(mood)
+            face_text = sequence[self.current_index]
 
         # Render centered emoji face
         bbox = draw.textbbox((0, 0), face_text, font=self.fonts.face)
