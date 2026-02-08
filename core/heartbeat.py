@@ -488,7 +488,8 @@ class Heartbeat:
                 result = await self._execute_behavior(behavior)
                 if result:
                     # If behavior produced a message, show it
-                    if self._on_message:
+                    # But don't interrupt screensaver
+                    if self._on_message and not (self.display and self.display._screensaver_active):
                         face = self.personality.face
                         await self._on_message(result, face)
 

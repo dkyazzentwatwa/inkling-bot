@@ -698,6 +698,13 @@ class DisplayManager:
         if not self._screensaver_active:
             return
 
+        # Debug: log what's stopping the screensaver
+        import traceback
+        print("[Screensaver] Stopping screensaver, called from:")
+        for line in traceback.format_stack()[:-1]:
+            if "/core/" in line or "/modes/" in line:
+                print(line.strip())
+
         self._screensaver_active = False
 
         if self._screensaver_task:
@@ -1097,6 +1104,10 @@ class DisplayManager:
 
         while True:
             await asyncio.sleep(self._auto_refresh_interval)
+
+            # Skip auto-refresh if screensaver is active
+            if self._screensaver_active:
+                continue
 
             # Only auto-refresh if using partial refresh (V3 or mock)
             # V4 full refresh is too slow and wears the display
