@@ -1381,46 +1381,44 @@ class SSHChatMode:
         emote_text: str,
         mood: Mood,
         intensity: float,
-        faces: list,
         xp_source: XPSource,
     ) -> None:
         """
-        Execute a play action with animation and rewards.
+        Execute a play action with emoji face animation and rewards.
 
         Args:
             action_name: Name of action (e.g., "walk")
             emote_text: SSH emote text (e.g., "goes for a walk...")
             mood: Target mood to set
             intensity: Mood intensity boost
-            faces: List of face expressions for animation
             xp_source: XP source for reward
         """
+        from core.ui import ACTION_FACE_SEQUENCES
+
         # Update interaction time (prevents boredom/sleepy)
         self.personality._last_interaction = time.time()
 
         # Print SSH emote
         print(f"{Colors.EMOTE}*{self.personality.name} {emote_text}*{Colors.RESET}")
 
-        # Set sprite animation for this action
-        mood_key = mood.name.lower()
-        if self.display:
-            self.display.set_animation(action_name, mood_key)
+        # Get emoji face sequence for this action
+        face_sequence = ACTION_FACE_SEQUENCES.get(
+            action_name,
+            ["(^_^)", "(^_~)", "(^_^)"]  # Default fallback
+        )
 
-        # Show animation on display (if available)
+        # Show emoji animation on display (if available)
         if self.display:
-            for i, face in enumerate(faces):
-                is_last = (i == len(faces) - 1)
+            for i, face in enumerate(face_sequence):
+                is_last = (i == len(face_sequence) - 1)
                 text = f"{action_name.title()}!"
                 await self.display.update(
-                    face=face,
+                    face="happy",  # Unused, AnimatedFace will hide during text
                     text=text,
                     force=True,
                 )
                 if not is_last:
-                    await asyncio.sleep(0.8)  # Animation delay
-
-            # Return to idle animation
-            self.display.set_animation("idle", mood_key)
+                    await asyncio.sleep(0.8)  # Animation delay between faces
 
         # Boost mood and intensity
         old_mood = self.personality.mood.current
@@ -1458,7 +1456,6 @@ class SSHChatMode:
             emote_text="goes for a walk around the neighborhood",
             mood=Mood.CURIOUS,
             intensity=0.7,
-            faces=["look_l", "look_r", "happy"],
             xp_source=XPSource.PLAY_WALK,
         )
 
@@ -1469,7 +1466,6 @@ class SSHChatMode:
             emote_text="dances enthusiastically",
             mood=Mood.EXCITED,
             intensity=0.9,
-            faces=["excited", "love", "wink", "excited"],
             xp_source=XPSource.PLAY_DANCE,
         )
 
@@ -1480,7 +1476,6 @@ class SSHChatMode:
             emote_text="does some stretches and exercises",
             mood=Mood.HAPPY,
             intensity=0.8,
-            faces=["working", "intense", "awake", "success"],
             xp_source=XPSource.PLAY_EXERCISE,
         )
 
@@ -1491,7 +1486,6 @@ class SSHChatMode:
             emote_text="plays with a toy",
             mood=Mood.HAPPY,
             intensity=0.8,
-            faces=["excited", "happy", "wink"],
             xp_source=XPSource.PLAY_GENERAL,
         )
 
@@ -1502,7 +1496,6 @@ class SSHChatMode:
             emote_text="enjoys being petted",
             mood=Mood.GRATEFUL,
             intensity=0.7,
-            faces=["love", "happy", "grateful"],
             xp_source=XPSource.PLAY_PET,
         )
 
@@ -1513,7 +1506,6 @@ class SSHChatMode:
             emote_text="takes a short rest",
             mood=Mood.COOL,
             intensity=0.4,
-            faces=["cool", "sleep", "sleepy"],
             xp_source=XPSource.PLAY_REST,
         )
 

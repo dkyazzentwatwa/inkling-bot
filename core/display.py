@@ -349,14 +349,15 @@ class DisplayManager:
         self._driver.init()
         self._load_fonts()
 
-        # Initialize sprite system
-        from core.sprites import SpriteManager
-        sprite_enabled = self._sprite_config.get("enabled", True)
-        sprite_dir = self._sprite_config.get("directory", "assets/sprites")
-        self._sprite_manager = SpriteManager(sprite_dir=sprite_dir, enabled=sprite_enabled)
+        # Sprite system disabled - using emoji text faces only
+        # (Keep code below for future re-enable if needed)
+        # from core.sprites import SpriteManager
+        # sprite_enabled = self._sprite_config.get("enabled", True)
+        # sprite_dir = self._sprite_config.get("directory", "assets/sprites")
+        # self._sprite_manager = SpriteManager(sprite_dir=sprite_dir, enabled=sprite_enabled)
 
-        # Initialize UI with sprite manager
-        self._ui = PwnagotchiUI(sprite_manager=self._sprite_manager)
+        # Initialize UI (emoji-based, no sprites)
+        self._ui = PwnagotchiUI()
 
         # Align auto-refresh to configured interval for partial refresh displays
         if self._driver.supports_partial:
@@ -1217,20 +1218,21 @@ class DisplayManager:
         """
         self._mode = mode.upper()[:10]
 
-    def set_animation(self, action: str, mood: str) -> None:
-        """
-        Set the current sprite animation.
-
-        Args:
-            action: Animation action (idle, walk, dance, sleep, etc.)
-            mood: Mood name (happy, sad, excited, etc.)
-        """
-        self._current_animation_action = action
-        self._current_animation_mood = mood
-
-        # Update UI animation state if available
-        if self._ui and self._ui.face_sprite:
-            self._ui.face_sprite.set_action(action, mood)
+    # Sprite animation disabled - using emoji text faces only
+    # def set_animation(self, action: str, mood: str) -> None:
+    #     """
+    #     Set the current sprite animation.
+    #
+    #     Args:
+    #         action: Animation action (idle, walk, dance, sleep, etc.)
+    #         mood: Mood name (happy, sad, excited, etc.)
+    #     """
+    #     self._current_animation_action = action
+    #     self._current_animation_mood = mood
+    #
+    #     # Update UI animation state if available
+    #     if self._ui and self._ui.animated_face:
+    #         self._ui.animated_face.set_action(action, mood)
 
     @property
     def chat_count(self) -> int:

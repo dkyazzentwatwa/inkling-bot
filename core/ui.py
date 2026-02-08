@@ -111,6 +111,42 @@ UNICODE_FACES = {
 
 
 # ============================================================================
+# Face Animation Sequences
+# ============================================================================
+
+# Mood-based idle face animation sequences
+# Each mood cycles through related expressions every 3-5 seconds
+IDLE_FACE_SEQUENCES = {
+    "happy": ["(^_^)", "(^_~)", "(^ω^)", "(^_^)"],
+    "excited": ["(*^_^*)", "(^o^)", "(*^ω^*)", "(*^_^*)"],
+    "grateful": ["(^_^)b", "(^_~)b", "(^ω^)b", "(^_^)b"],
+    "curious": ["(o_O)?", "(O_o)?", "(o_O)?"],
+    "intense": ["(>_<)", "(>_<#)", "(>_<)"],
+    "cool": ["( -_-)", "( ~_-)", "( -_-)"],
+    "bored": [" (-_-)", "(-_~)", "(-_-)"],
+    "sad": ["(;_;)", "(T_T)", "(;_;)"],
+    "sleepy": ["(-_-)zzZ", "(-.-)zzZ", "(-_-)zzZ"],
+    "awake": ["(O_O)", "(O_o)", "(O_O)"],
+    "thinking": ["(@_@)", "(@_o)", "(@_@)"],
+    "confused": ["(?_?)", "(?_o)", "(?_?)"],
+    "surprised": ["(O_o)", "(o_O)", "(O_o)"],
+    "love": ["(*^3^)", "(♥‿♥)", "(*^3^)"],
+    "wink": ["(^_~)", "(~_^)", "(^_~)"],
+    "default": ["(^_^)", "(^_~)", "(^_^)"],
+}
+
+# Action-specific face sequences for commands like /walk, /dance
+ACTION_FACE_SEQUENCES = {
+    "walk": ["(o_O)?", "(^_^)", "(o_O)?", "(^_^)"],      # Looking around
+    "dance": ["(*^_^*)", "(^o^)", "(*^ω^*)", "(^o^)"],    # Excited dancing
+    "exercise": ["(>_<)", "(^_^)", "(>_<)", "(^_^)b"],    # Effort + success
+    "play": ["(^_^)", "(^_~)", "(*^_^*)", "(^_^)"],       # Happy playful
+    "pet": ["(^_^)", "(*^_^*)", "(^ω^)", "(*^_^*)"],      # Loving it
+    "rest": ["(^_^)", "(-_-)", "(-.-)zzZ"],               # Calming down
+}
+
+
+# ============================================================================
 # Layout Constants
 # ============================================================================
 
@@ -328,92 +364,94 @@ class DisplayContext:
     mode: str = "AUTO"
 
 
-class FaceSprite:
+class AnimatedFace:
     """
-    Render animated face sprite in the message area.
+    Render animated emoji face in the message area.
 
     Positioned above the text message, centered horizontally.
-    Supports mood-based animated sprites with frame cycling.
+    Cycles through mood-based emoji expressions every 3-5 seconds when idle.
+    Hides automatically when message text is present to maximize text area.
     """
 
-    def __init__(self, sprite_manager, fonts: Fonts, sprite_size: int = 48):
+    def __init__(self, fonts: Fonts):
         """
-        Initialize FaceSprite component.
+        Initialize AnimatedFace component.
 
         Args:
-            sprite_manager: SpriteManager instance for loading sprites
-            fonts: Fonts instance for fallback text rendering
-            sprite_size: Size of sprites in pixels (default 48x48)
+            fonts: Fonts instance for text rendering
         """
-        from core.sprites import AnimationState
+        import time
+        import random
 
-        self.sprite_manager = sprite_manager
         self.fonts = fonts
-        self.sprite_size = sprite_size
-        self.animation_state = AnimationState()
+        self.current_index = 0
+        self.last_update = time.time()
+        # Randomize interval between 3-5 seconds for natural feel
+        self.update_interval = random.uniform(3.0, 5.0)
 
-    def set_action(self, action: str, mood: str):
-        """Set current action/mood for animation."""
-        self.animation_state.set_action(action, mood)
-
-    def update_animation(self) -> bool:
+    def _get_face_sequence(self, mood: str) -> list:
         """
-        Advance animation frame if needed.
+        Get the face sequence for the current mood.
+
+        Args:
+            mood: Mood key (happy, sad, excited, etc.)
 
         Returns:
-            True if frame changed, False otherwise
+            List of face strings to cycle through
         """
-        return self.animation_state.update()
+        return IDLE_FACE_SEQUENCES.get(mood, IDLE_FACE_SEQUENCES["default"])
+
+    def update_animation(self, mood: str) -> None:
+        """
+        Update animation state if enough time has passed.
+
+        Args:
+            mood: Current mood to determine face sequence
+        """
+        import time
+        import random
+
+        now = time.time()
+        if now - self.last_update >= self.update_interval:
+            # Advance to next face in sequence
+            sequence = self._get_face_sequence(mood)
+            self.current_index = (self.current_index + 1) % len(sequence)
+            self.last_update = now
+            # Randomize next interval for natural variation
+            self.update_interval = random.uniform(3.0, 5.0)
 
     def render(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> Tuple[int, int]:
         """
-        Render animated face sprite.
+        Render animated emoji face.
 
         Args:
             draw: PIL ImageDraw instance
-            ctx: Display context with animation state
+            ctx: Display context with message and mood
 
         Returns:
-            (x, y) position where sprite was drawn, or (0, 0) if no sprite
+            (x, y) position where face was drawn, or (0, 0) if hidden
         """
-        # Get current animation frame
-        action = ctx.animation_action or self.animation_state.action
-        mood = ctx.mood_key or self.animation_state.mood
-        frame_idx = self.animation_state.frame_index
+        # Hide face when message text is present - maximize text area
+        if ctx.message and ctx.message.strip():
+            return (0, 0)
 
-        # Get sprite from manager
-        face_sprite = self.sprite_manager.get_animation_frame(action, mood, frame_idx)
+        # Get current mood (fallback to "happy" if not set)
+        mood = ctx.mood_key if ctx.mood_key else "happy"
 
-        if not face_sprite:
-            # Fallback: try idle sprite
-            if action != "idle":
-                face_sprite = self.sprite_manager.get_idle_sprite(mood)
+        # Update animation state
+        self.update_animation(mood)
 
-        if not face_sprite:
-            # Final fallback: draw text face
-            return self._render_text_face(draw, ctx)
+        # Get current face from sequence
+        sequence = self._get_face_sequence(mood)
+        face_text = sequence[self.current_index]
 
-        # Calculate center position in message area
-        sprite_x = (DISPLAY_WIDTH - self.sprite_size) // 2
-        sprite_y = HEADER_HEIGHT + 10  # 10px below header
-
-        # Paste sprite onto image
-        try:
-            draw._image.paste(face_sprite, (sprite_x, sprite_y))
-        except Exception as e:
-            # If paste fails, fall back to text
-            return self._render_text_face(draw, ctx)
-
-        return (sprite_x, sprite_y)
-
-    def _render_text_face(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> Tuple[int, int]:
-        """Fallback to text-based face if sprite not found."""
-        text = ctx.face_str
-        bbox = draw.textbbox((0, 0), text, font=self.fonts.face)
+        # Render centered emoji face
+        bbox = draw.textbbox((0, 0), face_text, font=self.fonts.face)
         text_width_px = bbox[2] - bbox[0]
         x = (DISPLAY_WIDTH - text_width_px) // 2
         y = HEADER_HEIGHT + 15
-        draw.text((x, y), text, font=self.fonts.face, fill=0)
+        draw.text((x, y), face_text, font=self.fonts.face, fill=0)
+
         return (x, y)
 
 
@@ -672,13 +710,13 @@ class PwnagotchiUI:
         Initialize PwnagotchiUI.
 
         Args:
-            sprite_manager: Optional SpriteManager for animated sprites
+            sprite_manager: Unused (kept for compatibility, will be removed)
         """
         self.fonts = Fonts.load()
         self.header = HeaderBar(self.fonts)
         self.message_panel = MessagePanel(self.fonts)
         self.footer = FooterBar(self.fonts)
-        self.face_sprite = FaceSprite(sprite_manager, self.fonts) if sprite_manager else None
+        self.animated_face = AnimatedFace(self.fonts)
 
     def render(self, ctx: DisplayContext) -> Image.Image:
         """
@@ -700,17 +738,18 @@ class PwnagotchiUI:
         # Render header
         self.header.render(draw, ctx)
 
-        # Render face sprite if enabled
-        sprite_y_end = 0
-        if self.face_sprite and self.face_sprite.sprite_manager.is_enabled():
-            sprite_pos = self.face_sprite.render(draw, ctx)
-            sprite_y_end = sprite_pos[1] + self.face_sprite.sprite_size
+        # Render animated emoji face (hides automatically when message present)
+        face_pos = self.animated_face.render(draw, ctx)
+        face_y_end = 0
+        if face_pos != (0, 0):
+            # Face was rendered - estimate height at 50px for large emoji
+            face_y_end = face_pos[1] + 50
 
-        # Adjust message panel to start below sprite if rendered
-        if sprite_y_end > 0:
+        # Adjust message panel to start below face if rendered
+        if face_y_end > 0:
             # Create adjusted context with message offset
             from dataclasses import replace as dataclass_replace
-            ctx_adjusted = dataclass_replace(ctx, message_y_offset=sprite_y_end + 5)
+            ctx_adjusted = dataclass_replace(ctx, message_y_offset=face_y_end + 5)
             self.message_panel.render(draw, ctx_adjusted)
         else:
             self.message_panel.render(draw, ctx)
