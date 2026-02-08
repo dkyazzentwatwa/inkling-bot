@@ -328,7 +328,7 @@ class SSHChatMode:
         """Handle prestige reset."""
         await self._handle_prestige()
 
-    async def cmd_bash(self, args: str) -> None:
+    async def cmd_bash(self, args: str = "") -> None:
         """Run a shell command."""
         if not self._allow_bash:
             print("bash is disabled.")
@@ -351,7 +351,7 @@ class SSHChatMode:
             print(output.rstrip("\n"))
         print(f"[exit {exit_code}]")
 
-    async def cmd_face(self, args: str) -> None:
+    async def cmd_face(self, args: str = "") -> None:
         """Test a face expression."""
         if args:
             face_str = UNICODE_FACES.get(args, FACES.get(args, f"({args})"))
@@ -368,7 +368,7 @@ class SSHChatMode:
         """List all available faces."""
         self._print_faces()
 
-    async def cmd_ask(self, args: str) -> None:
+    async def cmd_ask(self, args: str = "") -> None:
         """Explicit chat command."""
         if not args:
             print("Usage: /ask <your message>")
@@ -849,7 +849,7 @@ class SSHChatMode:
 
         print(f"  {status_icon} {priority_icon} [{task.id[:8]}] {task.title}{overdue}{tags_str}")
 
-    async def cmd_task(self, args: str) -> None:
+    async def cmd_task(self, args: str = "") -> None:
         """Create or show a task."""
         if not self.task_manager:
             print("Task manager not available.")
@@ -982,7 +982,7 @@ class SSHChatMode:
             completed = datetime.fromtimestamp(task.completed_at).strftime("%Y-%m-%d %H:%M")
             print(f"Completed: {completed}")
 
-    async def cmd_done(self, args: str) -> None:
+    async def cmd_done(self, args: str = "") -> None:
         """Mark a task as complete."""
         if not self.task_manager:
             print("Task manager not available.")
@@ -1054,7 +1054,7 @@ class SSHChatMode:
         xp_current = self.personality.progression.xp
         print(f"{Colors.DIM}Level {level} | {xp_current} XP{Colors.RESET}")
 
-    async def cmd_cancel(self, args: str) -> None:
+    async def cmd_cancel(self, args: str = "") -> None:
         """Cancel a task."""
         if not self.task_manager:
             print("Task manager not available.")
@@ -1093,7 +1093,7 @@ class SSHChatMode:
         print(f"\n{Colors.SUCCESS}✗ Task cancelled{Colors.RESET}")
         print(f"  {task.title}")
 
-    async def cmd_delete(self, args: str) -> None:
+    async def cmd_delete(self, args: str = "") -> None:
         """Delete a task permanently."""
         if not self.task_manager:
             print("Task manager not available.")
@@ -1544,7 +1544,7 @@ class SSHChatMode:
         if self.personality.last_thought:
             print(f"{Colors.INFO}Latest: {self.personality.last_thought}{Colors.RESET}")
 
-    async def cmd_find(self, args: str) -> None:
+    async def cmd_find(self, args: str = "") -> None:
         """Search tasks by keyword."""
         if not args.strip():
             print(f"{Colors.ERROR}Usage: /find <keyword>{Colors.RESET}")

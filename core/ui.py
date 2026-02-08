@@ -488,21 +488,42 @@ class MessagePanel:
         max_width = self.width - 10  # Leave some margin
         lines = word_wrap_pixels(ctx.message, max_width, self.fonts.normal, draw)
 
-        # Calculate starting Y to position text block (slightly below center)
-        # Respect message_y_offset if sprite was rendered above
+        # Calculate available space accounting for footer boundary
         line_height = MESSAGE_LINE_HEIGHT
-        total_text_height = len(lines) * line_height
-        vertical_offset = 8  # Pixels to push text down from center
 
         # Adjust for sprite if present
         effective_y = self.y + ctx.message_y_offset
         effective_height = self.height - ctx.message_y_offset
 
-        start_y = effective_y + max(0, (effective_height - total_text_height) // 2) + vertical_offset
+        # Footer starts at DISPLAY_HEIGHT - FOOTER_HEIGHT
+        footer_start = DISPLAY_HEIGHT - FOOTER_HEIGHT
+        max_bottom_y = footer_start - 2  # Leave 2px gap before footer
+
+        # Only apply vertical offset when no sprite is present (saves space with sprites)
+        vertical_offset = 8 if ctx.message_y_offset == 0 else 0
+
+        # Calculate how many lines can fit without overflowing into footer
+        available_height = max_bottom_y - effective_y - vertical_offset
+        max_lines = max(1, available_height // line_height)
+
+        # Limit to calculated max or MESSAGE_MAX_LINES, whichever is smaller
+        lines_to_render = min(len(lines), max_lines, MESSAGE_MAX_LINES)
+
+        # Center the text block vertically within available space
+        total_text_height = lines_to_render * line_height
+        start_y = effective_y + max(0, (available_height - total_text_height) // 2)
+
+        # Ensure we don't start below footer (safety check)
+        if start_y + total_text_height > max_bottom_y:
+            start_y = max_bottom_y - total_text_height
 
         # Draw each line centered horizontally
         text_y = start_y
-        for line in lines[:MESSAGE_MAX_LINES]:
+        for line in lines[:lines_to_render]:
+            # Stop if we would overflow into footer (additional safety)
+            if text_y + line_height > max_bottom_y:
+                break
+
             # Calculate width of this line to center it
             bbox = draw.textbbox((0, 0), line, font=self.fonts.normal)
             text_width = bbox[2] - bbox[0]
