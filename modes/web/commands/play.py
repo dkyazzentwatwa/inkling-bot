@@ -17,38 +17,48 @@ class PlayCommands(CommandHandler):
         emote_text: str,
         mood: Mood,
         intensity: float,
-        faces: list,
         xp_source: XPSource,
     ) -> tuple:
         """
-        Execute a play action with animation and rewards (web version).
+        Execute a play action with emoji face animation and rewards (web version).
 
         Returns:
             (xp_gained, energy_change) tuple
         """
+        from core.ui import ACTION_FACE_SEQUENCES
+
         # Update interaction time
         self.personality._last_interaction = time.time()
 
-        # Set sprite animation for this action
-        mood_key = mood.name.lower()
-        if self.display:
-            self.display.set_animation(action_name, mood_key)
+        # Get emoji face sequence for this action
+        face_sequence = ACTION_FACE_SEQUENCES.get(
+            action_name,
+            ["(^_^)", "(^_~)", "(^_^)"]  # Default fallback
+        )
 
-        # Show animation on display
+        # Show emoji animation on display (if available)
         if self.display:
-            for i, face in enumerate(faces):
-                is_last = (i == len(faces) - 1)
-                text = f"{action_name.title()}!"
+            for i, emoji_face in enumerate(face_sequence):
+                is_last = (i == len(face_sequence) - 1)
+
+                # Show just the emoji face (no text, so face won't hide)
                 await self.display.update(
-                    face=face,
-                    text=text,
+                    face="happy",
+                    text="",  # Empty text - face will show
                     force=True,
                 )
-                if not is_last:
-                    await asyncio.sleep(0.8)
 
-            # Return to idle animation
-            self.display.set_animation("idle", mood_key)
+                # Manually render the action face by updating the UI
+                if self.display._ui and self.display._ui.animated_face:
+                    # Temporarily override to show action face
+                    self.display._ui.animated_face._current_action_face = emoji_face
+
+                if not is_last:
+                    await asyncio.sleep(0.8)  # Animation delay between faces
+
+            # Clear action face override when done
+            if self.display._ui and self.display._ui.animated_face:
+                self.display._ui.animated_face._current_action_face = None
 
         # Boost mood and intensity
         old_mood = self.personality.mood.current
@@ -84,7 +94,6 @@ class PlayCommands(CommandHandler):
                 "goes for a walk",
                 Mood.CURIOUS,
                 0.7,
-                ["look_l", "look_r", "happy"],
                 XPSource.PLAY_WALK,
             ),
             self._loop
@@ -109,7 +118,6 @@ class PlayCommands(CommandHandler):
                 "dances enthusiastically",
                 Mood.EXCITED,
                 0.9,
-                ["excited", "love", "wink", "excited"],
                 XPSource.PLAY_DANCE,
             ),
             self._loop
@@ -134,7 +142,6 @@ class PlayCommands(CommandHandler):
                 "does some stretches",
                 Mood.HAPPY,
                 0.8,
-                ["working", "intense", "awake", "success"],
                 XPSource.PLAY_EXERCISE,
             ),
             self._loop
@@ -159,7 +166,6 @@ class PlayCommands(CommandHandler):
                 "plays with a toy",
                 Mood.HAPPY,
                 0.8,
-                ["excited", "happy", "wink"],
                 XPSource.PLAY_GENERAL,
             ),
             self._loop
@@ -184,7 +190,6 @@ class PlayCommands(CommandHandler):
                 "enjoys being petted",
                 Mood.GRATEFUL,
                 0.7,
-                ["love", "happy", "grateful"],
                 XPSource.PLAY_PET,
             ),
             self._loop
@@ -209,7 +214,6 @@ class PlayCommands(CommandHandler):
                 "takes a short rest",
                 Mood.COOL,
                 0.4,
-                ["cool", "sleep", "sleepy"],
                 XPSource.PLAY_REST,
             ),
             self._loop
