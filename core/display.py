@@ -639,18 +639,35 @@ class DisplayManager:
 
         self._screensaver_active = True
         self._screensaver_current_page = 0
+        print(f"[Screensaver] Starting with {len(self._screensaver_pages)} pages, duration={self._screensaver_page_duration}s")
 
         async def _screensaver_loop():
             while self._screensaver_active:
-                # Render current page
-                page_config = self._screensaver_pages[self._screensaver_current_page]
-                await self._render_screensaver_page(page_config)
+                try:
+                    # Render current page
+                    page_config = self._screensaver_pages[self._screensaver_current_page]
+                    page_type = page_config.get("type", "unknown")
+                    print(f"[Screensaver] Showing page {self._screensaver_current_page + 1}/{len(self._screensaver_pages)}: {page_type}")
 
-                # Wait before next page
-                await asyncio.sleep(self._screensaver_page_duration)
+                    await self._render_screensaver_page(page_config)
 
-                # Next page (cycle)
-                self._screensaver_current_page = (self._screensaver_current_page + 1) % len(self._screensaver_pages)
+                    # Wait before next page
+                    print(f"[Screensaver] Waiting {self._screensaver_page_duration}s before next page...")
+                    await asyncio.sleep(self._screensaver_page_duration)
+
+                    # Next page (cycle)
+                    self._screensaver_current_page = (self._screensaver_current_page + 1) % len(self._screensaver_pages)
+
+                except asyncio.CancelledError:
+                    print("[Screensaver] Loop cancelled")
+                    break
+                except Exception as e:
+                    print(f"[Screensaver] Error in loop: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Continue to next page on error
+                    await asyncio.sleep(1)
+                    self._screensaver_current_page = (self._screensaver_current_page + 1) % len(self._screensaver_pages)
 
         self._screensaver_task = asyncio.create_task(_screensaver_loop())
 
@@ -786,11 +803,12 @@ class DisplayManager:
             image = self.render_frame(face, text, status, mood_text)
 
             # Update display
-            if self._driver.supports_partial and self._refresh_count > 0:
-                # Use partial refresh after first full refresh
-                self._driver.display_partial(image)
-            else:
-                self._driver.display(image)
+            if self._driver:
+                if self._driver.supports_partial and self._refresh_count > 0:
+                    # Use partial refresh after first full refresh
+                    self._driver.display_partial(image)
+                else:
+                    self._driver.display(image)
 
             self._last_refresh = time.time()
             self._refresh_count += 1
