@@ -48,17 +48,19 @@ class PlayCommands(CommandHandler):
                     force=True,
                 )
 
-                # Manually render the action face by updating the UI
-                if self.display._ui and self.display._ui.animated_face:
-                    # Temporarily override to show action face
-                    self.display._ui.animated_face._current_action_face = emoji_face
+                # Manually render the action face by updating the UI (if UI is available)
+                if hasattr(self.display, '_ui') and self.display._ui and hasattr(self.display._ui, 'animated_face'):
+                    if self.display._ui.animated_face:
+                        # Temporarily override to show action face
+                        self.display._ui.animated_face._current_action_face = emoji_face
 
                 if not is_last:
                     await asyncio.sleep(0.8)  # Animation delay between faces
 
-            # Clear action face override when done
-            if self.display._ui and self.display._ui.animated_face:
-                self.display._ui.animated_face._current_action_face = None
+            # Clear action face override when done (if UI is available)
+            if hasattr(self.display, '_ui') and self.display._ui and hasattr(self.display._ui, 'animated_face'):
+                if self.display._ui.animated_face:
+                    self.display._ui.animated_face._current_action_face = None
 
         # Boost mood and intensity
         old_mood = self.personality.mood.current
