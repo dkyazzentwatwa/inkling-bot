@@ -22,8 +22,7 @@ from bottle import Bottle, request, response, static_file, template, redirect
 
 from core.brain import Brain, AllProvidersExhaustedError, QuotaExceededError
 from core.display import DisplayManager
-from core.personality import Personality, Mood
-from core.progression import XPSource
+from core.personality import Personality
 from core.commands import COMMANDS, get_command, get_commands_by_category
 from core.tasks import TaskManager, Task, TaskStatus, Priority
 from core.crypto import Identity

@@ -147,8 +147,9 @@ mcp_servers/
 - Auto-pagination: Long responses (>6 lines) automatically split into pages with 3-second transitions
 
 **Web UI Architecture** (`modes/web_chat.py`):
-- Bottle web framework serving HTML templates (embedded in Python file as string constants)
+- Bottle web framework serving HTML templates (loaded from `modes/web/templates/*.html`)
 - Single-page app with async/await JavaScript
+- Modular command handlers in `modes/web/commands/` (see Command Handler Architecture below)
 - Routes:
   - `/` - Main chat interface
   - `/settings` - Personality, AI config, and appearance settings
@@ -162,11 +163,34 @@ mcp_servers/
   - Theme: Saved to localStorage (`inklingTheme` key)
 
 **Web UI Template Structure**:
-- Templates embedded as constants: `HTML_TEMPLATE`, `SETTINGS_TEMPLATE`, `TASKS_TEMPLATE`, `FILES_TEMPLATE`
+- Templates loaded from external files: `modes/web/templates/`
+  - `main.html` - Chat interface (805 lines)
+  - `settings.html` - Settings page (700 lines)
+  - `tasks.html` - Kanban board (1282 lines)
+  - `files.html` - File browser (874 lines)
+  - `login.html` - Login page (40 lines)
 - CSS themes defined inline with `[data-theme="name"]` selectors
 - JavaScript loads theme from `localStorage.getItem('inklingTheme')` and applies via `document.documentElement.setAttribute('data-theme', theme)`
 - **Theme Consistency**: All templates must have identical theme definitions (cream, pink, mint, lavender, peach, sky, butter, rose, sage, periwinkle, dark, midnight, charcoal)
 - Navigation should use `display: flex; justify-content: space-between; align-items: center` on header for consistent right-aligned nav
+
+**Web UI Command Handler Architecture**:
+- Modular command handlers in `modes/web/commands/` (1485 lines → reduced from 5982)
+- Base class: `CommandHandler` (`__init__.py`) provides access to web_mode components
+  - Properties: `personality`, `display`, `brain`, `task_manager`, `scheduler`, `_loop`, `_config`
+  - Helper: `_get_face_str()` for emoji face strings
+- Command modules (8 total, 1425 lines):
+  - `play.py` (235 lines): walk, dance, exercise, play, pet, rest, energy
+  - `info.py` (120 lines): help, mood, traits, level, prestige, stats
+  - `session.py` (45 lines): ask, clear, history
+  - `tasks.py` (414 lines): tasks, task, done, cancel, delete, taskstats
+  - `system.py` (172 lines): system, config, bash, wifi, btcfg, wifiscan
+  - `scheduler.py` (123 lines): schedule
+  - `display.py` (114 lines): face, faces, refresh, screensaver, darkmode
+  - `utilities.py` (175 lines): thoughts, find, memory, settings, backup, journal
+- Main file contains thin wrappers (2-3 lines) that delegate to handler instances
+- Pattern: `def _cmd_walk(self) -> Dict[str, Any]: return self._play_cmds.walk()`
+- Handlers return `Dict[str, Any]` with keys: `response`, `face`, `status`, optionally `error`
 
 ### Storage Locations
 

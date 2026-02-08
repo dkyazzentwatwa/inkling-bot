@@ -528,7 +528,10 @@ inkling/
 │   └── ...
 ├── modes/             # Operation modes
 │   ├── ssh_chat.py    # Terminal interface
-│   └── web_chat.py    # Browser interface
+│   ├── web_chat.py    # Browser interface (main)
+│   └── web/           # Web UI components
+│       ├── templates/ # HTML templates (main, settings, tasks, files, login)
+│       └── commands/  # Modular command handlers (8 modules, 40 commands)
 ├── mcp_servers/       # MCP tool servers
 │   ├── tasks.py       # Task management tools
 │   ├── system.py      # System utilities
