@@ -31,6 +31,7 @@ from core.crypto import Identity
 # Command handlers
 from modes.web.commands.play import PlayCommands
 from modes.web.commands.info import InfoCommands
+from modes.web.commands.session import SessionCommands
 
 
 # Template loading
@@ -123,6 +124,7 @@ class WebChatMode:
         # Initialize command handlers
         self._play_cmds = PlayCommands(self)
         self._info_cmds = InfoCommands(self)
+        self._session_cmds = SessionCommands(self)
 
         self._setup_routes()
 
@@ -1307,33 +1309,11 @@ class WebChatMode:
 
     def _cmd_history(self) -> Dict[str, Any]:
         """Show recent messages."""
-        if not self.brain._messages:
-            return {
-                "response": "No conversation history.",
-                "face": self._get_face_str(),
-                "status": self.personality.get_status_line(),
-            }
-
-        response = "RECENT MESSAGES\n\n"
-        for msg in self.brain._messages[-10:]:
-            prefix = "You" if msg.role == "user" else self.personality.name
-            content = msg.content[:60] + "..." if len(msg.content) > 60 else msg.content
-            response += f"{prefix}: {content}\n"
-
-        return {
-            "response": response,
-            "face": self._get_face_str(),
-            "status": self.personality.get_status_line(),
-        }
+        return self._session_cmds.history()
 
     def _cmd_clear(self) -> Dict[str, Any]:
         """Clear conversation history."""
-        self.brain.clear_history()
-        return {
-            "response": "Conversation cleared.",
-            "face": self._get_face_str(),
-            "status": self.personality.get_status_line(),
-        }
+        return self._session_cmds.clear()
 
     def _cmd_face(self, args: str) -> Dict[str, Any]:
         """Test a face expression."""
@@ -1557,10 +1537,7 @@ class WebChatMode:
 
     def _cmd_ask(self, args: str) -> Dict[str, Any]:
         """Handle explicit chat command."""
-        if not args:
-            return {"response": "Usage: /ask <your message>\n\nOr just type without / to chat!", "error": True}
-
-        return self._handle_chat_sync(args)
+        return self._session_cmds.ask(args)
 
     def _cmd_bash(self, args: str) -> Dict[str, Any]:
         """Disable bash execution in web UI."""
