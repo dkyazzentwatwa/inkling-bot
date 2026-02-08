@@ -359,7 +359,7 @@ class HeaderBar:
                 battery_icon = "CHG" if ctx.is_charging else "BAT"
             else:
                 battery_icon = "⚡" if ctx.is_charging else "🔋"
-            right_parts.append(f"{battery_icon}{ctx.battery_percentage}%")
+            right_parts.append(f"{battery_icon}%{ctx.battery_percentage}")
 
         # Uptime
         right_parts.append(f"UP {ctx.uptime}")
