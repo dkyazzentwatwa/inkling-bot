@@ -8,6 +8,7 @@ google-genai>=1.0.0
 
 # Image Processing
 Pillow>=10.0.0
+numpy>=1.24.0
 
 # Cryptography
 cryptography>=41.0.0
