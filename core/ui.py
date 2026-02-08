@@ -471,44 +471,44 @@ class FooterBar:
         temp_str = f"{ctx.temperature}°" if ctx.temperature > 0 else "--°"
         line2_left.append(f"{ctx.memory_percent}%m {ctx.cpu_percent}%c {temp_str}")
 
-        # Right-aligned stats
-        line2_right = f"CH{ctx.chat_count} {ctx.clock_time}"
+        # 3. Chat count
+        line2_left.append(f"CH{ctx.chat_count}")
 
-        # Join with vertical bar separator (render separators in bold)
+        # 4. Clock time
+        line2_left.append(ctx.clock_time)
+
+        # Join with vertical bar separator
         separator = "   |   "
         line1_segments = interleave_with_separator(line1, separator)
-        line2_left_segments = interleave_with_separator(line2_left, separator)
+        line2_segments = interleave_with_separator(line2_left, separator)
 
         # Center line 1
         line1_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line1_segments)
         line1_x = (DISPLAY_WIDTH - line1_width) // 2
 
-        # Draw line 1 (use normal text for better readability)
+        # Draw line 1
         x = line1_x
         for seg in line1_segments:
             draw.text((x, line1_y), seg.text, font=self.fonts.small, fill=0)
             x += text_width(draw, seg.text, self.fonts.small)
 
-        # Resolve potential overlap by dropping battery if too wide
-        left_x = 4
-        right_width = text_width(draw, line2_right, self.fonts.small)
-        left_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_left_segments)
-        padding = 6
-        if left_width + right_width + padding > DISPLAY_WIDTH:
-            # Drop battery if still too wide
-            if ctx.battery_percentage != -1:
-                line2_left = [seg for seg in line2_left if not seg.startswith("BAT") and not seg.startswith("CHG") and not seg.startswith("⚡") and not seg.startswith("🔋")]
-            line2_left_segments = interleave_with_separator(line2_left, separator)
+        # Check if line 2 fits, drop battery if needed
+        line2_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_segments)
+        if line2_width > DISPLAY_WIDTH - 8:  # Leave 4px margin on each side
+            # Drop battery if present and too wide
+            if ctx.battery_percentage != -1 and len(line2_left) > 1:
+                line2_left = line2_left[1:]  # Remove first element (battery)
+                line2_segments = interleave_with_separator(line2_left, separator)
+                line2_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_segments)
 
-        # Draw line 2 left-aligned
-        x = left_x
-        for seg in line2_left_segments:
+        # Center line 2
+        line2_x = (DISPLAY_WIDTH - line2_width) // 2
+
+        # Draw line 2
+        x = line2_x
+        for seg in line2_segments:
             draw.text((x, line2_y), seg.text, font=self.fonts.small, fill=0)
             x += text_width(draw, seg.text, self.fonts.small)
-
-        # Draw line 2 right-aligned
-        right_x = DISPLAY_WIDTH - right_width - 4
-        draw.text((right_x, line2_y), line2_right, font=self.fonts.small, fill=0)
 
 
 def format_xp_bar(progress: float, bar_width: int = 10, show_percentage: bool = True) -> str:
