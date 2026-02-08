@@ -45,6 +45,14 @@ class XPSource(Enum):
     TASK_STREAK_3 = "task_streak_3"  # +15 XP
     TASK_STREAK_7 = "task_streak_7"  # +30 XP
 
+    # Play activities
+    PLAY_WALK = "play_walk"  # +3 XP
+    PLAY_DANCE = "play_dance"  # +5 XP
+    PLAY_EXERCISE = "play_exercise"  # +5 XP
+    PLAY_GENERAL = "play_general"  # +4 XP
+    PLAY_REST = "play_rest"  # +2 XP
+    PLAY_PET = "play_pet"  # +3 XP
+
 
 @dataclass
 class Achievement:

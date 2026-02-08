@@ -8,14 +8,16 @@ Reads from stdin, sends to AI, displays responses on e-ink.
 import asyncio
 import inspect
 import sys
+import time
 from typing import Optional
 
 from core.brain import Brain, AllProvidersExhaustedError, QuotaExceededError
 from core.display import DisplayManager
-from core.personality import Personality
+from core.personality import Personality, Mood
 from core.ui import FACES, UNICODE_FACES
 from core.commands import COMMANDS, get_command, get_commands_by_category
 from core.tasks import TaskManager, Task, TaskStatus, Priority
+from core.progression import XPSource
 from core.shell_utils import run_bash_command
 
 
@@ -45,6 +47,7 @@ class Colors:
     SUCCESS = "\033[92m"    # Green
     ERROR = "\033[91m"      # Red
     HEADER = "\033[1;36m"   # Bold cyan
+    EMOTE = "\033[3;35m"    # Italic magenta for emotes
 
     @classmethod
     def mood_color(cls, mood: str) -> str:
@@ -275,12 +278,13 @@ class SSHChatMode:
             "session": "Session",
             "info": "Status & Info",
             "personality": "Personality",
+            "play": "Play & Energy",
             "tasks": "Task Management",
             "system": "System",
             "display": "Display",
         }
 
-        for cat_key in ["session", "info", "personality", "tasks", "system", "display"]:
+        for cat_key in ["session", "info", "personality", "play", "tasks", "system", "display"]:
             if cat_key in categories:
                 print(f"{Colors.BOLD}{category_titles.get(cat_key, cat_key.title())}:{Colors.RESET}")
                 for cmd in categories[cat_key]:
@@ -497,6 +501,9 @@ class SSHChatMode:
         print(f"\n{Colors.BOLD}Energy Level{Colors.RESET}")
         print(f"  [{bar}] {energy:.0%}")
         print(f"  Mood: {mood_color}{mood.title()}{Colors.RESET} (intensity: {intensity:.0%})")
+        print(f"  Mood base energy: {self.personality.mood.current.energy:.0%}")
+        print()
+        print(f"{Colors.DIM}Tip: Play commands (/walk, /dance, /exercise) boost energy!{Colors.RESET}")
 
     def _print_history(self) -> None:
         """Print recent conversation messages."""
@@ -1363,6 +1370,144 @@ class SSHChatMode:
 
         print()
         print(f"{Colors.DIM}Use /btcfg to start BLE configuration service{Colors.RESET}")
+
+    # ================
+    # Play Commands
+    # ================
+
+    async def _play_action(
+        self,
+        action_name: str,
+        emote_text: str,
+        mood: Mood,
+        intensity: float,
+        faces: list,
+        xp_source: XPSource,
+    ) -> None:
+        """
+        Execute a play action with animation and rewards.
+
+        Args:
+            action_name: Name of action (e.g., "walk")
+            emote_text: SSH emote text (e.g., "goes for a walk...")
+            mood: Target mood to set
+            intensity: Mood intensity boost
+            faces: List of face expressions for animation
+            xp_source: XP source for reward
+        """
+        # Update interaction time (prevents boredom/sleepy)
+        self.personality._last_interaction = time.time()
+
+        # Print SSH emote
+        print(f"{Colors.EMOTE}*{self.personality.name} {emote_text}*{Colors.RESET}")
+
+        # Show animation on display (if available)
+        if self.display:
+            for i, face in enumerate(faces):
+                is_last = (i == len(faces) - 1)
+                text = f"{action_name.title()}!"
+                await self.display.update(
+                    face=face,
+                    text=text,
+                    force=True,
+                )
+                if not is_last:
+                    await asyncio.sleep(0.8)  # Animation delay
+
+        # Boost mood and intensity
+        old_mood = self.personality.mood.current
+        old_intensity = self.personality.mood.intensity
+        self.personality.mood.set_mood(mood, intensity)
+
+        # Award XP
+        xp_amounts = {
+            XPSource.PLAY_WALK: 3,
+            XPSource.PLAY_DANCE: 5,
+            XPSource.PLAY_EXERCISE: 5,
+            XPSource.PLAY_GENERAL: 4,
+            XPSource.PLAY_REST: 2,
+            XPSource.PLAY_PET: 3,
+        }
+        awarded, xp_gained = self.personality.progression.award_xp(
+            xp_source,
+            xp_amounts.get(xp_source, 3)
+        )
+
+        # Show results
+        old_energy = old_mood.energy * old_intensity
+        new_energy = self.personality.energy
+        energy_change = new_energy - old_energy
+
+        if awarded:
+            print(f"{Colors.SUCCESS}+{xp_gained} XP  Energy: {old_energy:.0%} → {new_energy:.0%} ({energy_change:+.0%}){Colors.RESET}")
+        else:
+            print(f"{Colors.DIM}Energy: {old_energy:.0%} → {new_energy:.0%} ({energy_change:+.0%}){Colors.RESET}")
+
+    async def cmd_walk(self) -> None:
+        """Go for a walk."""
+        await self._play_action(
+            action_name="walk",
+            emote_text="goes for a walk around the neighborhood",
+            mood=Mood.CURIOUS,
+            intensity=0.7,
+            faces=["look_l", "look_r", "happy"],
+            xp_source=XPSource.PLAY_WALK,
+        )
+
+    async def cmd_dance(self) -> None:
+        """Dance around."""
+        await self._play_action(
+            action_name="dance",
+            emote_text="dances enthusiastically",
+            mood=Mood.EXCITED,
+            intensity=0.9,
+            faces=["excited", "love", "wink", "excited"],
+            xp_source=XPSource.PLAY_DANCE,
+        )
+
+    async def cmd_exercise(self) -> None:
+        """Exercise and stretch."""
+        await self._play_action(
+            action_name="exercise",
+            emote_text="does some stretches and exercises",
+            mood=Mood.HAPPY,
+            intensity=0.8,
+            faces=["working", "intense", "awake", "success"],
+            xp_source=XPSource.PLAY_EXERCISE,
+        )
+
+    async def cmd_play(self) -> None:
+        """Play with a toy."""
+        await self._play_action(
+            action_name="play",
+            emote_text="plays with a toy",
+            mood=Mood.HAPPY,
+            intensity=0.8,
+            faces=["excited", "happy", "wink"],
+            xp_source=XPSource.PLAY_GENERAL,
+        )
+
+    async def cmd_pet(self) -> None:
+        """Get petted."""
+        await self._play_action(
+            action_name="pet",
+            emote_text="enjoys being petted",
+            mood=Mood.GRATEFUL,
+            intensity=0.7,
+            faces=["love", "happy", "grateful"],
+            xp_source=XPSource.PLAY_PET,
+        )
+
+    async def cmd_rest(self) -> None:
+        """Take a short rest."""
+        await self._play_action(
+            action_name="rest",
+            emote_text="takes a short rest",
+            mood=Mood.COOL,
+            intensity=0.4,
+            faces=["cool", "sleep", "sleepy"],
+            xp_source=XPSource.PLAY_REST,
+        )
 
     async def cmd_thoughts(self) -> None:
         """Show recent autonomous thoughts from the thought log."""

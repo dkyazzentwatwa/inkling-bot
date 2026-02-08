@@ -69,6 +69,14 @@ COMMANDS: List[Command] = [
     Command("btcfg", "Start BLE WiFi configuration (15 min)", "cmd_btcfg", "system"),
     Command("wifiscan", "Scan for nearby WiFi networks", "cmd_wifiscan", "system"),
 
+    # Play commands
+    Command("walk", "Go for a walk (boosts energy +3 XP)", "cmd_walk", "play"),
+    Command("dance", "Dance around (boosts energy +5 XP)", "cmd_dance", "play"),
+    Command("exercise", "Exercise and stretch (boosts energy +5 XP)", "cmd_exercise", "play"),
+    Command("play", "Play with a toy (boosts energy +4 XP)", "cmd_play", "play"),
+    Command("pet", "Get petted (boosts mood +3 XP)", "cmd_pet", "play"),
+    Command("rest", "Take a short rest (calms down +2 XP)", "cmd_rest", "play"),
+
     # Session commands (SSH only)
     Command("ask", "Explicit chat command", "cmd_ask", "session", requires_brain=True),
     Command("clear", "Clear conversation history", "cmd_clear", "session", requires_brain=True),
