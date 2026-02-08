@@ -33,6 +33,10 @@ from modes.web.commands.play import PlayCommands
 from modes.web.commands.info import InfoCommands
 from modes.web.commands.session import SessionCommands
 from modes.web.commands.tasks import TaskCommands
+from modes.web.commands.system import SystemCommands
+from modes.web.commands.scheduler import SchedulerCommands
+from modes.web.commands.display import DisplayCommands
+from modes.web.commands.utilities import UtilityCommands
 
 
 # Template loading
@@ -127,6 +131,10 @@ class WebChatMode:
         self._info_cmds = InfoCommands(self)
         self._session_cmds = SessionCommands(self)
         self._task_cmds = TaskCommands(self)
+        self._system_cmds = SystemCommands(self)
+        self._scheduler_cmds = SchedulerCommands(self)
+        self._display_cmds = DisplayCommands(self)
+        self._utility_cmds = UtilityCommands(self)
 
         self._setup_routes()
 
@@ -1174,46 +1182,11 @@ class WebChatMode:
 
     def _cmd_system(self) -> Dict[str, Any]:
         """Show system stats."""
-        from core import system_stats
-
-        stats = system_stats.get_all_stats()
-        response = "SYSTEM STATUS\n\n"
-        response += f"CPU:    {stats['cpu']}%\n"
-        response += f"Memory: {stats['memory']}%\n"
-
-        temp = stats['temperature']
-        if temp > 0:
-            response += f"Temp:   {temp}°C\n"
-        else:
-            response += f"Temp:   --°C\n"
-
-        response += f"Uptime: {stats['uptime']}"
-
-        return {
-            "response": response,
-            "face": self._get_face_str(),
-            "status": self.personality.get_status_line(),
-        }
+        return self._system_cmds.system()
 
     def _cmd_config(self) -> Dict[str, Any]:
         """Show AI configuration."""
-        response = "AI CONFIGURATION\n\n"
-        response += f"Providers: {', '.join(self.brain.available_providers)}\n"
-
-        if self.brain.providers:
-            primary = self.brain.providers[0]
-            response += f"Primary:   {primary.name}\n"
-            response += f"Model:     {primary.model}\n"
-            response += f"Max tokens: {primary.max_tokens}\n"
-
-        stats = self.brain.get_stats()
-        response += f"\nBudget: {stats['tokens_used_today']}/{stats['daily_limit']} tokens today"
-
-        return {
-            "response": response,
-            "face": self._get_face_str(),
-            "status": self.personality.get_status_line(),
-        }
+        return self._system_cmds.config()
 
     def _cmd_history(self) -> Dict[str, Any]:
         """Show recent messages."""
@@ -1225,223 +1198,27 @@ class WebChatMode:
 
     def _cmd_face(self, args: str) -> Dict[str, Any]:
         """Test a face expression."""
-        if not args:
-            return {"response": "Usage: /face <name>\n\nUse /faces to see all available faces", "error": True}
-
-        # Update display
-        if self._loop:
-            asyncio.run_coroutine_threadsafe(
-                self.display.update(face=args, text=f"Testing face: {args}"),
-                self._loop
-            )
-
-        face_str = self._faces.get(args, f"({args})")
-        return {
-            "response": f"Showing face: {args}",
-            "face": face_str,
-            "status": f"face: {args}",
-        }
+        return self._display_cmds.face(args)
 
     def _cmd_faces(self) -> Dict[str, Any]:
         """List all available faces."""
-        from core.ui import FACES
-
-        response = "AVAILABLE FACES\n\n"
-        for name, face in sorted(FACES.items()):
-            response += f"{name:12} {face}\n"
-
-        return {
-            "response": response,
-            "face": self._get_face_str(),
-            "status": self.personality.get_status_line(),
-        }
+        return self._display_cmds.faces()
 
     def _cmd_refresh(self) -> Dict[str, Any]:
         """Force display refresh."""
-        if self._loop:
-            asyncio.run_coroutine_threadsafe(
-                self.display.update(
-                    face=self.personality.face,
-                    text="Display refreshed!",
-                    status=self.personality.get_status_line(),
-                    force=True,
-                ),
-                self._loop
-            )
-
-        return {
-            "response": "Display refreshed.",
-            "face": self._get_face_str(),
-            "status": self.personality.get_status_line(),
-        }
+        return self._display_cmds.refresh()
 
     def _cmd_screensaver(self, args: str = "") -> Dict[str, Any]:
         """Toggle screen saver."""
-        if args.lower() == "on":
-            self.display.configure_screensaver(enabled=True)
-            response = "✓ Screen saver enabled"
-        elif args.lower() == "off":
-            self.display.configure_screensaver(enabled=False)
-            if self.display._screensaver_active and self._loop:
-                asyncio.run_coroutine_threadsafe(
-                    self.display.stop_screensaver(),
-                    self._loop
-                )
-            response = "✓ Screen saver disabled"
-        else:
-            # Toggle
-            current = self.display._screensaver_enabled
-            self.display.configure_screensaver(enabled=not current)
-            status = "enabled" if not current else "disabled"
-            response = f"✓ Screen saver {status}"
-
-        return {
-            "response": response,
-            "face": self._get_face_str(),
-            "status": self.personality.get_status_line(),
-        }
+        return self._display_cmds.screensaver(args)
 
     def _cmd_darkmode(self, args: str = "") -> Dict[str, Any]:
         """Toggle dark mode."""
-        if args.lower() == "on":
-            self.display._dark_mode = True
-            response = "✓ Dark mode enabled"
-        elif args.lower() == "off":
-            self.display._dark_mode = False
-            response = "✓ Dark mode disabled"
-        else:
-            # Toggle
-            self.display._dark_mode = not self.display._dark_mode
-            status = "enabled" if self.display._dark_mode else "disabled"
-            response = f"✓ Dark mode {status}"
-
-        # Force refresh to apply dark mode change
-        if self._loop:
-            asyncio.run_coroutine_threadsafe(
-                self.display.update(force=True),
-                self._loop
-            )
-
-        return {
-            "response": response,
-            "face": self._get_face_str(),
-            "status": self.personality.get_status_line(),
-        }
+        return self._display_cmds.darkmode(args)
 
     def _cmd_schedule(self, args: str = "") -> Dict[str, Any]:
         """Manage scheduled tasks."""
-        if not hasattr(self, 'scheduler') or not self.scheduler:
-            return {
-                "response": "Scheduler not available.\n\nEnable in config.yml under 'scheduler.enabled: true'",
-                "face": self._get_face_str(),
-                "status": self.personality.get_status_line(),
-                "error": True
-            }
-
-        if not args:
-            # List all scheduled tasks
-            tasks = self.scheduler.list_tasks()
-
-            if not tasks:
-                return {
-                    "response": "No scheduled tasks configured.\n\nAdd tasks in config.yml under 'scheduler.tasks'",
-                    "face": self._get_face_str(),
-                    "status": self.personality.get_status_line(),
-                }
-
-            response = "SCHEDULED TASKS\n\n"
-            next_runs = self.scheduler.get_next_run_times()
-
-            for task in tasks:
-                status_icon = "✓" if task.enabled else "✗"
-                response += f"{status_icon} {task.name}\n"
-                response += f"   Schedule: {task.schedule_expr}\n"
-                response += f"   Action:   {task.action}\n"
-
-                if task.enabled:
-                    next_run = next_runs.get(task.name, "Unknown")
-                    response += f"   Next run: {next_run}\n"
-
-                if task.last_run > 0:
-                    import time
-                    from datetime import datetime
-                    last_run_dt = datetime.fromtimestamp(task.last_run)
-                    response += f"   Last run: {last_run_dt.strftime('%Y-%m-%d %H:%M:%S')} ({task.run_count} times)\n"
-
-                if task.last_error:
-                    response += f"   Error: {task.last_error}\n"
-
-                response += "\n"
-
-            return {
-                "response": response,
-                "face": self._get_face_str(),
-                "status": self.personality.get_status_line(),
-            }
-
-        # Parse subcommands
-        parts = args.split(maxsplit=1)
-        subcmd = parts[0].lower()
-
-        if subcmd == "list":
-            # Redirect to list (same as no args)
-            return self._cmd_schedule()
-
-        elif subcmd == "enable":
-            if len(parts) < 2:
-                return {
-                    "response": "Usage: /schedule enable <task_name>",
-                    "face": self._get_face_str(),
-                    "status": self.personality.get_status_line(),
-                    "error": True
-                }
-
-            task_name = parts[1]
-            if self.scheduler.enable_task(task_name):
-                return {
-                    "response": f"✓ Enabled: {task_name}",
-                    "face": self._get_face_str(),
-                    "status": self.personality.get_status_line(),
-                }
-            else:
-                return {
-                    "response": f"Task not found: {task_name}",
-                    "face": self._get_face_str(),
-                    "status": self.personality.get_status_line(),
-                    "error": True
-                }
-
-        elif subcmd == "disable":
-            if len(parts) < 2:
-                return {
-                    "response": "Usage: /schedule disable <task_name>",
-                    "face": self._get_face_str(),
-                    "status": self.personality.get_status_line(),
-                    "error": True
-                }
-
-            task_name = parts[1]
-            if self.scheduler.disable_task(task_name):
-                return {
-                    "response": f"✓ Disabled: {task_name}",
-                    "face": self._get_face_str(),
-                    "status": self.personality.get_status_line(),
-                }
-            else:
-                return {
-                    "response": f"Task not found: {task_name}",
-                    "face": self._get_face_str(),
-                    "status": self.personality.get_status_line(),
-                    "error": True
-                }
-
-        else:
-            return {
-                "response": f"Unknown subcommand: {subcmd}\n\nAvailable commands:\n  /schedule           - List all scheduled tasks\n  /schedule list      - List all scheduled tasks\n  /schedule enable <name>  - Enable a task\n  /schedule disable <name> - Disable a task",
-                "face": self._get_face_str(),
-                "status": self.personality.get_status_line(),
-                "error": True
-            }
+        return self._scheduler_cmds.schedule(args)
 
     def _cmd_ask(self, args: str) -> Dict[str, Any]:
         """Handle explicit chat command."""
@@ -1449,124 +1226,19 @@ class WebChatMode:
 
     def _cmd_bash(self, args: str) -> Dict[str, Any]:
         """Disable bash execution in web UI."""
-        return {
-            "response": "The /bash command is disabled in the web UI.",
-            "error": True,
-        }
+        return self._system_cmds.bash(args)
 
     def _cmd_wifi(self) -> Dict[str, Any]:
         """Show WiFi status and saved networks."""
-        from core.wifi_utils import get_current_wifi, get_saved_networks, is_btcfg_running, get_wifi_bars
-
-        status = get_current_wifi()
-        output = ["**WiFi Status**\n"]
-
-        # Current connection
-        if status.connected and status.ssid:
-            bars = get_wifi_bars(status.signal_strength)
-            output.append(f"✓ Connected to: **{status.ssid}**")
-            output.append(f"  Signal: {bars} {status.signal_strength}%")
-            if status.ip_address:
-                output.append(f"  IP: {status.ip_address}")
-            if status.frequency:
-                output.append(f"  Band: {status.frequency}")
-        else:
-            output.append("✗ Not connected")
-
-        output.append("")
-
-        # BLE service status
-        if is_btcfg_running():
-            output.append("🔵 **BLE Configuration: Running** (15 min window)")
-            output.append("   Use BTBerryWifi app to configure WiFi")
-        else:
-            output.append("🔵 BLE Configuration: Stopped")
-            output.append("   Use /btcfg to start configuration service")
-
-        output.append("")
-
-        # Saved networks
-        saved = get_saved_networks()
-        if saved:
-            output.append(f"**Saved Networks ({len(saved)}):**")
-            for ssid in saved:
-                icon = "●" if status.connected and status.ssid == ssid else "○"
-                output.append(f"  {icon} {ssid}")
-        else:
-            output.append("*No saved networks*")
-
-        output.append("")
-        output.append("*Tip: Use /wifiscan to find nearby networks*")
-
-        return {
-            "response": "\n".join(output),
-            "face": self.personality.face,
-        }
+        return self._system_cmds.wifi()
 
     def _cmd_btcfg(self) -> Dict[str, Any]:
         """Start BTBerryWifi BLE configuration service."""
-        from core.wifi_utils import start_btcfg
-
-        success, message = start_btcfg()
-
-        return {
-            "response": message,
-            "face": self.personality.face,
-            "error": not success,
-        }
+        return self._system_cmds.btcfg()
 
     def _cmd_wifiscan(self) -> Dict[str, Any]:
         """Scan for nearby WiFi networks."""
-        from core.wifi_utils import scan_networks, get_current_wifi
-
-        networks = scan_networks()
-        current = get_current_wifi()
-
-        if not networks:
-            return {
-                "response": "No networks found or permission denied.\n\n*Tip: Scanning requires sudo access*",
-                "face": self.personality.face,
-                "error": True,
-            }
-
-        output = [f"**Nearby Networks ({len(networks)})**\n"]
-
-        for net in networks:
-            # Visual signal indicator
-            if net.signal_strength >= 80:
-                signal_icon = "▂▄▆█"
-            elif net.signal_strength >= 60:
-                signal_icon = "▂▄▆"
-            elif net.signal_strength >= 40:
-                signal_icon = "▂▄"
-            elif net.signal_strength >= 20:
-                signal_icon = "▂"
-            else:
-                signal_icon = "○"
-
-            # Connection indicator
-            connected = current.connected and current.ssid == net.ssid
-            conn_icon = "●" if connected else " "
-
-            # Security badge
-            if net.security == "Open":
-                security_badge = "[OPEN]"
-            elif net.security == "WPA3":
-                security_badge = "[WPA3]"
-            elif net.security == "WPA2":
-                security_badge = "[WPA2]"
-            else:
-                security_badge = f"[{net.security}]"
-
-            output.append(f"{conn_icon} {signal_icon} {net.signal_strength:3}% {security_badge} {net.ssid}")
-
-        output.append("")
-        output.append("*Use /btcfg to start BLE configuration service*")
-
-        return {
-            "response": "\n".join(output),
-            "face": self.personality.face,
-        }
+        return self._system_cmds.wifiscan()
 
     # ================
     # Play Commands
@@ -1598,174 +1270,27 @@ class WebChatMode:
 
     def _cmd_thoughts(self) -> Dict[str, Any]:
         """Show recent autonomous thoughts."""
-        from pathlib import Path
-
-        log_path = Path("~/.inkling/thoughts.log").expanduser()
-        if not log_path.exists():
-            return {
-                "response": "No thoughts yet. Thoughts are generated automatically over time.",
-                "face": self.personality.face,
-            }
-
-        lines = log_path.read_text().strip().splitlines()
-        recent = lines[-10:]
-
-        output = [f"**Recent Thoughts** ({len(recent)} of {len(lines)})\n"]
-        for line in recent:
-            parts = line.split(" | ", 1)
-            if len(parts) == 2:
-                ts, thought = parts
-                output.append(f"`{ts}` {thought}")
-            else:
-                output.append(line)
-
-        if self.personality.last_thought:
-            output.append(f"\n*Latest: {self.personality.last_thought}*")
-
-        return {
-            "response": "\n".join(output),
-            "face": self.personality.face,
-        }
+        return self._utility_cmds.thoughts()
 
     def _cmd_find(self, args: str = "") -> Dict[str, Any]:
         """Search tasks by keyword."""
-        if not args.strip():
-            return {"response": "Usage: `/find <keyword>`", "face": self.personality.face}
-
-        if not self.task_manager:
-            return {"response": "Task manager not available.", "face": self.personality.face, "error": True}
-
-        query = args.strip().lower()
-        all_tasks = self.task_manager.list_tasks()
-        matches = [
-            t for t in all_tasks
-            if query in t.title.lower()
-            or (t.description and query in t.description.lower())
-            or any(query in tag.lower() for tag in t.tags)
-        ]
-
-        if not matches:
-            return {"response": f"No tasks found matching '{args.strip()}'.", "face": self.personality.face}
-
-        status_icons = {"pending": "📋", "in_progress": "⏳", "completed": "✅", "cancelled": "❌"}
-        output = [f"**Search Results** ({len(matches)} matches)\n"]
-        for task in matches:
-            icon = status_icons.get(task.status.value, "·")
-            tags = " ".join(f"#{t}" for t in task.tags) if task.tags else ""
-            output.append(f"{icon} `{task.id[:8]}` **{task.title}** [{task.priority.value}]")
-            if task.description:
-                output.append(f"   {task.description[:80]}")
-            if tags:
-                output.append(f"   {tags}")
-
-        return {
-            "response": "\n".join(output),
-            "face": self.personality.face,
-        }
+        return self._utility_cmds.find(args)
 
     def _cmd_memory(self) -> Dict[str, Any]:
         """Show memory stats and recent entries."""
-        from core.memory import MemoryStore
-
-        store = MemoryStore()
-        try:
-            store.initialize()
-
-            total = store.count()
-            user_count = store.count(MemoryStore.CATEGORY_USER)
-            pref_count = store.count(MemoryStore.CATEGORY_PREFERENCE)
-            fact_count = store.count(MemoryStore.CATEGORY_FACT)
-            event_count = store.count(MemoryStore.CATEGORY_EVENT)
-
-            output = ["**Memory Store**\n"]
-            output.append(f"Total: **{total}** memories")
-            output.append(f"  User info: {user_count}")
-            output.append(f"  Preferences: {pref_count}")
-            output.append(f"  Facts: {fact_count}")
-            output.append(f"  Events: {event_count}")
-
-            recent = store.recall_recent(limit=5)
-            if recent:
-                output.append("\n**Recent:**")
-                for mem in recent:
-                    output.append(f"  `[{mem.category}]` {mem.key}: {mem.value[:60]}")
-
-            important = store.recall_important(limit=3)
-            if important:
-                output.append("\n**Most Important:**")
-                for mem in important:
-                    output.append(f"  ★{mem.importance:.1f} `[{mem.category}]` {mem.key}: {mem.value[:60]}")
-
-            return {
-                "response": "\n".join(output),
-                "face": self.personality.face,
-            }
-        finally:
-            store.close()
+        return self._utility_cmds.memory()
 
     def _cmd_settings(self) -> Dict[str, Any]:
         """Show current settings (redirects to settings page in web mode)."""
-        return {
-            "response": "Visit the [Settings](/settings) page to view and change settings.",
-            "face": self.personality.face,
-        }
+        return self._utility_cmds.settings()
 
     def _cmd_backup(self) -> Dict[str, Any]:
         """Create a backup of Inkling data."""
-        import shutil
-        from pathlib import Path
-        from datetime import datetime
-
-        data_dir = Path("~/.inkling").expanduser()
-        if not data_dir.exists():
-            return {"response": "No data directory found.", "face": self.personality.face, "error": True}
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_name = f"inkling_backup_{timestamp}"
-        backup_path = data_dir.parent / f"{backup_name}.tar.gz"
-
-        try:
-            shutil.make_archive(
-                str(data_dir.parent / backup_name),
-                'gztar',
-                root_dir=str(data_dir.parent),
-                base_dir='.inkling'
-            )
-            size_mb = backup_path.stat().st_size / (1024 * 1024)
-            return {
-                "response": f"Backup created!\n\n**File:** `{backup_path}`\n**Size:** {size_mb:.1f} MB",
-                "face": "happy",
-            }
-        except Exception as e:
-            return {"response": f"Backup failed: {e}", "face": self.personality.face, "error": True}
+        return self._utility_cmds.backup()
 
     def _cmd_journal(self) -> Dict[str, Any]:
         """Show recent journal entries."""
-        from pathlib import Path
-
-        journal_path = Path("~/.inkling/journal.log").expanduser()
-        if not journal_path.exists():
-            return {
-                "response": "No journal entries yet. Journal entries are written daily by the heartbeat system.",
-                "face": self.personality.face,
-            }
-
-        lines = journal_path.read_text().strip().splitlines()
-        recent = lines[-10:]
-
-        output = [f"**Journal** ({len(recent)} of {len(lines)} entries)\n"]
-        for line in recent:
-            parts = line.split(" | ", 1)
-            if len(parts) == 2:
-                ts, entry = parts
-                output.append(f"`{ts}` {entry}")
-            else:
-                output.append(line)
-
-        return {
-            "response": "\n".join(output),
-            "face": self.personality.face,
-        }
+        return self._utility_cmds.journal()
 
     def _handle_command_sync(self, command: str) -> Dict[str, Any]:
         """Handle slash commands (sync wrapper)."""
