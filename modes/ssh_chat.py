@@ -306,6 +306,14 @@ class SSHChatMode:
         self.brain.clear_history()
         print("Conversation history cleared.")
 
+        # Update display to show idle face (clear any message text)
+        if self.display:
+            await self.display.update(
+                face="happy",
+                text="",  # Empty text - idle face will show
+                force=True,
+            )
+
     async def cmd_mood(self) -> None:
         """Show current mood."""
         mood = self.personality.mood

@@ -730,26 +730,21 @@ class DisplayManager:
             face = "thinking"
 
         elif page_type == "faces":
-            # Show animated idle sprite cycling through moods
+            # Show animated idle emoji faces
             import random
             mood = random.choice(["happy", "curious", "excited", "sleepy", "bored", "sad"])
-            self.set_animation("idle", mood)
             face = mood
-            text = f"Mood: {mood.title()}"
+            text = ""  # No text - just show animated emoji face
 
         elif page_type == "walk":
-            # Walking animation
-            import random
-            mood = random.choice(["happy", "sad", "excited"])
-            self.set_animation("walk", mood)
-            face = "walking"
-            text = "Taking a walk..."
+            # Show walk emoji (no animation in screensaver)
+            face = "curious"
+            text = ""  # No text - just emoji face
 
         elif page_type == "dance":
-            # Dancing animation
-            self.set_animation("dance", "excited")
-            face = "dancing"
-            text = "Dancing!"
+            # Show dance emoji (no animation in screensaver)
+            face = "excited"
+            text = ""  # No text - just emoji face
 
         elif page_type == "progression":
             # XP and level progress
