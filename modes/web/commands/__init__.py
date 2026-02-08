@@ -19,8 +19,12 @@ class CommandHandler:
         self.brain = web_mode.brain
         self.task_manager = web_mode.task_manager
         self.scheduler = web_mode.scheduler
-        self._loop = web_mode._loop
         self._config = web_mode._config
+
+    @property
+    def _loop(self):
+        """Get event loop dynamically (it's set after __init__)."""
+        return self.web_mode._loop
 
     def _get_face_str(self) -> str:
         """Get current face emoji."""
