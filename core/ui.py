@@ -325,9 +325,9 @@ class DisplayContext:
 
 class HeaderBar:
     """
-    Top header bar with name, mood, WiFi signal, and uptime.
+    Top header bar with name, mood, WiFi signal, battery, and uptime.
 
-    Format: "name> Mood  [WiFi bars] UP HH:MM:SS"
+    Format: "name> Mood  [WiFi bars] BAT 92% UP HH:MM:SS"
     """
 
     def __init__(self, fonts: Fonts):
@@ -344,18 +344,31 @@ class HeaderBar:
         name_mood = f"{ctx.name[:8]}> {ctx.mood_text[:12]}"
         draw_text_bold(draw, (3, self.y + 2), name_mood, font=self.fonts.small, fill=0)
 
-        # Build uptime text with WiFi bars if connected
+        # Build right-side text: WiFi + Battery + Uptime
+        right_parts = []
+
+        # WiFi bars if connected
         if ctx.wifi_ssid and ctx.wifi_signal > 0:
             from core.wifi_utils import get_wifi_bars
             wifi_bars = get_wifi_bars(ctx.wifi_signal)
-            uptime_text = f"{wifi_bars} UP {ctx.uptime}"
-        else:
-            uptime_text = f"UP {ctx.uptime}"
+            right_parts.append(wifi_bars)
 
-        # Right-align uptime
-        uptime_width = text_width(draw, uptime_text, self.fonts.tiny)
-        uptime_x = DISPLAY_WIDTH - uptime_width - 6
-        draw_text_bold(draw, (uptime_x, self.y + 3), uptime_text, font=self.fonts.tiny, fill=0)
+        # Battery percentage if available
+        if ctx.battery_percentage != -1:
+            if ctx.prefer_ascii:
+                battery_icon = "CHG" if ctx.is_charging else "BAT"
+            else:
+                battery_icon = "⚡" if ctx.is_charging else "🔋"
+            right_parts.append(f"{battery_icon}{ctx.battery_percentage}%")
+
+        # Uptime
+        right_parts.append(f"UP {ctx.uptime}")
+
+        # Join and right-align
+        right_text = " ".join(right_parts)
+        right_width = text_width(draw, right_text, self.fonts.tiny)
+        right_x = DISPLAY_WIDTH - right_width - 6
+        draw_text_bold(draw, (right_x, self.y + 3), right_text, font=self.fonts.tiny, fill=0)
 
 
 class MessagePanel:
@@ -420,11 +433,13 @@ class MessagePanel:
 
 class FooterBar:
     """
-    Bottom footer bar with all stats in compact format.
+    Bottom footer bar with system stats and info.
 
-    Two-line format to reduce crowding:
-    Line 1: "[████████░░] 80% | L1 NEWB | SSH"
-    Line 2: "BAT 85% 54%mem 1%cpu 43° | CH3 | 10:42"
+    Two-line format:
+    Line 1: "[████████░░] 80% | L12 EXPL | SSH"
+    Line 2: "54%m 1%c 43° | CH3 | 14:23"
+
+    Note: Battery moved to header for better visibility.
     """
 
     def __init__(self, fonts: Fonts):
@@ -459,22 +474,14 @@ class FooterBar:
         # Line 2 components
         line2_left = []
 
-        # 1. Battery status
-        if ctx.battery_percentage != -1:
-            if ctx.prefer_ascii:
-                battery_label = "CHG" if ctx.is_charging else "BAT"
-            else:
-                battery_label = "⚡" if ctx.is_charging else "🔋"
-            line2_left.append(f"{battery_label} {ctx.battery_percentage}%")
-
-        # 2. System stats (memory, cpu, temp)
+        # 1. System stats (memory, cpu, temp)
         temp_str = f"{ctx.temperature}°" if ctx.temperature > 0 else "--°"
         line2_left.append(f"{ctx.memory_percent}%m {ctx.cpu_percent}%c {temp_str}")
 
-        # 3. Chat count
+        # 2. Chat count
         line2_left.append(f"CH{ctx.chat_count}")
 
-        # 4. Clock time
+        # 3. Clock time
         line2_left.append(ctx.clock_time)
 
         # Join with vertical bar separator
@@ -492,16 +499,8 @@ class FooterBar:
             draw.text((x, line1_y), seg.text, font=self.fonts.small, fill=0)
             x += text_width(draw, seg.text, self.fonts.small)
 
-        # Check if line 2 fits, drop battery if needed
-        line2_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_segments)
-        if line2_width > DISPLAY_WIDTH - 8:  # Leave 4px margin on each side
-            # Drop battery if present and too wide
-            if ctx.battery_percentage != -1 and len(line2_left) > 1:
-                line2_left = line2_left[1:]  # Remove first element (battery)
-                line2_segments = interleave_with_separator(line2_left, separator)
-                line2_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_segments)
-
         # Center line 2
+        line2_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_segments)
         line2_x = (DISPLAY_WIDTH - line2_width) // 2
 
         # Draw line 2
