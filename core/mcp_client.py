@@ -242,7 +242,9 @@ class MCPClientManager:
 
         try:
             while True:
-                line = await reader.readline()
+                # Increase readline limit to 10MB for large tool lists (Composio has 215 tools)
+                # Default limit is 64KB which causes "chunk exceed the limit" errors
+                line = await reader.readline(limit=10 * 1024 * 1024)
                 if not line:
                     break
 
@@ -257,7 +259,8 @@ class MCPClientManager:
                         else:
                             future.set_result(message.get("result", {}))
 
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
+                    print(f"[MCP] JSON decode error for {server}: {e}")
                     continue
 
         except Exception as e:
