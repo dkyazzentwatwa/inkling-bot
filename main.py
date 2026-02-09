@@ -239,10 +239,32 @@ class Inkling:
         if scheduler_enabled:
             print("  - Starting scheduler...")
             try:
-                from core.scheduler import ScheduledTaskManager
+                from core.scheduler import (
+                    ScheduledTaskManager,
+                    action_daily_summary,
+                    action_weekly_cleanup,
+                    action_nightly_backup,
+                    action_system_health_check,
+                    action_task_reminders,
+                    action_morning_briefing,
+                    action_rss_digest
+                )
+
                 self.scheduler = ScheduledTaskManager()
+
+                # Register actions BEFORE loading config
+                self.scheduler.register_action("daily_summary", lambda: action_daily_summary(self))
+                self.scheduler.register_action("weekly_cleanup", lambda: action_weekly_cleanup(self))
+                self.scheduler.register_action("nightly_backup", lambda: action_nightly_backup(self))
+                self.scheduler.register_action("system_health_check", lambda: action_system_health_check(self))
+                self.scheduler.register_action("task_reminders", lambda: action_task_reminders(self))
+                self.scheduler.register_action("morning_briefing", lambda: action_morning_briefing(self))
+                self.scheduler.register_action("rss_digest", lambda: action_rss_digest(self))
+
+                # Now load config (actions are already registered)
                 self.scheduler.load_from_config(scheduler_config_data)
                 print(f"    Scheduled tasks: {len(self.scheduler.tasks)}")
+                print(f"    Registered actions: {len(self.scheduler.action_handlers)}")
             except Exception as e:
                 print(f"    Scheduler failed to initialize: {e}")
                 self.scheduler = None
@@ -319,29 +341,6 @@ class Inkling:
             print(f"    Tick interval: {heartbeat_config.tick_interval_seconds}s")
         else:
             print("  - Heartbeat disabled")
-
-        # Register scheduler actions
-        if self.scheduler:
-            from core.scheduler import (
-                action_daily_summary,
-                action_weekly_cleanup,
-                action_nightly_backup,
-                action_system_health_check,
-                action_task_reminders,
-                action_morning_briefing,
-                action_rss_digest
-            )
-
-            # Register all actions with access to inkling instance
-            self.scheduler.register_action("daily_summary", lambda: action_daily_summary(self))
-            self.scheduler.register_action("weekly_cleanup", lambda: action_weekly_cleanup(self))
-            self.scheduler.register_action("nightly_backup", lambda: action_nightly_backup(self))
-            self.scheduler.register_action("system_health_check", lambda: action_system_health_check(self))
-            self.scheduler.register_action("task_reminders", lambda: action_task_reminders(self))
-            self.scheduler.register_action("morning_briefing", lambda: action_morning_briefing(self))
-            self.scheduler.register_action("rss_digest", lambda: action_rss_digest(self))
-
-            print(f"    Registered {len(self.scheduler.action_handlers)} scheduler actions")
 
         print("Initialization complete!")
 
