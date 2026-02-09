@@ -468,7 +468,10 @@
     <div class="container">
         <header>
             <div class="header-left">
-                <h1>📁 Files</h1>
+                <h1>
+                    <span class="face" id="face">{{face}}</span>
+                    <span>Files</span>
+                </h1>
                 <div class="status-line" id="status">{{status}}</div>
                 <div class="thought-line" id="thought">{{thought}}</div>
             </div>
@@ -890,7 +893,6 @@
     </script>
 </body>
 </html>
-"""
 
 
 class WebChatMode:
