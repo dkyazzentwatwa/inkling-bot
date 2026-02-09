@@ -1316,10 +1316,16 @@ class WebChatMode:
             return {"response": f"Command handler not implemented: {cmd_obj.name}", "error": True}
 
         # Call handler with args if needed
-        if cmd_obj.name in ("face", "dream", "ask", "schedule", "bash", "task", "done", "cancel", "delete", "tasks", "find"):
-            return handler(args) if args or cmd_obj.name in ("tasks", "schedule", "find") else handler()
-        else:
-            return handler()
+        try:
+            if cmd_obj.name in ("face", "dream", "ask", "schedule", "bash", "task", "done", "cancel", "delete", "tasks", "find"):
+                return handler(args) if args or cmd_obj.name in ("tasks", "schedule", "find") else handler()
+            else:
+                return handler()
+        except Exception as e:
+            import traceback
+            error_msg = f"Command error: {str(e)}"
+            traceback.print_exc()  # Print to server logs
+            return {"response": error_msg, "error": True}
 
     def _handle_chat_sync(self, message: str) -> Dict[str, Any]:
         """Handle chat message (sync wrapper for async brain)."""
