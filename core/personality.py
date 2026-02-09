@@ -706,8 +706,7 @@ class Personality:
 
     def get_status_line(self) -> str:
         """Get a short status string for display."""
-        energy_bar = "=" * int(self.energy * 5) + "-" * (5 - int(self.energy * 5))
-        return f"[{energy_bar}] {self.mood.current.value}"
+        return self.mood.current.value
 
     def set_last_thought(self, thought: str, timestamp: Optional[float] = None) -> None:
         """Store the latest autonomous thought."""
