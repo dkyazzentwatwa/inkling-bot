@@ -130,6 +130,7 @@ class MCPClientManager:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,
+            limit=10 * 1024 * 1024,  # 10MB buffer for large responses (Composio has 215 tools)
         )
 
         self.processes[name] = process
@@ -235,16 +236,18 @@ class MCPClientManager:
             await writer.drain()
 
     async def _read_responses(self, server: str) -> None:
-        """Background task to read responses from MCP server."""
+        """Background task to read responses from MCP server.
+
+        Note: Buffer limit is set to 10MB in create_subprocess_exec to handle
+        large tool lists like Composio's 215 tools (~500KB JSON response).
+        """
         reader = self._readers.get(server)
         if not reader:
             return
 
         try:
             while True:
-                # Increase readline limit to 10MB for large tool lists (Composio has 215 tools)
-                # Default limit is 64KB which causes "chunk exceed the limit" errors
-                line = await reader.readline(limit=10 * 1024 * 1024)
+                line = await reader.readline()
                 if not line:
                     break
 
