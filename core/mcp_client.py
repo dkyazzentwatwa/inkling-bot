@@ -393,9 +393,109 @@ class MCPClientManager:
             return content[0].get("text", str(content))
         return str(response)
 
+    def search_tools(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Search through all available tools by name and description.
+
+        Args:
+            query: Search query (e.g., "gmail", "calendar", "sheets")
+            limit: Maximum number of results to return
+
+        Returns:
+            List of matching tool definitions
+        """
+        query_lower = query.lower()
+        matches = []
+
+        for full_name, tool in self.tools.items():
+            # Check if query matches tool name or description
+            if (query_lower in full_name.lower() or
+                query_lower in tool.description.lower() or
+                query_lower in tool.server_name.lower()):
+
+                tool_def = {
+                    "name": full_name,
+                    "description": f"[{tool.server_name}] {tool.description}",
+                    "input_schema": tool.input_schema,
+                }
+                matches.append(tool_def)
+
+                if len(matches) >= limit:
+                    break
+
+        return matches
+
+    def get_tools_for_query(self, query: str = "") -> List[Dict[str, Any]]:
+        """
+        Get tools dynamically based on user query.
+
+        Strategy:
+        1. Always include core built-in tools (tasks, system, filesystem)
+        2. If query contains keywords, search for relevant tools
+        3. Fill remaining slots with general third-party tools
+        4. Limit total to max_tools
+
+        Args:
+            query: User's message/query (optional)
+
+        Returns:
+            List of tool definitions optimized for the query
+        """
+        # Core tools always included
+        core_tools = []
+        other_tools = []
+        query_matched = []
+
+        for full_name, tool in self.tools.items():
+            tool_def = {
+                "name": full_name,
+                "description": f"[{tool.server_name}] {tool.description}",
+                "input_schema": tool.input_schema,
+            }
+
+            # Core servers always included
+            if tool.server_name in ["tasks", "system", "filesystem-inkling"]:
+                core_tools.append(tool_def)
+            else:
+                other_tools.append(tool_def)
+
+        # If query provided, search for relevant tools
+        if query:
+            query_lower = query.lower()
+            keywords = ["gmail", "email", "calendar", "sheet", "notion", "github", "slack"]
+
+            for keyword in keywords:
+                if keyword in query_lower:
+                    # Search for tools matching this keyword
+                    matched = self.search_tools(keyword, limit=5)
+                    for tool_def in matched:
+                        if tool_def not in query_matched and tool_def not in core_tools:
+                            query_matched.append(tool_def)
+
+        # Combine: core + query-matched + remaining others
+        all_tools = core_tools + query_matched + other_tools
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_tools = []
+        for tool in all_tools:
+            if tool["name"] not in seen:
+                seen.add(tool["name"])
+                unique_tools.append(tool)
+
+        # Limit to max_tools
+        if len(unique_tools) > self.max_tools:
+            print(f"[MCP] Query-based tool selection: {len(unique_tools)} → {self.max_tools}")
+            print(f"[MCP]   Core: {len(core_tools)}, Query-matched: {len(query_matched)}, Other: {len(other_tools[:self.max_tools - len(core_tools) - len(query_matched)])}")
+            unique_tools = unique_tools[:self.max_tools]
+
+        return unique_tools
+
     def get_tools_for_ai(self) -> List[Dict[str, Any]]:
         """
         Get tool definitions formatted for Claude's tool use API.
+
+        DEPRECATED: Use get_tools_for_query() instead for dynamic tool selection.
 
         Returns list of tool definitions compatible with Anthropic's format.
         Limited by max_tools config to prevent overwhelming the AI.
@@ -412,7 +512,7 @@ class MCPClientManager:
             }
 
             # Built-in servers: tasks, filesystem, etc.
-            if tool.server_name in ["tasks", "filesystem", "memory", "fetch"]:
+            if tool.server_name in ["tasks", "filesystem", "memory", "fetch", "system"]:
                 builtin_tools.append(tool_def)
             else:
                 thirdparty_tools.append(tool_def)

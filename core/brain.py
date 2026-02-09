@@ -795,10 +795,10 @@ class Brain:
         self._messages.append(Message(role="user", content=user_message))
         self._trim_history()
 
-        # Get tools if MCP is available
+        # Get tools if MCP is available (dynamically based on query)
         tools = None
         if use_tools and self.mcp_client and self.mcp_client.has_tools:
-            tools = self.mcp_client.get_tools_for_ai()
+            tools = self.mcp_client.get_tools_for_query(user_message)
 
         # Try each provider
         last_error = None
