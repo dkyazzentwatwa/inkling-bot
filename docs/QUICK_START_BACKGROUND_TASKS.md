@@ -24,9 +24,12 @@ background_tasks:
     # Add your favorite feeds here
 ```
 
-## Step 3: Set Up Weather API (Optional)
+## Step 3: Weather Setup (Optional - Already Works!)
 
-1. Sign up for free OpenWeatherMap API: https://openweathermap.org/api
+**Good news**: Weather works **out of the box** using free wttr.in (no API key needed)! ✅
+
+**Optional upgrade** to OpenWeatherMap for more detailed data:
+1. Sign up for free API: https://openweathermap.org/api
 2. Get your API key
 3. Add to `.env` file:
    ```bash

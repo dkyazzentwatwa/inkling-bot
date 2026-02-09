@@ -75,13 +75,18 @@ Inkling now runs **6 productive background tasks** during idle periods and overn
 
 **Configuration**:
 
-1. **Weather API** (Optional but recommended):
-   ```bash
-   # Get free API key from: https://openweathermap.org/api
-   export OPENWEATHER_API_KEY=your_key_here
-   ```
+1. **Weather** (Auto-fallback):
+   - **Option A**: Free wttr.in (no API key) - Works out of the box! ✅
+   - **Option B**: OpenWeatherMap (optional, more detailed)
+     ```bash
+     # Get free API key from: https://openweathermap.org/api
+     export OPENWEATHER_API_KEY=your_key_here
+     ```
+   - If no API key: Uses wttr.in automatically
+   - If API key set: Uses OpenWeatherMap API
 
 2. **Google Calendar/Gmail** (Optional, requires Composio MCP):
+   - Get API key: https://app.composio.dev/settings
    - See [COMPOSIO_INTEGRATION.md](COMPOSIO_INTEGRATION.md) for setup
    - Provides calendar events and email counts
 
@@ -213,13 +218,15 @@ This leaves ~98k tokens/day for interactive chat (within default 100k budget).
 
 ## Environment Variables
 
-Required for full functionality:
+**Required**: None! Background tasks work out of the box. ✅
+
+**Optional enhancements**:
 
 ```bash
-# Weather API (for morning briefing)
+# Weather API (optional - already uses free wttr.in by default)
 export OPENWEATHER_API_KEY=your_key_here
 
-# Google Apps (for calendar/email in morning briefing)
+# Google Apps (optional - for calendar/email in morning briefing)
 export COMPOSIO_API_KEY=your_key_here
 ```
 
