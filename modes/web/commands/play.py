@@ -99,7 +99,7 @@ class PlayCommands(CommandHandler):
                 XPSource.PLAY_WALK,
             ),
             self._loop
-        ).result(timeout=5.0)
+        ).result(timeout=30.0)  # Increased for V4 display rate limiting (5s × 4 faces)
 
         response = f"*{self.personality.name} goes for a walk around the neighborhood*\n\n"
         if xp_gained > 0:
@@ -123,7 +123,7 @@ class PlayCommands(CommandHandler):
                 XPSource.PLAY_DANCE,
             ),
             self._loop
-        ).result(timeout=5.0)
+        ).result(timeout=30.0)  # Increased for V4 display rate limiting (5s × 4 faces)
 
         response = f"*{self.personality.name} dances enthusiastically*\n\n"
         if xp_gained > 0:
@@ -147,7 +147,7 @@ class PlayCommands(CommandHandler):
                 XPSource.PLAY_EXERCISE,
             ),
             self._loop
-        ).result(timeout=5.0)
+        ).result(timeout=30.0)  # Increased for V4 display rate limiting (5s × 4 faces)
 
         response = f"*{self.personality.name} does some stretches and exercises*\n\n"
         if xp_gained > 0:
@@ -171,7 +171,7 @@ class PlayCommands(CommandHandler):
                 XPSource.PLAY_GENERAL,
             ),
             self._loop
-        ).result(timeout=5.0)
+        ).result(timeout=30.0)  # Increased for V4 display rate limiting (5s × 4 faces)
 
         response = f"*{self.personality.name} plays with a toy*\n\n"
         if xp_gained > 0:
@@ -195,7 +195,7 @@ class PlayCommands(CommandHandler):
                 XPSource.PLAY_PET,
             ),
             self._loop
-        ).result(timeout=5.0)
+        ).result(timeout=30.0)  # Increased for V4 display rate limiting (5s × 4 faces)
 
         response = f"*{self.personality.name} enjoys being petted*\n\n"
         if xp_gained > 0:
@@ -219,7 +219,7 @@ class PlayCommands(CommandHandler):
                 XPSource.PLAY_REST,
             ),
             self._loop
-        ).result(timeout=5.0)
+        ).result(timeout=30.0)  # Increased for V4 display rate limiting (5s × 4 faces)
 
         response = f"*{self.personality.name} takes a short rest*\n\n"
         if xp_gained > 0:
