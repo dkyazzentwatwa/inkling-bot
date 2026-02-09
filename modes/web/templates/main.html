@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>{{name}} - Inkling</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
     <style>
         :root {
             --bg: #f5f5f0;
@@ -105,6 +106,49 @@
             --muted: #999;
             --accent: #ffa657;
         }
+        /* New Themes */
+        [data-theme="ocean"] {
+            --bg: #e0f2f7;
+            --text: #0d3b47;
+            --border: #4a9fb0;
+            --muted: #2d6d7a;
+            --accent: #00bcd4;
+        }
+        [data-theme="sunset"] {
+            --bg: #ffe8d9;
+            --text: #4a2818;
+            --border: #d47942;
+            --muted: #8f5a35;
+            --accent: #ff6f3c;
+        }
+        [data-theme="forest"] {
+            --bg: #e8f5e9;
+            --text: #1b5e20;
+            --border: #66bb6a;
+            --muted: #388e3c;
+            --accent: #4caf50;
+        }
+        [data-theme="noir"] {
+            --bg: #f8f9fa;
+            --text: #000;
+            --border: #000;
+            --muted: #495057;
+            --accent: #000;
+        }
+        [data-theme="retro"] {
+            --bg: #0d1b0d;
+            --text: #33ff33;
+            --border: #33ff33;
+            --muted: #1a9919;
+            --accent: #66ff66;
+        }
+        /* Theme transitions */
+        html {
+            transition: background-color 0.5s ease, color 0.5s ease;
+        }
+        * {
+            transition: border-color 0.3s ease, background-color 0.3s ease;
+        }
         @media (prefers-color-scheme: dark) {
             :root {
                 --bg: #1a1a1a;
@@ -201,6 +245,58 @@
         @keyframes blink-dot {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.3; }
+        }
+        /* Face animations */
+        .face {
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            display: inline-block;
+        }
+        .face.changed {
+            animation: faceChange 0.6s ease-out;
+        }
+        @keyframes faceChange {
+            0% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.2) rotate(5deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        /* XP gain animation */
+        .xp-particle {
+            position: absolute;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--accent);
+            pointer-events: none;
+            animation: xpGain 1s ease-out forwards;
+        }
+        @keyframes xpGain {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-30px); opacity: 0; }
+        }
+        /* Typing indicator */
+        .typing-indicator {
+            display: inline-flex;
+            gap: 4px;
+            padding: 0.5rem;
+        }
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+        /* Message grouping */
+        .message + .message.same-sender {
+            margin-top: 4px;
+        }
+        .message + .message:not(.same-sender) {
+            margin-top: 16px;
         }
         /* Chat search bar */
         .search-bar {
@@ -658,6 +754,7 @@
             sendBtn.disabled = true;
 
             addMessage('user', text);
+            showTypingIndicator();
 
             try {
                 const resp = await fetch('/api/chat', {
@@ -667,6 +764,8 @@
                 });
                 const data = await resp.json();
 
+                hideTypingIndicator();
+
                 if (data.error) {
                     addMessage('assistant', 'Error: ' + data.error);
                     showToast('Error: ' + data.error, 'error');
@@ -675,6 +774,7 @@
                     updateState(data);
                 }
             } catch (e) {
+                hideTypingIndicator();
                 addMessage('assistant', 'Connection error: ' + e.message);
                 showToast('Connection lost', 'error');
             }
@@ -716,6 +816,13 @@
         function addMessage(role, text, meta) {
             const div = document.createElement('div');
             div.className = 'message ' + role;
+
+            // Check if same sender as previous message for grouping
+            const lastMsg = messagesEl.lastElementChild;
+            if (lastMsg && lastMsg.classList.contains(role)) {
+                div.classList.add('same-sender');
+            }
+
             // Use markdown rendering for assistant messages, escape-only for user/system
             if (role === 'assistant') {
                 div.innerHTML = '<div class="text">' + renderMarkdown(text) + '</div>';
@@ -732,6 +839,20 @@
             }
             messagesEl.appendChild(div);
             messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.id = 'typing-indicator';
+            div.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+            messagesEl.appendChild(div);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
         }
 
         function updateState(data) {

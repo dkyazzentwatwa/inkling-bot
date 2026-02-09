@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Tasks - {{name}}</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
     <style>
         :root {
             --bg: #f5f5f0;
@@ -30,6 +31,13 @@
         [data-theme="dark"] { --bg: #1a1a1a; --text: #e5e5e5; --border: #444; --muted: #888; --accent: #6ab0f3; }
         [data-theme="midnight"] { --bg: #0d1117; --text: #c9d1d9; --border: #30363d; --muted: #8b949e; --accent: #58a6ff; }
         [data-theme="charcoal"] { --bg: #2b2b2b; --text: #e8e6e3; --border: #555; --muted: #999; --accent: #ffa657; }
+        [data-theme="ocean"] { --bg: #e0f2f7; --text: #0d3b47; --border: #4a9fb0; --muted: #2d6d7a; --accent: #00bcd4; }
+        [data-theme="sunset"] { --bg: #ffe8d9; --text: #4a2818; --border: #d47942; --muted: #8f5a35; --accent: #ff6f3c; }
+        [data-theme="forest"] { --bg: #e8f5e9; --text: #1b5e20; --border: #66bb6a; --muted: #388e3c; --accent: #4caf50; }
+        [data-theme="noir"] { --bg: #f8f9fa; --text: #000; --border: #000; --muted: #495057; --accent: #000; }
+        [data-theme="retro"] { --bg: #0d1b0d; --text: #33ff33; --border: #33ff33; --muted: #1a9919; --accent: #66ff66; }
+        html { transition: background-color 0.5s ease, color 0.5s ease; }
+        * { transition: border-color 0.3s ease, background-color 0.3s ease; }
 
         * {
             margin: 0;
@@ -243,12 +251,25 @@
             padding: 12px;
             background: var(--bg);
             cursor: default;
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+            transform-origin: center;
         }
 
         .task-card:hover {
-            transform: translateX(4px);
-            box-shadow: -4px 4px 0 var(--accent);
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+            border-color: var(--accent);
+        }
+
+        .task-card.dragging {
+            opacity: 0.5;
+            transform: rotate(2deg);
+            cursor: grabbing;
+        }
+
+        .task-card.drop-target {
+            border: 2px dashed var(--accent);
+            background: linear-gradient(135deg, var(--bg) 0%, rgba(var(--accent), 0.1) 100%);
         }
 
         .task-header {
