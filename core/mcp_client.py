@@ -427,13 +427,13 @@ class MCPClientManager:
 
     def get_tools_for_query(self, query: str = "") -> List[Dict[str, Any]]:
         """
-        Get tools dynamically based on user query.
+        Get tools dynamically based on user query - SMART ROUTING with no hard limit.
 
         Strategy:
         1. Always include core built-in tools (tasks, system, filesystem)
-        2. If query contains keywords, search for relevant tools
-        3. Fill remaining slots with general third-party tools
-        4. Limit total to max_tools
+        2. If query contains keywords, include ALL matching tools (no limit)
+        3. Fill remaining slots with other tools up to soft limit
+        4. Only cap if total exceeds safety threshold (100 tools)
 
         Args:
             query: User's message/query (optional)
@@ -459,21 +459,46 @@ class MCPClientManager:
             else:
                 other_tools.append(tool_def)
 
-        # If query provided, search for relevant tools
+        # If query provided, search for relevant tools (NO LIMIT on matches)
         if query:
             query_lower = query.lower()
-            keywords = ["gmail", "email", "calendar", "sheet", "notion", "github", "slack"]
+            # Expanded keyword list for better matching
+            keywords = [
+                "gmail", "email", "mail", "inbox",
+                "calendar", "event", "meeting", "schedule",
+                "sheet", "sheets", "spreadsheet",
+                "notion", "note", "notes",
+                "github", "git", "repo", "pr", "issue",
+                "slack", "message", "chat",
+                "drive", "file", "document", "doc"
+            ]
 
+            matched_keywords = set()
             for keyword in keywords:
                 if keyword in query_lower:
-                    # Search for tools matching this keyword
-                    matched = self.search_tools(keyword, limit=5)
+                    matched_keywords.add(keyword)
+                    # Search for ALL tools matching this keyword (no limit)
+                    matched = self.search_tools(keyword, limit=50)
                     for tool_def in matched:
                         if tool_def not in query_matched and tool_def not in core_tools:
                             query_matched.append(tool_def)
 
-        # Combine: core + query-matched + remaining others
-        all_tools = core_tools + query_matched + other_tools
+            if matched_keywords:
+                print(f"[MCP] Smart routing detected keywords: {', '.join(sorted(matched_keywords))}")
+
+        # Smart assembly:
+        # 1. Core tools (always)
+        # 2. Query-matched tools (all of them - no limit!)
+        # 3. Other tools (fill up to soft limit)
+
+        essential_tools = core_tools + query_matched
+
+        # Calculate remaining space for "other" tools
+        soft_limit = self.max_tools  # Use max_tools as soft limit for "other" tools
+        remaining_space = max(0, soft_limit - len(essential_tools))
+
+        # Combine all
+        all_tools = essential_tools + other_tools[:remaining_space]
 
         # Remove duplicates while preserving order
         seen = set()
@@ -483,11 +508,18 @@ class MCPClientManager:
                 seen.add(tool["name"])
                 unique_tools.append(tool)
 
-        # Limit to max_tools
-        if len(unique_tools) > self.max_tools:
-            print(f"[MCP] Query-based tool selection: {len(unique_tools)} → {self.max_tools}")
-            print(f"[MCP]   Core: {len(core_tools)}, Query-matched: {len(query_matched)}, Other: {len(other_tools[:self.max_tools - len(core_tools) - len(query_matched)])}")
-            unique_tools = unique_tools[:self.max_tools]
+        # Safety cap: Only limit if exceeding 100 tools (prevents AI overload)
+        safety_cap = 100
+        if len(unique_tools) > safety_cap:
+            print(f"[MCP] Safety cap applied: {len(unique_tools)} → {safety_cap}")
+            print(f"[MCP]   Core: {len(core_tools)}, Query-matched: {len(query_matched)}, Other: {remaining_space}")
+            unique_tools = unique_tools[:safety_cap]
+        else:
+            if query_matched:
+                print(f"[MCP] Smart routing loaded: {len(unique_tools)} tools")
+                print(f"[MCP]   Core: {len(core_tools)}, Query-matched: {len(query_matched)}, Other: {len(unique_tools) - len(core_tools) - len(query_matched)}")
+            elif len(unique_tools) != len(self.tools):
+                print(f"[MCP] Loaded {len(unique_tools)} tools (soft limit: {soft_limit})")
 
         return unique_tools
 

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "composio": {
+      "transport": "http",
+      "url": "https://backend.composio.dev/v3/mcp/658b6781-0d17-4893-b235-ffe4bf067bc4/mcp?user_id=pg-test-5b5d52dc-e9c6-46a3-aedf-bd7bb14b0cb2"
+    }
+  }
+}
