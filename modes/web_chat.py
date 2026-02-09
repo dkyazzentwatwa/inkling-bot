@@ -275,6 +275,7 @@ class WebChatMode:
             return template(
                 SETTINGS_TEMPLATE,
                 name=self.personality.name,
+                face=self._get_face_str(),
                 traits=self.personality.traits.to_dict(),
                 status=self.personality.get_status_line(),
                 thought=self.personality.last_thought or "",
@@ -288,6 +289,7 @@ class WebChatMode:
             return template(
                 TASKS_TEMPLATE,
                 name=self.personality.name,
+                face=self._get_face_str(),
                 status=self.personality.get_status_line(),
                 thought=self.personality.last_thought or "",
             )
@@ -313,6 +315,7 @@ class WebChatMode:
             return template(
                 FILES_TEMPLATE,
                 name=self.personality.name,
+                face=self._get_face_str(),
                 sd_available=sd_available,
                 status=self.personality.get_status_line(),
                 thought=self.personality.last_thought or "",
