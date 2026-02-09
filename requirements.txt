@@ -33,6 +33,9 @@ schedule>=1.2.0
 psutil>=5.9.0
 requests>=2.31.0
 
+# RSS Feed Parsing
+feedparser>=6.0.10
+
 # E-ink Display (Pi only)
 # IMPORTANT: waveshare-epd must be installed from GitHub, not PyPI
 # Install with: pip install git+https://github.com/waveshareteam/e-Paper.git#subdirectory=RaspberryPi_JetsonNano/python

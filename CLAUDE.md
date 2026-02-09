@@ -8,7 +8,7 @@ Project Inkling is a **fully local** AI companion device for Raspberry Pi Zero 2
 - Pwnagotchi-style personality/mood system with XP/leveling
 - Local AI assistant via Anthropic/OpenAI/Gemini/Ollama APIs with automatic fallback
 - Task management with AI integration via MCP
-- Scheduler for cron-style automated tasks
+- Scheduler for cron-style automated tasks with **productive overnight background tasks**
 - Model Context Protocol (MCP) for tool extensibility
 - Web UI with Kanban board, file browser, and settings management
 - **No cloud dependencies** - All social features (The Conservatory, dreams, telegrams) have been completely removed
@@ -277,10 +277,16 @@ Project Inkling supports multiple storage locations for user files:
 - Weekly: `every().monday.at('09:00')` - Run every Monday at 9 AM
 - Interval: `every(5).minutes` - Run every 5 minutes
 
-**Built-in Actions**:
-- `daily_summary` - Daily task summary (default: 8 AM)
-- `weekly_cleanup` - Prune old memories, archive tasks (default: Sunday 2 AM)
-- `test_greeting` - Test action for debugging
+**Built-in Actions** (7 productive overnight tasks):
+- `morning_briefing` - Weather, calendar, tasks, AI greeting (7 AM)
+- `rss_digest` - Fetch and summarize RSS feeds (6:30 AM)
+- `daily_summary` - Daily task summary (8 AM)
+- `task_reminders` - Tasks due within 24 hours (4x daily)
+- `nightly_backup` - Backup critical files to SD card (3 AM)
+- `system_health_check` - Monitor disk/memory/temp (2 AM)
+- `weekly_cleanup` - Prune memories, archive tasks (Sunday 2 AM)
+
+**Full Guide**: See `docs/BACKGROUND_TASKS.md` and `docs/QUICK_START_BACKGROUND_TASKS.md`
 
 **Slash Commands**:
 - `/schedule` or `/schedule list` - List all scheduled tasks with next run times

@@ -138,10 +138,52 @@ scheduler:
   #   "every().monday.at('09:00')" - Every Monday at 9 AM
   #   "every(5).minutes"        - Every 5 minutes
   tasks:
+    # Morning AI briefing (weather, calendar, tasks, email summary)
+    - name: "morning_briefing"
+      schedule: "every().day.at('07:00')"
+      action: "morning_briefing"
+      enabled: true
+
+    # RSS feed digest (fetch and summarize news)
+    - name: "rss_digest"
+      schedule: "every().day.at('06:30')"
+      action: "rss_digest"
+      enabled: true
+
     # Daily task summary at 8 AM
     - name: "morning_summary"
       schedule: "every().day.at('08:00')"
       action: "daily_summary"
+      enabled: true
+
+    # Task deadline reminders (every 4 hours during waking hours)
+    - name: "task_reminders_morning"
+      schedule: "every().day.at('08:00')"
+      action: "task_reminders"
+      enabled: true
+    - name: "task_reminders_noon"
+      schedule: "every().day.at('12:00')"
+      action: "task_reminders"
+      enabled: true
+    - name: "task_reminders_afternoon"
+      schedule: "every().day.at('16:00')"
+      action: "task_reminders"
+      enabled: true
+    - name: "task_reminders_evening"
+      schedule: "every().day.at('20:00')"
+      action: "task_reminders"
+      enabled: true
+
+    # Nightly backup at 3 AM
+    - name: "nightly_backup"
+      schedule: "every().day.at('03:00')"
+      action: "nightly_backup"
+      enabled: true
+
+    # System health check at 2 AM
+    - name: "system_health_check"
+      schedule: "every().day.at('02:00')"
+      action: "system_health_check"
       enabled: true
 
     # Weekly cleanup every Sunday at 2 AM
@@ -164,6 +206,43 @@ storage:
     enabled: false  # Set to true when SD card is inserted
     path: "auto"    # "auto" to detect first SD, or specific path like "/media/pi/SD_CARD"
     # Auto-detection searches: /media/pi/*, /mnt/*
+
+# Background Tasks Configuration
+# Used by scheduled actions (RSS digest, morning briefing, etc.)
+background_tasks:
+  # RSS feeds for morning digest
+  rss_feeds:
+    # Tech News
+    - name: "Hacker News"
+      url: "https://news.ycombinator.com/rss"
+    - name: "TechCrunch"
+      url: "https://techcrunch.com/feed/"
+    - name: "Ars Technica"
+      url: "https://feeds.arstechnica.com/arstechnica/index"
+    - name: "The Verge"
+      url: "https://www.theverge.com/rss/index.xml"
+
+    # Development
+    - name: "GitHub Blog"
+      url: "https://github.blog/feed/"
+    - name: "Dev.to"
+      url: "https://dev.to/feed"
+    # - name: "CSS-Tricks"
+    #   url: "https://css-tricks.com/feed/"
+
+    # AI/ML
+    - name: "Anthropic Blog"
+      url: "https://www.anthropic.com/news/rss.xml"
+    # - name: "OpenAI Blog"
+    #   url: "https://openai.com/blog/rss.xml"
+
+  # Weather location (for morning briefing)
+  # Get API key from: https://openweathermap.org/api
+  # Set via: export OPENWEATHER_API_KEY=your_key_here
+  weather:
+    city: "Portland"
+    state: "OR"
+    country: "US"
 
 # Web UI Configuration
 web:

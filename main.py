@@ -320,6 +320,29 @@ class Inkling:
         else:
             print("  - Heartbeat disabled")
 
+        # Register scheduler actions
+        if self.scheduler:
+            from core.scheduler import (
+                action_daily_summary,
+                action_weekly_cleanup,
+                action_nightly_backup,
+                action_system_health_check,
+                action_task_reminders,
+                action_morning_briefing,
+                action_rss_digest
+            )
+
+            # Register all actions with access to inkling instance
+            self.scheduler.register_action("daily_summary", lambda: action_daily_summary(self))
+            self.scheduler.register_action("weekly_cleanup", lambda: action_weekly_cleanup(self))
+            self.scheduler.register_action("nightly_backup", lambda: action_nightly_backup(self))
+            self.scheduler.register_action("system_health_check", lambda: action_system_health_check(self))
+            self.scheduler.register_action("task_reminders", lambda: action_task_reminders(self))
+            self.scheduler.register_action("morning_briefing", lambda: action_morning_briefing(self))
+            self.scheduler.register_action("rss_digest", lambda: action_rss_digest(self))
+
+            print(f"    Registered {len(self.scheduler.action_handlers)} scheduler actions")
+
         print("Initialization complete!")
 
     def _on_mood_change(self, old_mood, new_mood) -> None:

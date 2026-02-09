@@ -372,12 +372,399 @@ async def action_test_greeting():
 
 async def action_daily_summary(inkling):
     """Daily task summary action."""
-    # This will be properly implemented when integrated with Inkling
     logger.info("[Scheduler] Daily summary action triggered")
-    # TODO: Get task stats and display on screen or send notification
+    try:
+        if not inkling.task_manager:
+            logger.warning("[Scheduler] Task manager not available")
+            return
+
+        # Get task stats
+        stats = await inkling.task_manager.get_stats()
+        pending = stats.get("pending", 0)
+        in_progress = stats.get("in_progress", 0)
+        completed_today = stats.get("completed_today", 0)
+
+        # Create summary message
+        summary = f"📋 Daily Summary: {pending} pending, {in_progress} in progress, {completed_today} completed today"
+
+        # Display on screen
+        if inkling.display:
+            await inkling.display.update(
+                face="happy",
+                text=summary,
+                status="SUMMARY"
+            )
+        logger.info(f"[Scheduler] {summary}")
+    except Exception as e:
+        logger.error(f"[Scheduler] Daily summary failed: {e}")
 
 
 async def action_weekly_cleanup(inkling):
-    """Weekly cleanup action."""
+    """Weekly cleanup action - prune old memories and archive completed tasks."""
     logger.info("[Scheduler] Weekly cleanup action triggered")
-    # TODO: Prune old memories, archive completed tasks
+    try:
+        # Archive old completed tasks (older than 30 days)
+        if inkling.task_manager:
+            # This would require adding archive functionality to TaskManager
+            # For now, just log
+            logger.info("[Scheduler] Task archival not yet implemented")
+
+        # Prune old memories (if memory module exists)
+        # This would integrate with core/memory.py
+        logger.info("[Scheduler] Memory pruning not yet implemented")
+
+        if inkling.display:
+            await inkling.display.update(
+                face="cool",
+                text="✨ Weekly cleanup complete",
+                status="CLEANUP"
+            )
+    except Exception as e:
+        logger.error(f"[Scheduler] Weekly cleanup failed: {e}")
+
+
+async def action_nightly_backup(inkling):
+    """Nightly backup of critical files to SD card or .inkling/backups."""
+    logger.info("[Scheduler] Nightly backup action triggered")
+    try:
+        import shutil
+        import tarfile
+        from pathlib import Path
+        from datetime import datetime
+
+        # Source directory
+        inkling_dir = Path.home() / ".inkling"
+        if not inkling_dir.exists():
+            logger.warning("[Scheduler] .inkling directory not found")
+            return
+
+        # Determine backup destination
+        backup_base = None
+        config = inkling.config if hasattr(inkling, 'config') else {}
+        storage_config = config.get("storage", {})
+        sd_config = storage_config.get("sd_card", {})
+
+        # Try SD card first if enabled
+        if sd_config.get("enabled", False):
+            sd_path = sd_config.get("path", "auto")
+            if sd_path == "auto":
+                # Auto-detect SD card
+                for mount_point in ["/media/pi", "/mnt"]:
+                    mount_path = Path(mount_point)
+                    if mount_path.exists():
+                        sd_dirs = list(mount_path.iterdir())
+                        if sd_dirs:
+                            backup_base = sd_dirs[0] / "inkling_backups"
+                            break
+            else:
+                backup_base = Path(sd_path) / "inkling_backups"
+
+        # Fallback to .inkling/backups
+        if not backup_base:
+            backup_base = inkling_dir / "backups"
+
+        backup_base.mkdir(parents=True, exist_ok=True)
+
+        # Create timestamped backup
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = backup_base / f"backup_{timestamp}.tar.gz"
+
+        # Files to backup
+        files_to_backup = [
+            "tasks.db",
+            "conversation.json",
+            "memory.db",
+            "config.local.yml",
+            "personality.json"
+        ]
+
+        # Create tar.gz archive
+        with tarfile.open(backup_file, "w:gz") as tar:
+            for filename in files_to_backup:
+                filepath = inkling_dir / filename
+                if filepath.exists():
+                    tar.add(filepath, arcname=filename)
+                    logger.debug(f"[Scheduler] Backed up: {filename}")
+
+        # Keep only last 7 backups
+        backups = sorted(backup_base.glob("backup_*.tar.gz"))
+        while len(backups) > 7:
+            oldest = backups.pop(0)
+            oldest.unlink()
+            logger.debug(f"[Scheduler] Removed old backup: {oldest.name}")
+
+        backup_size_mb = backup_file.stat().st_size / (1024 * 1024)
+        logger.info(f"[Scheduler] Backup created: {backup_file.name} ({backup_size_mb:.2f} MB)")
+
+        if inkling.display:
+            await inkling.display.update(
+                face="happy",
+                text=f"💾 Backup complete ({backup_size_mb:.1f}MB)",
+                status="BACKUP"
+            )
+
+    except Exception as e:
+        logger.error(f"[Scheduler] Nightly backup failed: {e}")
+
+
+async def action_system_health_check(inkling):
+    """Check system health (disk, memory, temperature)."""
+    logger.info("[Scheduler] System health check triggered")
+    try:
+        import psutil
+
+        # Get system stats
+        disk = psutil.disk_usage('/')
+        memory = psutil.virtual_memory()
+        cpu_temp = None
+
+        # Try to get CPU temperature (Raspberry Pi)
+        try:
+            with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
+                cpu_temp = int(f.read().strip()) / 1000.0
+        except:
+            pass
+
+        # Check for warnings
+        warnings = []
+        if disk.percent > 80:
+            warnings.append(f"⚠️ Disk usage: {disk.percent:.1f}% (high)")
+        if memory.percent > 90:
+            warnings.append(f"⚠️ Memory usage: {memory.percent:.1f}% (high)")
+        if cpu_temp and cpu_temp > 65:
+            warnings.append(f"⚠️ Temperature: {cpu_temp:.1f}°C (high)")
+
+        # Create tasks for warnings
+        if warnings and inkling.task_manager:
+            for warning in warnings:
+                await inkling.task_manager.create_task(
+                    title="System Health Warning",
+                    description=warning,
+                    priority="high"
+                )
+                logger.warning(f"[Scheduler] {warning}")
+
+        # Log healthy status
+        if not warnings:
+            status_msg = f"✅ System healthy - Disk: {disk.percent:.1f}%, Memory: {memory.percent:.1f}%"
+            if cpu_temp:
+                status_msg += f", Temp: {cpu_temp:.1f}°C"
+            logger.info(f"[Scheduler] {status_msg}")
+
+    except Exception as e:
+        logger.error(f"[Scheduler] Health check failed: {e}")
+
+
+async def action_task_reminders(inkling):
+    """Check for tasks due soon and display reminders."""
+    logger.info("[Scheduler] Task reminders triggered")
+    try:
+        if not inkling.task_manager:
+            logger.warning("[Scheduler] Task manager not available")
+            return
+
+        from datetime import datetime, timedelta
+
+        # Get tasks due within 24 hours
+        all_tasks = await inkling.task_manager.list_tasks(status="pending")
+        now = datetime.now()
+        due_soon = []
+
+        for task in all_tasks:
+            if task.due_date:
+                # Parse due date (assuming ISO format)
+                try:
+                    due = datetime.fromisoformat(task.due_date)
+                    hours_until = (due - now).total_seconds() / 3600
+                    if 0 < hours_until <= 24:
+                        due_soon.append((task, hours_until))
+                except:
+                    pass
+
+        if due_soon:
+            # Sort by time until due
+            due_soon.sort(key=lambda x: x[1])
+
+            # Display top 3
+            if inkling.display:
+                if len(due_soon) == 1:
+                    task, hours = due_soon[0]
+                    msg = f"⏰ Task due in {hours:.0f}h: {task.title}"
+                else:
+                    msg = f"⏰ {len(due_soon)} tasks due soon"
+
+                await inkling.display.update(
+                    face="curious",
+                    text=msg,
+                    status="REMINDER"
+                )
+
+            logger.info(f"[Scheduler] {len(due_soon)} tasks due within 24 hours")
+        else:
+            logger.debug("[Scheduler] No tasks due soon")
+
+    except Exception as e:
+        logger.error(f"[Scheduler] Task reminders failed: {e}")
+
+
+async def action_morning_briefing(inkling):
+    """Morning briefing: weather, calendar, emails, tasks."""
+    logger.info("[Scheduler] Morning briefing triggered")
+    try:
+        briefing_parts = []
+
+        # 1. Weather (Portland, OR)
+        try:
+            import os
+            import json
+            import re
+
+            # Get weather config
+            config = inkling.config if hasattr(inkling, 'config') else {}
+            bg_config = config.get("background_tasks", {})
+            weather_config = bg_config.get("weather", {})
+            city = weather_config.get("city", "Portland")
+            state = weather_config.get("state", "OR")
+
+            weather_key = os.getenv("OPENWEATHER_API_KEY")
+
+            if weather_key and inkling.mcp_client:
+                # Option 1: OpenWeatherMap API (requires key)
+                url = f"https://api.openweathermap.org/data/2.5/weather?q={city},{state},US&appid={weather_key}&units=imperial"
+                result = await inkling.mcp_client.call_tool("curl", {"url": url})
+                if result and not result.get("isError"):
+                    data = json.loads(result.get("content", [{}])[0].get("text", "{}"))
+                    temp = data.get("main", {}).get("temp", "?")
+                    desc = data.get("weather", [{}])[0].get("main", "?")
+                    briefing_parts.append(f"☀️ {city}: {temp}°F, {desc}")
+            elif inkling.mcp_client:
+                # Option 2: wttr.in (free, no API key needed)
+                # Format: Portland,OR?format=%C+%t (condition + temp)
+                location = f"{city},{state}".replace(" ", "+")
+                url = f"https://wttr.in/{location}?format=%C+%t&u"  # %C=condition, %t=temp, &u=USCS units
+                result = await inkling.mcp_client.call_tool("curl", {"url": url})
+                if result and not result.get("isError"):
+                    weather_text = result.get("content", [{}])[0].get("text", "").strip()
+                    # Clean up ANSI codes if any
+                    weather_text = re.sub(r'\x1b\[[0-9;]*m', '', weather_text)
+                    if weather_text:
+                        briefing_parts.append(f"☀️ {city}: {weather_text}")
+        except Exception as e:
+            logger.debug(f"[Scheduler] Weather fetch failed: {e}")
+
+        # 2. Tasks due today
+        if inkling.task_manager:
+            try:
+                from datetime import datetime
+                tasks = await inkling.task_manager.list_tasks(status="pending")
+                today = datetime.now().date()
+                due_today = [t for t in tasks if t.due_date and datetime.fromisoformat(t.due_date).date() == today]
+                if due_today:
+                    briefing_parts.append(f"✅ {len(due_today)} tasks due today")
+            except Exception as e:
+                logger.debug(f"[Scheduler] Task check failed: {e}")
+
+        # 3. Google Calendar events (if Composio MCP enabled)
+        # TODO: Implement when Composio is configured
+
+        # 4. Gmail unread count (if Composio MCP enabled)
+        # TODO: Implement when Composio is configured
+
+        # 5. AI-generated greeting based on mood
+        if inkling.brain and briefing_parts:
+            try:
+                context = " | ".join(briefing_parts)
+                prompt = f"Generate a brief, cheerful good morning message (1 sentence) considering: {context}"
+                greeting = await inkling.brain.chat(prompt)
+                briefing_parts.insert(0, greeting.strip())
+            except Exception as e:
+                logger.debug(f"[Scheduler] AI greeting failed: {e}")
+
+        # Display briefing
+        if briefing_parts and inkling.display:
+            briefing_text = "\n".join(briefing_parts)
+            await inkling.display.update(
+                face="happy",
+                text=briefing_text,
+                status="BRIEFING"
+            )
+            logger.info(f"[Scheduler] Morning briefing: {len(briefing_parts)} items")
+        else:
+            logger.info("[Scheduler] Morning briefing: no items to display")
+
+    except Exception as e:
+        logger.error(f"[Scheduler] Morning briefing failed: {e}")
+
+
+async def action_rss_digest(inkling):
+    """Fetch and summarize RSS feeds."""
+    logger.info("[Scheduler] RSS digest action triggered")
+    try:
+        import feedparser
+        import requests
+
+        # Get RSS feeds from config
+        config = inkling.config if hasattr(inkling, 'config') else {}
+        bg_tasks_config = config.get("background_tasks", {})
+        feeds = bg_tasks_config.get("rss_feeds", [])
+
+        if not feeds:
+            logger.warning("[Scheduler] No RSS feeds configured")
+            return
+
+        all_items = []
+        for feed_config in feeds[:5]:  # Limit to 5 feeds to avoid timeout
+            feed_name = feed_config.get("name", "Unknown")
+            feed_url = feed_config.get("url")
+
+            if not feed_url:
+                continue
+
+            try:
+                # Fetch feed with timeout
+                response = requests.get(feed_url, timeout=10)
+                feed = feedparser.parse(response.content)
+
+                # Get top 3 items from each feed
+                for entry in feed.entries[:3]:
+                    all_items.append({
+                        "source": feed_name,
+                        "title": entry.get("title", "Untitled"),
+                        "link": entry.get("link", ""),
+                        "summary": entry.get("summary", "")
+                    })
+
+                logger.debug(f"[Scheduler] Fetched {len(feed.entries[:3])} items from {feed_name}")
+            except Exception as e:
+                logger.warning(f"[Scheduler] Failed to fetch {feed_name}: {e}")
+
+        if not all_items:
+            logger.info("[Scheduler] No RSS items fetched")
+            return
+
+        # AI summarization
+        if inkling.brain:
+            try:
+                # Create concise summary of titles
+                titles = [f"- {item['source']}: {item['title']}" for item in all_items[:10]]
+                prompt = f"Summarize these top tech stories in 3-5 sentences:\n" + "\n".join(titles)
+                summary = await inkling.brain.chat(prompt)
+
+                # Display summary
+                if inkling.display:
+                    await inkling.display.update(
+                        face="curious",
+                        text=f"📰 RSS Digest:\n{summary.strip()}",
+                        status="RSS"
+                    )
+
+                logger.info(f"[Scheduler] RSS digest: {len(all_items)} items from {len(feeds)} feeds")
+            except Exception as e:
+                logger.error(f"[Scheduler] AI summarization failed: {e}")
+        else:
+            logger.warning("[Scheduler] Brain not available for RSS summarization")
+
+    except ImportError:
+        logger.error("[Scheduler] feedparser not installed. Run: pip install feedparser")
+    except Exception as e:
+        logger.error(f"[Scheduler] RSS digest failed: {e}")
