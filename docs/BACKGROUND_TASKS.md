@@ -6,6 +6,18 @@ This guide explains the productive overnight and idle background tasks implement
 
 Inkling now runs **6 productive background tasks** during idle periods and overnight hours to maximize the utility of your 24/7 Raspberry Pi Zero 2W. These tasks automate monitoring, backups, information gathering, and daily summaries.
 
+## Journal Directory
+
+Background tasks save their outputs to `~/.inkling/journal/` for persistent storage:
+
+- **Morning Briefing**: `briefing_YYYYMMDD.txt` - Daily weather, tasks, and AI greeting
+- **RSS Digest**: `rss_YYYYMMDD.txt` - AI summaries of top tech stories with full headlines
+- **System Health**: `health_YYYYMMDD.log` - Timestamped system metrics (appended throughout day)
+
+**Auto-cleanup**: Journal entries older than 30 days are automatically deleted to prevent disk bloat.
+
+**Access**: View journal files via the web UI (`/files` page) or directly on the filesystem.
+
 ## Implemented Tasks
 
 ### Tier 1: Easy Wins (No External Dependencies)
@@ -42,6 +54,7 @@ Inkling now runs **6 productive background tasks** during idle periods and overn
 **Output**:
 - Creates high-priority tasks for warnings
 - Logs healthy status to console
+- Saves to `~/.inkling/journal/health_YYYYMMDD.log` (appended each check)
 
 **Configuration**: None required
 
@@ -64,31 +77,30 @@ Inkling now runs **6 productive background tasks** during idle periods and overn
 
 #### 4. **Morning AI Briefing** ⭐ HIGH IMPACT
 **When**: Daily at 7:00 AM
-**What**: Comprehensive morning summary combining multiple sources
+**What**: Morning summary with weather and tasks
 
 **Includes**:
-- Weather forecast (Portland, OR)
+- Weather forecast (Portland, OR via wttr.in)
 - Tasks due today
-- Google Calendar events (if Composio enabled)
-- Gmail unread count (if Composio enabled)
 - AI-generated personalized greeting
+
+**Output**:
+- Displays on screen
+- Saves to `~/.inkling/journal/briefing_YYYYMMDD.txt`
+
+**Note**: Gmail/Calendar removed (was optional Composio feature)
 
 **Configuration**:
 
-1. **Weather** (Auto-fallback):
-   - **Option A**: Free wttr.in (no API key) - Works out of the box! ✅
-   - **Option B**: OpenWeatherMap (optional, more detailed)
-     ```bash
-     # Get free API key from: https://openweathermap.org/api
-     export OPENWEATHER_API_KEY=your_key_here
-     ```
-   - If no API key: Uses wttr.in automatically
-   - If API key set: Uses OpenWeatherMap API
-
-2. **Google Calendar/Gmail** (Optional, requires Composio MCP):
-   - Get API key: https://app.composio.dev/settings
-   - See [COMPOSIO_INTEGRATION.md](COMPOSIO_INTEGRATION.md) for setup
-   - Provides calendar events and email counts
+**Weather** (Auto-fallback):
+- **Option A**: Free wttr.in (no API key) - Works out of the box! ✅
+- **Option B**: OpenWeatherMap (optional, more detailed)
+  ```bash
+  # Get free API key from: https://openweathermap.org/api
+  export OPENWEATHER_API_KEY=your_key_here
+  ```
+- If no API key: Uses wttr.in automatically
+- If API key set: Uses OpenWeatherMap API
 
 **Example Output**:
 ```
@@ -107,7 +119,8 @@ Inkling now runs **6 productive background tasks** during idle periods and overn
 - Fetches up to 5 configured feeds
 - Top 3 items per feed
 - AI generates 3-5 sentence summary
-- Displays on screen or saves to journal
+- Displays on screen
+- Saves to `~/.inkling/journal/rss_YYYYMMDD.txt` with AI summary and full headlines
 
 **Pre-configured Feeds**:
 - Hacker News

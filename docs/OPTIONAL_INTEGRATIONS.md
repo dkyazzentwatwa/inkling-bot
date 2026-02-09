@@ -1,6 +1,6 @@
 # Optional Integrations Guide
 
-This guide covers optional external integrations that enhance background tasks.
+This guide covers **optional** external integrations that enhance background tasks.
 
 ## ✅ What Works Out of the Box (No Setup)
 
@@ -9,8 +9,11 @@ This guide covers optional external integrations that enhance background tasks.
 - **System Monitoring**: Uses psutil
 - **Task Management**: Built-in TaskManager
 - **Backups**: Local filesystem or SD card
+- **MCP Tools**: Tasks, System, Filesystem (built-in)
 
 **Result**: Morning briefing and all background tasks work immediately after `pip install feedparser`.
+
+**Composio is NOT required** - it's completely optional for advanced users who want Gmail/Calendar integration.
 
 ---
 

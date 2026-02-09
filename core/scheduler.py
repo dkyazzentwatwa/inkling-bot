@@ -370,6 +370,31 @@ async def action_test_greeting():
     logger.info("[Scheduler] Test greeting action triggered!")
 
 
+def _get_journal_dir():
+    """Get journal directory path, create if needed."""
+    from pathlib import Path
+    journal_dir = Path.home() / ".inkling" / "journal"
+    journal_dir.mkdir(parents=True, exist_ok=True)
+    return journal_dir
+
+
+def _cleanup_old_journal_entries(pattern="*.txt", days=30):
+    """Delete journal entries older than specified days."""
+    from pathlib import Path
+    from datetime import datetime, timedelta
+
+    journal_dir = _get_journal_dir()
+    cutoff = datetime.now() - timedelta(days=days)
+
+    for file in journal_dir.glob(pattern):
+        try:
+            if file.stat().st_mtime < cutoff.timestamp():
+                file.unlink()
+                logger.debug(f"[Scheduler] Cleaned up old journal: {file.name}")
+        except Exception as e:
+            logger.warning(f"[Scheduler] Failed to clean up {file.name}: {e}")
+
+
 async def action_daily_summary(inkling):
     """Daily task summary action."""
     logger.info("[Scheduler] Daily summary action triggered")
@@ -512,6 +537,7 @@ async def action_system_health_check(inkling):
     logger.info("[Scheduler] System health check triggered")
     try:
         import psutil
+        from datetime import datetime
 
         # Get system stats
         disk = psutil.disk_usage('/')
@@ -534,6 +560,34 @@ async def action_system_health_check(inkling):
         if cpu_temp and cpu_temp > 65:
             warnings.append(f"⚠️ Temperature: {cpu_temp:.1f}°C (high)")
 
+        # Build health log entry
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_lines = [
+            f"=== System Health Check - {timestamp} ===",
+            f"Disk: {disk.percent:.1f}% ({disk.used / (1024**3):.1f}GB / {disk.total / (1024**3):.1f}GB)",
+            f"Memory: {memory.percent:.1f}% ({memory.used / (1024**3):.1f}GB / {memory.total / (1024**3):.1f}GB)",
+        ]
+        if cpu_temp:
+            log_lines.append(f"CPU Temp: {cpu_temp:.1f}°C")
+
+        if warnings:
+            log_lines.append("\nWARNINGS:")
+            log_lines.extend(warnings)
+        else:
+            log_lines.append("\nStatus: ✅ All systems healthy")
+
+        log_content = "\n".join(log_lines) + "\n\n"
+
+        # Save to journal
+        journal_dir = _get_journal_dir()
+        today = datetime.now().strftime("%Y%m%d")
+        journal_file = journal_dir / f"health_{today}.log"
+
+        # Append to daily log file
+        with open(journal_file, 'a') as f:
+            f.write(log_content)
+        logger.debug(f"[Scheduler] Health check saved to {journal_file.name}")
+
         # Create tasks for warnings
         if warnings and inkling.task_manager:
             for warning in warnings:
@@ -550,6 +604,9 @@ async def action_system_health_check(inkling):
             if cpu_temp:
                 status_msg += f", Temp: {cpu_temp:.1f}°C"
             logger.info(f"[Scheduler] {status_msg}")
+
+        # Cleanup old logs (keep 30 days)
+        _cleanup_old_journal_entries(pattern="health_*.log", days=30)
 
     except Exception as e:
         logger.error(f"[Scheduler] Health check failed: {e}")
@@ -608,9 +665,14 @@ async def action_task_reminders(inkling):
 
 
 async def action_morning_briefing(inkling):
-    """Morning briefing: weather, calendar, emails, tasks."""
+    """Morning briefing: weather, tasks, AI greeting.
+
+    Note: Gmail/Calendar integration removed (was Composio-dependent).
+    Users can add their own MCP servers for email/calendar if needed.
+    """
     logger.info("[Scheduler] Morning briefing triggered")
     try:
+        from datetime import datetime
         briefing_parts = []
 
         # 1. Weather (Portland, OR)
@@ -655,7 +717,6 @@ async def action_morning_briefing(inkling):
         # 2. Tasks due today
         if inkling.task_manager:
             try:
-                from datetime import datetime
                 tasks = await inkling.task_manager.list_tasks(status="pending")
                 today = datetime.now().date()
                 due_today = [t for t in tasks if t.due_date and datetime.fromisoformat(t.due_date).date() == today]
@@ -664,13 +725,7 @@ async def action_morning_briefing(inkling):
             except Exception as e:
                 logger.debug(f"[Scheduler] Task check failed: {e}")
 
-        # 3. Google Calendar events (if Composio MCP enabled)
-        # TODO: Implement when Composio is configured
-
-        # 4. Gmail unread count (if Composio MCP enabled)
-        # TODO: Implement when Composio is configured
-
-        # 5. AI-generated greeting based on mood
+        # 3. AI-generated greeting based on mood
         if inkling.brain and briefing_parts:
             try:
                 context = " | ".join(briefing_parts)
@@ -680,15 +735,31 @@ async def action_morning_briefing(inkling):
             except Exception as e:
                 logger.debug(f"[Scheduler] AI greeting failed: {e}")
 
-        # Display briefing
-        if briefing_parts and inkling.display:
-            briefing_text = "\n".join(briefing_parts)
-            await inkling.display.update(
-                face="happy",
-                text=briefing_text,
-                status="BRIEFING"
-            )
+        # Save to journal
+        if briefing_parts:
+            journal_dir = _get_journal_dir()
+            today = datetime.now().strftime("%Y%m%d")
+            journal_file = journal_dir / f"briefing_{today}.txt"
+
+            briefing_content = f"=== Morning Briefing - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n"
+            briefing_content += "\n".join(briefing_parts) + "\n\n"
+
+            with open(journal_file, 'w') as f:
+                f.write(briefing_content)
+            logger.debug(f"[Scheduler] Morning briefing saved to {journal_file.name}")
+
+            # Display briefing
+            if inkling.display:
+                briefing_text = "\n".join(briefing_parts)
+                await inkling.display.update(
+                    face="happy",
+                    text=briefing_text,
+                    status="BRIEFING"
+                )
             logger.info(f"[Scheduler] Morning briefing: {len(briefing_parts)} items")
+
+            # Cleanup old briefings (keep 30 days)
+            _cleanup_old_journal_entries(pattern="briefing_*.txt", days=30)
         else:
             logger.info("[Scheduler] Morning briefing: no items to display")
 
@@ -702,6 +773,7 @@ async def action_rss_digest(inkling):
     try:
         import feedparser
         import requests
+        from datetime import datetime
 
         # Get RSS feeds from config
         config = inkling.config if hasattr(inkling, 'config') else {}
@@ -750,6 +822,24 @@ async def action_rss_digest(inkling):
                 prompt = f"Summarize these top tech stories in 3-5 sentences:\n" + "\n".join(titles)
                 summary = await inkling.brain.chat(prompt)
 
+                # Save to journal
+                journal_dir = _get_journal_dir()
+                today = datetime.now().strftime("%Y%m%d")
+                journal_file = journal_dir / f"rss_{today}.txt"
+
+                journal_content = f"=== RSS Digest - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n\n"
+                journal_content += f"AI SUMMARY:\n{summary.strip()}\n\n"
+                journal_content += f"FULL HEADLINES ({len(all_items)} items):\n"
+                for item in all_items:
+                    journal_content += f"- [{item['source']}] {item['title']}\n"
+                    if item['link']:
+                        journal_content += f"  {item['link']}\n"
+                journal_content += "\n"
+
+                with open(journal_file, 'w') as f:
+                    f.write(journal_content)
+                logger.debug(f"[Scheduler] RSS digest saved to {journal_file.name}")
+
                 # Display summary
                 if inkling.display:
                     await inkling.display.update(
@@ -759,6 +849,10 @@ async def action_rss_digest(inkling):
                     )
 
                 logger.info(f"[Scheduler] RSS digest: {len(all_items)} items from {len(feeds)} feeds")
+
+                # Cleanup old digests (keep 30 days)
+                _cleanup_old_journal_entries(pattern="rss_*.txt", days=30)
+
             except Exception as e:
                 logger.error(f"[Scheduler] AI summarization failed: {e}")
         else:
