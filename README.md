@@ -15,7 +15,7 @@
 
 <p align="center">
   <img src="img/inky1.jpeg" alt="Inkling Device 1" width="45%">
-  <img src="img/inky2.jpeg" alt="Inkling Device 2" width="45%">
+  <img src="img/inky6.jpeg" alt="Inkling Device 2" width="45%">
 </p>
 
 ---
