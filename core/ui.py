@@ -357,6 +357,13 @@ class DisplayContext:
     xp_progress: float = 0.0  # 0.0-1.0
     prestige: int = 0
 
+    # Crypto stats (for crypto watcher bot)
+    btc_price: Optional[float] = None
+    btc_change_24h: Optional[float] = None
+    portfolio_value: Optional[float] = None
+    watchlist_summary: str = ""  # e.g., "BTC +5% ETH -2%"
+    crypto_mood: Optional[str] = None  # moon, bullish, hodl, dip, rekt
+
     # Message
     message: str = ""
 
@@ -485,9 +492,21 @@ class HeaderBar:
         # Background
         draw_box(draw, 0, self.y, DISPLAY_WIDTH, self.height, fill=255, outline=0)
 
-        # Name + mood together (left-aligned, no cursor)
-        name_mood = f"{ctx.name[:8]}> {ctx.mood_text[:12]}"
-        draw_text_bold(draw, (3, self.y + 2), name_mood, font=self.fonts.small, fill=0)
+        # Left side: Name + mood OR BTC price
+        if ctx.btc_price is not None and ctx.btc_change_24h is not None:
+            # Crypto mode: Show BTC price
+            change_emoji = "🚀" if ctx.btc_change_24h > 5 else "📈" if ctx.btc_change_24h > 0 else "📉" if ctx.btc_change_24h > -5 else "💀"
+            if ctx.btc_price >= 1000:
+                price_str = f"${ctx.btc_price/1000:.1f}k"
+            else:
+                price_str = f"${ctx.btc_price:.0f}"
+            change_sign = "+" if ctx.btc_change_24h >= 0 else ""
+            left_text = f"BTC {price_str} {change_sign}{ctx.btc_change_24h:.1f}% {change_emoji}"
+        else:
+            # Standard mode: Name + mood
+            left_text = f"{ctx.name[:8]}> {ctx.mood_text[:12]}"
+
+        draw_text_bold(draw, (3, self.y + 2), left_text, font=self.fonts.small, fill=0)
 
         # Build right-side text: WiFi + Battery + Uptime
         right_parts = []
@@ -504,7 +523,7 @@ class HeaderBar:
                 battery_icon = "CHG" if ctx.is_charging else "BAT"
             else:
                 battery_icon = "⚡" if ctx.is_charging else "🔋"
-            right_parts.append(f"{battery_icon}%{ctx.battery_percentage}")
+            right_parts.append(f"{battery_icon}{ctx.battery_percentage}%")
 
         # Uptime
         right_parts.append(f"UP {ctx.uptime}")
@@ -678,17 +697,38 @@ class FooterBar:
         # Line 1 components
         line1 = []
 
-        # 1. XP Bar (replaces face)
-        xp_bar = format_xp_bar(ctx.xp_progress, bar_width=10, show_percentage=True)
-        line1.append(xp_bar)
+        # Crypto mode: Show portfolio or watchlist summary
+        if ctx.portfolio_value is not None or ctx.watchlist_summary:
+            # 1. Portfolio value
+            if ctx.portfolio_value is not None:
+                if ctx.portfolio_value >= 10000:
+                    portfolio_str = f"${ctx.portfolio_value/1000:.1f}k"
+                else:
+                    portfolio_str = f"${ctx.portfolio_value:.0f}"
+                line1.append(f"💎 {portfolio_str}")
 
-        # 2. Level with prestige stars
-        level_str = f"LEVEL {ctx.level}"
-        if ctx.prestige > 0:
-            level_str += " " + ("*" * min(ctx.prestige, 3))
-        line1.append(level_str)
+            # 2. Watchlist summary (if available)
+            if ctx.watchlist_summary:
+                line1.append(ctx.watchlist_summary[:20])  # Limit length
 
-        # 3. Mode
+            # 3. Crypto mood emoji
+            if ctx.crypto_mood:
+                mood_emoji = {"moon": "🚀🚀", "bullish": "📈", "hodl": "💎🙌", "dip": "📉", "rekt": "💀"}.get(ctx.crypto_mood, "")
+                if mood_emoji:
+                    line1.append(mood_emoji)
+        else:
+            # Standard mode: XP bar, level, mode
+            # 1. XP Bar (replaces face)
+            xp_bar = format_xp_bar(ctx.xp_progress, bar_width=10, show_percentage=True)
+            line1.append(xp_bar)
+
+            # 2. Level with prestige stars
+            level_str = f"LEVEL {ctx.level}"
+            if ctx.prestige > 0:
+                level_str += " " + ("*" * min(ctx.prestige, 3))
+            line1.append(level_str)
+
+        # 3. Mode (always show)
         line1.append(ctx.mode)
 
         # Line 2 components
