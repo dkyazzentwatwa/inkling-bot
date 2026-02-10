@@ -171,40 +171,46 @@ scheduler:
   #   "every().monday.at('09:00')" - Every Monday at 9 AM
   #   "every(5).minutes"        - Every 5 minutes
   tasks:
-    # Morning AI briefing (weather, calendar, tasks, email summary)
-    - name: "morning_briefing"
+    # Morning crypto briefing (prices, major moves, daily outlook)
+    - name: "morning_crypto_briefing"
       schedule: "every().day.at('07:00')"
-      action: "morning_briefing"
+      action: "crypto_briefing"
       enabled: true
 
-    # RSS feed digest (fetch and summarize news)
-    - name: "rss_digest"
+    # Crypto news digest (fetch and summarize crypto news)
+    - name: "crypto_news_digest"
       schedule: "every().day.at('06:30')"
-      action: "rss_digest"
+      action: "crypto_news_digest"
       enabled: true
 
-    # Daily task summary at 8 AM
-    - name: "morning_summary"
-      schedule: "every().day.at('08:00')"
-      action: "daily_summary"
+    # Portfolio check at market open
+    - name: "morning_portfolio_check"
+      schedule: "every().day.at('09:00')"
+      action: "portfolio_check"
       enabled: true
 
-    # Task deadline reminders (every 4 hours during waking hours)
-    - name: "task_reminders_morning"
+    # Price alert checks (every hour during waking hours)
+    - name: "price_alert_check_morning"
       schedule: "every().day.at('08:00')"
-      action: "task_reminders"
+      action: "check_price_alerts"
       enabled: true
-    - name: "task_reminders_noon"
+    - name: "price_alert_check_noon"
       schedule: "every().day.at('12:00')"
-      action: "task_reminders"
+      action: "check_price_alerts"
       enabled: true
-    - name: "task_reminders_afternoon"
+    - name: "price_alert_check_afternoon"
       schedule: "every().day.at('16:00')"
-      action: "task_reminders"
+      action: "check_price_alerts"
       enabled: true
-    - name: "task_reminders_evening"
+    - name: "price_alert_check_evening"
       schedule: "every().day.at('20:00')"
-      action: "task_reminders"
+      action: "check_price_alerts"
+      enabled: true
+
+    # TA update for watchlist (every 4 hours)
+    - name: "ta_update"
+      schedule: "every(4).hours"
+      action: "ta_update"
       enabled: true
 
     # Nightly backup at 3 AM
@@ -230,6 +236,40 @@ scheduler:
     #   schedule: "every().hour"
     #   action: "test_greeting"
     #   enabled: false
+
+# Crypto Configuration
+# Cryptocurrency tracking, portfolio, and alerts
+crypto:
+  # Default watchlist (coins to track)
+  watchlist:
+    - "BTC"
+    - "ETH"
+    - "SOL"
+    - "MATIC"
+    - "AVAX"
+
+  # Initial portfolio holdings (can be updated via commands)
+  portfolio:
+    # Example: BTC: 0.5, ETH: 10.0
+    {}
+
+  # Price update interval (seconds)
+  update_interval: 60
+
+  # Cache TTL for price data (seconds)
+  cache_ttl: 30
+
+  # Default timeframe for TA charts
+  default_timeframe: "1h"
+
+  # Exchange preferences (ccxt exchange IDs)
+  primary_exchange: "binance"
+  fallback_exchange: "coinbase"
+
+  # Alert settings
+  alerts:
+    check_interval: 300  # Check alerts every 5 minutes
+    notification_cooldown: 3600  # 1 hour between repeated alerts
 
 # Storage Configuration
 # Multiple storage locations for user files
@@ -296,11 +336,11 @@ mcp:
   enabled: true  # Enable for AI-driven task management
   max_tools: 20  # Maximum number of tools to load (lower = faster, higher = more capable)
   servers:
-    # Task Management (built-in)
-    # AI can create, list, complete, update, and delete tasks
-    tasks:
+    # Crypto Tools (built-in)
+    # AI can check prices, analyze charts, manage portfolio, set alerts
+    crypto:
       command: "python"
-      args: ["mcp_servers/tasks.py"]
+      args: ["mcp_servers/crypto.py"]
 
     # System Tools (built-in)
     # AI can use curl, df, free, uptime, ps, ping
