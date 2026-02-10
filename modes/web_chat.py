@@ -1505,3 +1505,495 @@ class WebChatMode:
     def stop(self) -> None:
         """Stop the web server."""
         self._running = False
+
+    # ========================================
+    # Crypto Watcher Commands
+    # ========================================
+
+    def _cmd_price(self, args: str = "") -> Dict[str, Any]:
+        """Check cryptocurrency price."""
+        if not args:
+            return {
+                "response": "Usage: /price <symbol>\nExample: /price BTC",
+                "face": "curious",
+                "status": "info"
+            }
+
+        symbol = args.upper().strip()
+
+        try:
+            # Run async function in thread pool
+            import asyncio
+            from core.crypto_watcher import CryptoWatcher
+
+            async def fetch_price():
+                async with CryptoWatcher() as watcher:
+                    return await watcher.get_price(symbol), watcher
+
+            price, watcher = asyncio.run(fetch_price())
+
+            if not price:
+                return {
+                    "response": f"Failed to fetch price for {symbol}",
+                    "face": "sad",
+                    "status": "error"
+                }
+
+            response = f"**{symbol} PRICE**\n\n"
+            response += f"{watcher.format_price(price)}\n"
+            response += f"Volume 24h: ${price.volume_24h:,.0f}\n"
+            if price.market_cap:
+                response += f"Market Cap: ${price.market_cap:,.0f}\n"
+            response += f"Mood: {price.mood}"
+
+            # Set face based on mood
+            face = "excited" if price.is_pumping else "sad" if price.is_dumping else "cool"
+
+            return {
+                "response": response,
+                "face": face,
+                "status": "success"
+            }
+
+        except Exception as e:
+            return {
+                "response": f"Error fetching price: {str(e)}",
+                "face": "confused",
+                "status": "error"
+            }
+
+    def _cmd_chart(self, args: str = "") -> Dict[str, Any]:
+        """Show TA indicators for a cryptocurrency."""
+        if not args:
+            return {
+                "response": "Usage: /chart <symbol> [timeframe]\nExample: /chart BTC\nExample: /chart ETH 4h",
+                "face": "curious",
+                "status": "info"
+            }
+
+        parts = args.upper().split()
+        symbol = parts[0]
+        timeframe = parts[1] if len(parts) > 1 else "1h"
+
+        try:
+            import asyncio
+            from core.crypto_watcher import CryptoWatcher
+            from core.crypto_ta import CryptoTA
+
+            async def fetch_chart():
+                async with CryptoWatcher() as watcher:
+                    ohlcv = await watcher.get_ohlcv(symbol, timeframe, 100)
+                    return ohlcv
+
+            ohlcv = asyncio.run(fetch_chart())
+
+            if not ohlcv:
+                return {
+                    "response": f"Failed to fetch chart data for {symbol}",
+                    "face": "sad",
+                    "status": "error"
+                }
+
+            ta = CryptoTA()
+            indicators = ta.calculate_indicators(ohlcv)
+            patterns = ta.detect_patterns(ohlcv)
+            supports, resistances = ta.get_support_resistance(ohlcv)
+
+            signal = indicators.get_signal()
+
+            response = f"**{symbol} TA ({timeframe})**\n\n"
+            response += f"**Signal:** {signal.crypto_bro_text} {signal.emoji}\n\n"
+
+            response += "**Indicators:**\n"
+            if indicators.rsi:
+                rsi_status = "oversold" if indicators.rsi < 30 else "overbought" if indicators.rsi > 70 else "neutral"
+                response += f"• RSI: {indicators.rsi:.1f} ({rsi_status})\n"
+            if indicators.macd:
+                macd_trend = "bullish" if indicators.macd > indicators.macd_signal else "bearish"
+                response += f"• MACD: {macd_trend} ({indicators.macd:.2f})\n"
+            if indicators.sma_20 and indicators.sma_50:
+                trend = "golden cross" if indicators.sma_20 > indicators.sma_50 else "death cross"
+                response += f"• Trend: {trend}\n"
+
+            if patterns:
+                response += "\n**Patterns:**\n"
+                for pattern in patterns[:3]:
+                    response += f"• {pattern}\n"
+
+            if supports and resistances:
+                response += "\n**Levels:**\n"
+                response += f"• Support: {', '.join([f'${s:,.0f}' for s in supports[:3]])}\n"
+                response += f"• Resistance: {', '.join([f'${r:,.0f}' for r in resistances[:3]])}\n"
+
+            face = "excited" if signal.value in ["STRONG_BUY", "BUY"] else "sad" if signal.value in ["STRONG_SELL", "SELL"] else "cool"
+
+            return {
+                "response": response,
+                "face": face,
+                "status": "success"
+            }
+
+        except Exception as e:
+            return {
+                "response": f"Error analyzing chart: {str(e)}",
+                "face": "confused",
+                "status": "error"
+            }
+
+    def _cmd_watch(self) -> Dict[str, Any]:
+        """Show watchlist with current prices."""
+        try:
+            import asyncio
+            from core.crypto_watcher import CryptoWatcher
+
+            # Load watchlist from config
+            config = self._config or {}
+            crypto_config = config.get("crypto", {})
+            watchlist = crypto_config.get("watchlist", ["BTC", "ETH", "SOL"])
+
+            async def fetch_watchlist():
+                async with CryptoWatcher() as watcher:
+                    prices = await watcher.get_multiple_prices(watchlist)
+                    return prices, watcher
+
+            prices, watcher = asyncio.run(fetch_watchlist())
+
+            if not prices:
+                return {
+                    "response": "Failed to fetch watchlist prices",
+                    "face": "sad",
+                    "status": "error"
+                }
+
+            response = "**WATCHLIST**\n\n"
+            for symbol in watchlist:
+                if symbol in prices:
+                    price = prices[symbol]
+                    response += f"{watcher.format_price(price)}\n"
+
+            return {
+                "response": response,
+                "face": "cool",
+                "status": "success"
+            }
+
+        except Exception as e:
+            return {
+                "response": f"Error fetching watchlist: {str(e)}",
+                "face": "confused",
+                "status": "error"
+            }
+
+    def _cmd_portfolio(self) -> Dict[str, Any]:
+        """Show portfolio value and holdings."""
+        try:
+            import asyncio
+            from core.crypto_watcher import CryptoWatcher
+            from pathlib import Path
+            import json
+
+            portfolio_file = Path.home() / ".inkling" / "crypto_portfolio.json"
+            if not portfolio_file.exists():
+                return {
+                    "response": "Portfolio is empty. Use /add to add holdings.\nExample: /add BTC 0.5",
+                    "face": "curious",
+                    "status": "info"
+                }
+
+            with open(portfolio_file) as f:
+                holdings = json.load(f)
+
+            if not holdings:
+                return {
+                    "response": "Portfolio is empty. Use /add to add holdings.",
+                    "face": "curious",
+                    "status": "info"
+                }
+
+            async def fetch_portfolio():
+                async with CryptoWatcher() as watcher:
+                    symbols = list(holdings.keys())
+                    prices = await watcher.get_multiple_prices(symbols)
+                    return prices
+
+            prices = asyncio.run(fetch_portfolio())
+
+            total_value = 0.0
+            response = "**PORTFOLIO** 💎\n\n"
+
+            for symbol, amount in holdings.items():
+                if symbol in prices:
+                    price = prices[symbol]
+                    value = amount * price.price_usd
+                    total_value += value
+
+                    emoji = "🚀" if price.price_change_24h > 5 else "📈" if price.price_change_24h > 0 else "📉" if price.price_change_24h > -5 else "💀"
+                    response += f"**{symbol}:** {amount} × ${price.price_usd:,.2f} = ${value:,.2f} ({price.price_change_24h:+.1f}%) {emoji}\n"
+
+            response += f"\n**Total:** ${total_value:,.2f}"
+
+            return {
+                "response": response,
+                "face": "excited" if total_value > 0 else "cool",
+                "status": "success"
+            }
+
+        except Exception as e:
+            return {
+                "response": f"Error loading portfolio: {str(e)}",
+                "face": "confused",
+                "status": "error"
+            }
+
+    def _cmd_add(self, args: str = "") -> Dict[str, Any]:
+        """Add coin to portfolio."""
+        if not args:
+            return {
+                "response": "Usage: /add <symbol> <amount>\nExample: /add BTC 0.5",
+                "face": "curious",
+                "status": "info"
+            }
+
+        parts = args.upper().split()
+        if len(parts) < 2:
+            return {
+                "response": "Please specify both symbol and amount",
+                "face": "confused",
+                "status": "error"
+            }
+
+        symbol = parts[0]
+
+        try:
+            amount = float(parts[1])
+
+            from pathlib import Path
+            import json
+
+            portfolio_file = Path.home() / ".inkling" / "crypto_portfolio.json"
+            portfolio_file.parent.mkdir(parents=True, exist_ok=True)
+
+            if portfolio_file.exists():
+                with open(portfolio_file) as f:
+                    holdings = json.load(f)
+            else:
+                holdings = {}
+
+            holdings[symbol] = holdings.get(symbol, 0) + amount
+
+            with open(portfolio_file, 'w') as f:
+                json.dump(holdings, f, indent=2)
+
+            return {
+                "response": f"Added {amount} {symbol} to portfolio (total: {holdings[symbol]})",
+                "face": "excited",
+                "status": "success"
+            }
+
+        except ValueError:
+            return {
+                "response": "Invalid amount. Use a number (e.g., 0.5)",
+                "face": "confused",
+                "status": "error"
+            }
+        except Exception as e:
+            return {
+                "response": f"Error adding to portfolio: {str(e)}",
+                "face": "sad",
+                "status": "error"
+            }
+
+    def _cmd_remove(self, args: str = "") -> Dict[str, Any]:
+        """Remove coin from portfolio."""
+        if not args:
+            return {
+                "response": "Usage: /remove <symbol> <amount>\nExample: /remove BTC 0.1",
+                "face": "curious",
+                "status": "info"
+            }
+
+        parts = args.upper().split()
+        if len(parts) < 2:
+            return {
+                "response": "Please specify both symbol and amount",
+                "face": "confused",
+                "status": "error"
+            }
+
+        symbol = parts[0]
+
+        try:
+            amount = float(parts[1])
+
+            from pathlib import Path
+            import json
+
+            portfolio_file = Path.home() / ".inkling" / "crypto_portfolio.json"
+            if not portfolio_file.exists():
+                return {
+                    "response": "Portfolio is empty",
+                    "face": "sad",
+                    "status": "error"
+                }
+
+            with open(portfolio_file) as f:
+                holdings = json.load(f)
+
+            if symbol not in holdings:
+                return {
+                    "response": f"{symbol} not in portfolio",
+                    "face": "confused",
+                    "status": "error"
+                }
+
+            holdings[symbol] = max(0, holdings[symbol] - amount)
+
+            if holdings[symbol] == 0:
+                del holdings[symbol]
+                message = f"Removed all {symbol} from portfolio"
+            else:
+                message = f"Removed {amount} {symbol} (remaining: {holdings[symbol]})"
+
+            with open(portfolio_file, 'w') as f:
+                json.dump(holdings, f, indent=2)
+
+            return {
+                "response": message,
+                "face": "cool",
+                "status": "success"
+            }
+
+        except ValueError:
+            return {
+                "response": "Invalid amount",
+                "face": "confused",
+                "status": "error"
+            }
+        except Exception as e:
+            return {
+                "response": f"Error removing from portfolio: {str(e)}",
+                "face": "sad",
+                "status": "error"
+            }
+
+    def _cmd_alert(self, args: str = "") -> Dict[str, Any]:
+        """Set a price alert."""
+        if not args:
+            return {
+                "response": "Usage: /alert <symbol> <price> <above|below>\nExample: /alert BTC 70000 above",
+                "face": "curious",
+                "status": "info"
+            }
+
+        parts = args.split()
+        if len(parts) < 3:
+            return {
+                "response": "Please specify symbol, price, and condition (above/below)",
+                "face": "confused",
+                "status": "error"
+            }
+
+        symbol = parts[0].upper()
+
+        try:
+            target_price = float(parts[1])
+            condition = parts[2].lower()
+
+            if condition not in ["above", "below"]:
+                return {
+                    "response": "Condition must be 'above' or 'below'",
+                    "face": "confused",
+                    "status": "error"
+                }
+
+            from pathlib import Path
+            import json
+
+            alerts_file = Path.home() / ".inkling" / "crypto_alerts.json"
+            alerts_file.parent.mkdir(parents=True, exist_ok=True)
+
+            if alerts_file.exists():
+                with open(alerts_file) as f:
+                    alerts = json.load(f)
+            else:
+                alerts = []
+
+            alert = {
+                "symbol": symbol,
+                "target_price": target_price,
+                "condition": condition,
+                "active": True
+            }
+
+            alerts.append(alert)
+
+            with open(alerts_file, 'w') as f:
+                json.dump(alerts, f, indent=2)
+
+            return {
+                "response": f"🔔 Alert set: {symbol} {condition} ${target_price:,.0f}",
+                "face": "excited",
+                "status": "success"
+            }
+
+        except ValueError:
+            return {
+                "response": "Invalid price",
+                "face": "confused",
+                "status": "error"
+            }
+        except Exception as e:
+            return {
+                "response": f"Error setting alert: {str(e)}",
+                "face": "sad",
+                "status": "error"
+            }
+
+    def _cmd_alerts(self) -> Dict[str, Any]:
+        """List all active price alerts."""
+        try:
+            from pathlib import Path
+            import json
+
+            alerts_file = Path.home() / ".inkling" / "crypto_alerts.json"
+            if not alerts_file.exists():
+                return {
+                    "response": "No alerts set. Use /alert to create one.",
+                    "face": "curious",
+                    "status": "info"
+                }
+
+            with open(alerts_file) as f:
+                alerts = json.load(f)
+
+            active_alerts = [a for a in alerts if a.get("active", True)]
+
+            if not active_alerts:
+                return {
+                    "response": "No active alerts.",
+                    "face": "curious",
+                    "status": "info"
+                }
+
+            response = "**PRICE ALERTS** 🔔\n\n"
+
+            for alert in active_alerts:
+                symbol = alert["symbol"]
+                price = alert["target_price"]
+                condition = alert["condition"]
+                emoji = "⬆️" if condition == "above" else "⬇️"
+
+                response += f"{emoji} {symbol} {condition} ${price:,.0f}\n"
+
+            return {
+                "response": response,
+                "face": "cool",
+                "status": "success"
+            }
+
+        except Exception as e:
+            return {
+                "response": f"Error loading alerts: {str(e)}",
+                "face": "confused",
+                "status": "error"
+            }
