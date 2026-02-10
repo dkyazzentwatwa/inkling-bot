@@ -219,9 +219,9 @@ mcp:
 Inkling: [Fetches and summarizes page]
 ```
 
-### Memory/Notes
+### Memory/Notes (Optional MCP Server)
 
-Persistent memory for conversations:
+External memory server for cross-tool note sharing:
 
 ```yaml
 mcp:
@@ -242,6 +242,8 @@ Got it! I'll remember that.
 Inkling: [Retrieves from memory]
 Your favorite color is blue!
 ```
+
+> Note: Inkling already includes a built-in local memory system (`~/.inkling/memory.db`) for normal chat continuity and `/memory` stats. The MCP memory server is optional and separate.
 
 ### Brave Search
 

@@ -151,6 +151,7 @@ Background tasks that keep Inkling healthy:
 **Frequency**: Every ~1 hour
 **Action**: Removes old, low-importance memories
 **Output**: Silent (logged only)
+**Source**: Built-in `MemoryStore` in `~/.inkling/memory.db`
 
 #### Remind Overdue Tasks
 **Requires**: Task manager enabled
@@ -271,6 +272,15 @@ Higher empathy (>0.6) affects:
 Higher verbosity affects:
 - Length of autonomous thoughts
 - Detail in suggestions
+
+## Memory Integration
+
+Heartbeat integrates with the built-in memory system:
+- Prunes old low-importance memories as maintenance
+- Stores autonomous exploration thoughts as `event` memories
+- Uses the same shared memory store initialized in `main.py`
+
+With heartbeat enabled, memory maintenance and thought persistence run automatically.
 
 ## Monitoring
 

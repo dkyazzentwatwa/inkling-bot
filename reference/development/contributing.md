@@ -141,6 +141,7 @@ inkling-bot/
 │   ├── personality.py  # Mood & traits
 │   ├── progression.py  # XP & leveling
 │   ├── tasks.py        # Task management
+│   ├── memory.py       # Persistent conversation memory
 │   ├── heartbeat.py    # Autonomous behaviors
 │   ├── display.py      # E-ink abstraction
 │   ├── ui.py           # UI components
@@ -387,8 +388,11 @@ display:
 ```python
 # Quick test in Python REPL
 from core.brain import Brain
+from core.memory import MemoryStore
 
-brain = Brain(config)
+memory = MemoryStore()
+memory.initialize()
+brain = Brain(config, memory_store=memory, memory_config={"enabled": True})
 result = await brain.think("Hello", "You are helpful.")
 print(result.content)
 ```

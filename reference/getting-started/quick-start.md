@@ -140,6 +140,14 @@ personality:
   playfulness: 0.6
   empathy: 0.7
   independence: 0.4
+
+memory:
+  enabled: true
+  prompt_context:
+    enabled: true
+  capture:
+    rule_based: true
+    llm_enabled: false
 ```
 
 ### Enable Task Management
@@ -167,6 +175,7 @@ mcp:
 | `/done <id>` | Complete task (awards XP) |
 | `/stats` | AI token usage |
 | `/system` | System info (CPU, memory, temp) |
+| `/memory` | Memory stats and recent entries |
 | `/clear` | Clear conversation history |
 | `/quit` | Exit (SSH mode only) |
 

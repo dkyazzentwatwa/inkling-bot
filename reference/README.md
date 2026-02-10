@@ -69,8 +69,8 @@ Complete guides for building, configuring, and extending your Inkling AI compani
 │  DisplayManager  │  Personality  │  Brain  │  Heartbeat │
 │  (E-ink/Mock)    │  (Mood/XP)    │ (Multi-AI) │ (Auto)  │
 ├─────────────────────────────────────────────────────────┤
-│      TaskManager      │        MCPClient               │
-│    (SQLite tasks)     │    (Tool integration)          │
+│ TaskManager │ MemoryStore │ MCPClient                  │
+│ (tasks.db)  │ (memory.db) │ (Tool integration)         │
 ├─────────────────────────────────────────────────────────┤
 │          modes/ssh_chat.py  │  modes/web_chat.py       │
 │         (Terminal mode)     │  (Web UI + Kanban)       │
@@ -94,7 +94,14 @@ The Brain module tries providers in order with automatic fallback:
 ### Model Context Protocol (MCP)
 Inkling can use external tools through MCP:
 - Built-in: task management, filesystem access
-- Third-party: Composio (500+ apps), web search, memory
+- Third-party: Composio (500+ apps), web search, optional memory server
+
+### Built-in Memory System
+Inkling now includes a local memory system by default:
+- Persistent storage in `~/.inkling/memory.db`
+- Automatic rule-based capture from conversation (name, preferences, explicit facts)
+- Relevant-memory prompt context injection for better continuity
+- Memory maintenance via heartbeat pruning
 
 ### Heartbeat System
 Makes Inkling feel "alive" with autonomous behaviors:
