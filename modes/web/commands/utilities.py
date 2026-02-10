@@ -77,9 +77,11 @@ class UtilityCommands(CommandHandler):
         """Show memory stats and recent entries."""
         from core.memory import MemoryStore
 
-        store = MemoryStore()
+        store = self.memory_store or MemoryStore()
+        owns_store = self.memory_store is None
         try:
-            store.initialize()
+            if owns_store:
+                store.initialize()
 
             total = store.count()
             user_count = store.count(MemoryStore.CATEGORY_USER)
@@ -111,7 +113,8 @@ class UtilityCommands(CommandHandler):
                 "face": self.personality.face,
             }
         finally:
-            store.close()
+            if owns_store:
+                store.close()
 
     def settings(self) -> Dict[str, Any]:
         """Show current settings (redirects to settings page in web mode)."""

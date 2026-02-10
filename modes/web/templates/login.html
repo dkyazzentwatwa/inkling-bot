@@ -86,12 +86,16 @@
 
         /* Mobile Responsiveness */
         @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
             .login-container {
                 padding: 1.5rem;
-                margin: 1rem;
+                margin: 0;
+                border-width: 2px;
             }
             h1 {
-                font-size: 1.5rem;
+                font-size: 1.75rem;
             }
             .face {
                 font-size: 2.5rem;
@@ -99,23 +103,54 @@
             input[type="password"],
             button {
                 font-size: 16px; /* Prevents zoom on iOS */
-                padding: 0.875rem;
+                padding: 1rem;
+                min-height: 48px; /* Better touch target */
             }
         }
 
         @media (max-width: 480px) {
+            body {
+                padding: 0.5rem;
+            }
+            .login-container {
+                padding: 1.25rem;
+                margin: 0;
+                border-width: 1px; /* Thinner border on small screens */
+                max-width: 100%;
+            }
+            h1 {
+                font-size: 1.5rem;
+                margin-bottom: 0.25rem;
+            }
+            .face {
+                font-size: 2rem;
+                margin-bottom: 0.75rem;
+            }
+            .subtitle {
+                font-size: 0.8rem;
+                margin-bottom: 1.5rem;
+            }
+            .form-group {
+                margin-bottom: 1.25rem;
+            }
+            input[type="password"],
+            button {
+                font-size: 16px;
+                padding: 1rem;
+                min-height: 48px;
+            }
+        }
+
+        /* Extra small devices */
+        @media (max-width: 360px) {
             .login-container {
                 padding: 1rem;
-                margin: 0.5rem;
             }
             h1 {
                 font-size: 1.25rem;
             }
             .face {
-                font-size: 2rem;
-            }
-            .subtitle {
-                font-size: 0.8rem;
+                font-size: 1.75rem;
             }
         }
     </style>

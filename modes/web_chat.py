@@ -26,6 +26,7 @@ from core.personality import Personality
 from core.commands import COMMANDS, get_command, get_commands_by_category
 from core.tasks import TaskManager, Task, TaskStatus, Priority
 from core.crypto import Identity
+from core.memory import MemoryStore
 
 # Command handlers
 from modes.web.commands.play import PlayCommands
@@ -79,6 +80,7 @@ class WebChatMode:
         display: DisplayManager,
         personality: Personality,
         task_manager: Optional[TaskManager] = None,
+        memory_store: Optional[MemoryStore] = None,
         scheduler=None,
         identity: Optional[Identity] = None,
         config: Optional[Dict] = None,
@@ -89,6 +91,7 @@ class WebChatMode:
         self.display = display
         self.personality = personality
         self.task_manager = task_manager
+        self.memory_store = memory_store
         self.scheduler = scheduler
         self.identity = identity
         self.host = host

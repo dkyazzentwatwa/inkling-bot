@@ -390,6 +390,30 @@ class TestHeartbeatIntegration:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_autonomous_exploration_stores_memory(self, personality, memory_store):
+        """Autonomous exploration should write a memory entry when memory is available."""
+        from core.heartbeat import Heartbeat, HeartbeatConfig
+
+        class FakeBrain:
+            async def think(self, *args, **kwargs):
+                class Result:
+                    content = "A tiny reflective thought."
+                return Result()
+
+        config = HeartbeatConfig(tick_interval_seconds=1)
+        heartbeat = Heartbeat(
+            personality,
+            memory_store=memory_store,
+            brain=FakeBrain(),
+            config=config,
+        )
+
+        message = await heartbeat._behavior_autonomous_exploration()
+
+        assert message is not None
+        assert memory_store.count() >= 1
+
+    @pytest.mark.asyncio
     async def test_heartbeat_message_callback(self, personality):
         """Test that behaviors trigger message callback."""
         from core.heartbeat import Heartbeat, HeartbeatConfig, ProactiveBehavior, BehaviorType

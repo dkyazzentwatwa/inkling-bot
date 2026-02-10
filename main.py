@@ -32,6 +32,7 @@ from core.display import DisplayManager
 from core.mcp_client import MCPClientManager
 from core.personality import Personality, PersonalityTraits
 from core.heartbeat import Heartbeat, HeartbeatConfig
+from core.memory import MemoryStore
 from core.tasks import TaskManager
 from core.battery import _client as pisugar_client # Import the singleton client for configuration
 from modes.ssh_chat import SSHChatMode
@@ -111,6 +112,19 @@ def get_default_config() -> dict:
             "cheerfulness": 0.6,
             "verbosity": 0.5,
         },
+        "memory": {
+            "enabled": True,
+            "prompt_context": {
+                "enabled": True,
+                "max_items": 6,
+                "max_chars": 600,
+            },
+            "capture": {
+                "rule_based": True,
+                "llm_enabled": False,
+                "max_new_per_turn": 5,
+            },
+        },
     }
 
 
@@ -133,6 +147,7 @@ class Inkling:
         self.mcp_client: Optional[MCPClientManager] = None
         self.heartbeat: Optional[Heartbeat] = None
         self.task_manager: Optional[TaskManager] = None
+        self.memory_store: Optional[MemoryStore] = None
         # Current mode
         self._mode = None
 
@@ -232,6 +247,16 @@ class Inkling:
             print(f"    Task manager failed to initialize: {e}")
             self.task_manager = None
 
+        # Memory Store
+        print("  - Initializing memory store...")
+        try:
+            self.memory_store = MemoryStore()
+            self.memory_store.initialize()
+            print("    Memory store ready")
+        except Exception as e:
+            print(f"    Memory store failed to initialize: {e}")
+            self.memory_store = None
+
         # Scheduler (cron-style task scheduling)
         scheduler_config_data = self.config.get("scheduler", {})
         scheduler_enabled = scheduler_config_data.get("enabled", True)
@@ -290,7 +315,13 @@ class Inkling:
         # Brain (AI) — before Heartbeat so autonomous behaviors have access
         print("  - Connecting brain...")
         ai_config = self.config.get("ai", {})
-        self.brain = Brain(ai_config, mcp_client=self.mcp_client)
+        memory_config = self.config.get("memory", {})
+        self.brain = Brain(
+            ai_config,
+            mcp_client=self.mcp_client,
+            memory_store=self.memory_store,
+            memory_config=memory_config,
+        )
 
         if self.brain.has_providers:
             print(f"    Providers: {', '.join(self.brain.available_providers)}")
@@ -331,6 +362,7 @@ class Inkling:
                 brain=self.brain,
                 task_manager=self.task_manager,
                 scheduler=self.scheduler,
+                memory_store=self.memory_store,
                 config=heartbeat_config,
             )
 
@@ -383,6 +415,7 @@ class Inkling:
                     personality=self.personality,
                     task_manager=self.task_manager,
                     scheduler=self.scheduler,
+                    memory_store=self.memory_store,
                     config=self.config,
                 )
                 await self._mode.run()
@@ -418,6 +451,7 @@ class Inkling:
                     personality=self.personality,
                     task_manager=self.task_manager,
                     scheduler=self.scheduler,
+                    memory_store=self.memory_store,
                     identity=self.identity,
                     config=self.config,
                     port=port,
@@ -536,6 +570,12 @@ class Inkling:
 
         if self.display:
             self.display.sleep()
+
+        if self.memory_store:
+            try:
+                self.memory_store.close()
+            except Exception as e:
+                print(f"[Memory] Failed to close memory store: {e}")
 
         # Force garbage collection
         gc.collect()

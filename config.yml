@@ -96,6 +96,22 @@ personality:
   # Mood decay rate (per minute)
   mood_decay: 0.1
 
+# Memory Configuration
+memory:
+  enabled: true
+
+  # Inject relevant memories into AI prompts
+  prompt_context:
+    enabled: true
+    max_items: 6
+    max_chars: 600
+
+  # Capture new memories from conversation turns
+  capture:
+    rule_based: true
+    llm_enabled: false
+    max_new_per_turn: 5
+
 # Heartbeat System - Makes Inkling "alive" with autonomous behaviors
 heartbeat:
   enabled: true  # Set to false to disable autonomous behaviors

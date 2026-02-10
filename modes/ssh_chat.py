@@ -17,6 +17,7 @@ from core.personality import Personality, Mood
 from core.ui import FACES, UNICODE_FACES
 from core.commands import COMMANDS, get_command, get_commands_by_category
 from core.tasks import TaskManager, Task, TaskStatus, Priority
+from core.memory import MemoryStore
 from core.progression import XPSource
 from core.shell_utils import run_bash_command
 
@@ -88,6 +89,7 @@ class SSHChatMode:
         display: DisplayManager,
         personality: Personality,
         task_manager: Optional[TaskManager] = None,
+        memory_store: Optional[MemoryStore] = None,
         scheduler=None,
         config: Optional[dict] = None,
     ):
@@ -95,6 +97,7 @@ class SSHChatMode:
         self.display = display
         self.personality = personality
         self.task_manager = task_manager
+        self.memory_store = memory_store
         self.scheduler = scheduler
         self._running = False
         self._config = config or {}
@@ -1594,11 +1597,11 @@ class SSHChatMode:
 
     async def cmd_memory(self) -> None:
         """Show memory stats and recent entries."""
-        from core.memory import MemoryStore
-
-        store = MemoryStore()
+        store = self.memory_store or MemoryStore()
+        owns_store = self.memory_store is None
         try:
-            store.initialize()
+            if owns_store:
+                store.initialize()
 
             total = store.count()
             user_count = store.count(MemoryStore.CATEGORY_USER)
@@ -1627,7 +1630,8 @@ class SSHChatMode:
 
             print()
         finally:
-            store.close()
+            if owns_store:
+                store.close()
 
     async def cmd_settings(self) -> None:
         """Show current settings."""

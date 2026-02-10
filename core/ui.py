@@ -601,10 +601,11 @@ class FooterBar:
     Bottom footer bar with system stats and info.
 
     Two-line format:
-    Line 1: "[████████░░] 80% | L12 EXPL | SSH"
+    Line 1: "[████████░░] 80% | LEVEL 12 * | SSH"
     Line 2: "54%m 1%c 43° | CH3 | 14:23"
 
     Note: Battery moved to header for better visibility.
+          Stars after level number indicate prestige.
     """
 
     def __init__(self, fonts: Fonts):
@@ -626,12 +627,11 @@ class FooterBar:
         xp_bar = format_xp_bar(ctx.xp_progress, bar_width=10, show_percentage=True)
         line1.append(xp_bar)
 
-        # 2. Level and rank
-        level_name_short = ctx.level_name.split()[0][:4].upper()  # "NEWB", "CURI", etc.
-        level_str = f"L{ctx.level}"
+        # 2. Level with prestige stars
+        level_str = f"LEVEL {ctx.level}"
         if ctx.prestige > 0:
-            level_str += "*" * min(ctx.prestige, 3)
-        line1.append(f"{level_str} {level_name_short}")
+            level_str += " " + ("*" * min(ctx.prestige, 3))
+        line1.append(level_str)
 
         # 3. Mode
         line1.append(ctx.mode)

@@ -761,10 +761,12 @@ class Heartbeat:
 
             # Store as a memory if we have memory system
             if self.memory:
-                self.memory.add(
-                    content=f"Thought about {topic}: {result.content}",
+                key = f"thought_{int(time.time())}_{topic.split()[0]}"
+                self.memory.remember(
+                    key=key,
+                    value=f"Thought about {topic}: {result.content}",
                     importance=0.6,
-                    tags=["thought", "autonomous", topic.split()[0]],
+                    category="event",
                 )
 
             return f"💭 {result.content[:120]}..."

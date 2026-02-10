@@ -17,6 +17,7 @@ from enum import Enum
 from pathlib import Path
 
 from .progression import ChatQuality
+from .memory import MemoryStore
 
 
 def _sanitize_error(msg: str) -> str:
@@ -622,7 +623,13 @@ class Brain:
     - MCP tool integration
     """
 
-    def __init__(self, config: Dict[str, Any], mcp_client=None):
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        mcp_client=None,
+        memory_store: Optional[MemoryStore] = None,
+        memory_config: Optional[Dict[str, Any]] = None,
+    ):
         """
         Initialize the brain with configuration.
 
@@ -645,6 +652,19 @@ class Brain:
             per_request_max=config.get("budget", {}).get("per_request_max", 500),
         )
         self.mcp_client = mcp_client
+        self.memory_store = memory_store
+        self.memory_config = memory_config or {}
+        self._memory_enabled = self.memory_config.get("enabled", True)
+
+        prompt_config = self.memory_config.get("prompt_context", {})
+        self._memory_prompt_enabled = prompt_config.get("enabled", True)
+        self._memory_prompt_max_items = max(1, int(prompt_config.get("max_items", 6)))
+        self._memory_prompt_max_chars = max(100, int(prompt_config.get("max_chars", 600)))
+
+        capture_config = self.memory_config.get("capture", {})
+        self._memory_capture_rule_based = capture_config.get("rule_based", True)
+        self._memory_capture_llm_enabled = capture_config.get("llm_enabled", False)
+        self._memory_capture_max_new = max(1, int(capture_config.get("max_new_per_turn", 5)))
 
         # Conversation history
         self._messages: List[Message] = []
@@ -795,6 +815,12 @@ class Brain:
         self._messages.append(Message(role="user", content=user_message))
         self._trim_history()
 
+        effective_system_prompt = system_prompt
+        if self._memory_enabled and self._memory_prompt_enabled and self.memory_store:
+            memory_context = self._build_memory_context(user_message)
+            if memory_context:
+                effective_system_prompt = f"{system_prompt}\n\n{memory_context}"
+
         # Get tools if MCP is available (dynamically based on query)
         tools = None
         if use_tools and self.mcp_client and self.mcp_client.has_tools:
@@ -806,7 +832,7 @@ class Brain:
             for attempt in range(max_retries):
                 try:
                     result = await provider.generate(
-                        system_prompt=system_prompt,
+                        system_prompt=effective_system_prompt,
                         messages=self._messages,
                         tools=tools,
                     )
@@ -816,7 +842,7 @@ class Brain:
                     while result.is_tool_use and tool_round < max_tool_rounds:
                         tool_round += 1
                         result = await self._execute_tools_and_continue(
-                            provider, system_prompt, result, tools, status_callback
+                            provider, effective_system_prompt, result, tools, status_callback
                         )
 
                     # Analyze chat quality for XP
@@ -836,6 +862,11 @@ class Brain:
                         self.save_messages()
                     except Exception:
                         pass  # Don't fail chat on save error
+
+                    try:
+                        self._extract_and_store_memories(user_message, result.content)
+                    except Exception as e:
+                        print(f"[Brain] Memory extraction error: {e}")
 
                     return result
 
@@ -952,6 +983,141 @@ class Brain:
         """Keep only recent messages to manage context size."""
         if len(self._messages) > self._max_history:
             self._messages = self._messages[-self._max_history:]
+
+    def _build_memory_context(self, user_message: str) -> str:
+        """Build relevant memory context to append to prompts."""
+        if not self.memory_store:
+            return ""
+
+        memories = []
+        seen = set()
+
+        def add_memory(mem):
+            key = (mem.category, mem.key)
+            if key not in seen:
+                seen.add(key)
+                memories.append(mem)
+
+        try:
+            pref_limit = max(1, self._memory_prompt_max_items // 2)
+            for mem in self.memory_store.recall_by_category(
+                MemoryStore.CATEGORY_PREFERENCE,
+                limit=pref_limit,
+            ):
+                add_memory(mem)
+
+            for term in self._extract_query_terms(user_message):
+                for mem in self.memory_store.recall(term, limit=self._memory_prompt_max_items):
+                    add_memory(mem)
+        except Exception as e:
+            print(f"[Brain] Memory context error: {e}")
+            return ""
+
+        if not memories:
+            return ""
+
+        memories = memories[:self._memory_prompt_max_items]
+        lines = ["Things I remember:"]
+        for mem in memories:
+            lines.append(f"- {mem.key}: {mem.value}")
+
+        context = "\n".join(lines)
+        if len(context) > self._memory_prompt_max_chars:
+            context = context[: self._memory_prompt_max_chars - 3].rstrip() + "..."
+        return context
+
+    def _extract_query_terms(self, user_message: str) -> List[str]:
+        """Extract lightweight search terms from user input."""
+        stop_words = {
+            "the", "and", "for", "with", "that", "this", "have", "what", "when", "where",
+            "why", "how", "are", "you", "your", "from", "about", "please", "could", "would",
+            "should", "can", "will", "just", "really", "into", "there", "their", "they",
+        }
+        words = re.findall(r"[a-zA-Z][a-zA-Z0-9_'-]{2,}", user_message.lower())
+        terms = []
+        for word in words:
+            if word not in stop_words and word not in terms:
+                terms.append(word)
+            if len(terms) >= 4:
+                break
+        return terms
+
+    def _extract_and_store_memories(self, user_message: str, assistant_message: str) -> None:
+        """Extract explicit memories from conversation turn and persist them."""
+        if not self.memory_store or not self._memory_enabled:
+            return
+
+        stored = 0
+        if self._memory_capture_rule_based:
+            stored += self._extract_rule_based_memories(user_message)
+
+        # Optional LLM extraction gate (disabled by default).
+        # Intentionally conservative until a dedicated extraction model flow is added.
+        if self._memory_capture_llm_enabled and stored < self._memory_capture_max_new:
+            try:
+                stored += self._extract_llm_memories(assistant_message, self._memory_capture_max_new - stored)
+            except Exception as e:
+                print(f"[Brain] LLM memory extraction skipped: {e}")
+
+    def _extract_rule_based_memories(self, user_message: str) -> int:
+        """Extract explicit user facts/preferences using deterministic patterns."""
+        if not self.memory_store:
+            return 0
+
+        text = user_message.strip()
+        stored = 0
+
+        def clean_value(raw: str) -> str:
+            value = raw.strip().strip("\"' ")
+            value = re.split(r"[.?!,;]", value)[0].strip()
+            return value
+
+        def slugify(value: str) -> str:
+            slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+            return slug[:24] or "item"
+
+        def save(key: str, value: str, importance: float, category: str) -> None:
+            nonlocal stored
+            if stored >= self._memory_capture_max_new:
+                return
+            if not value:
+                return
+            self.memory_store.remember(key, value, importance=importance, category=category)
+            stored += 1
+
+        name_match = re.search(
+            r"\bmy name is\s+([a-zA-Z][a-zA-Z\s'-]{0,40}?)(?:\s+(?:and|but)\b|[.,;!?]|$)",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if name_match:
+            save("user_name", clean_value(name_match.group(1)).title(), 0.95, MemoryStore.CATEGORY_USER)
+
+        for match in re.finditer(r"\bi (?:like|love|prefer)\s+([^.,;!?]{1,80})", text, flags=re.IGNORECASE):
+            value = clean_value(match.group(1))
+            save(f"pref_{slugify(value)}", value, 0.9, MemoryStore.CATEGORY_PREFERENCE)
+
+        for match in re.finditer(r"\bi(?: am|'m)\s+allergic to\s+([^.,;!?]{1,80})", text, flags=re.IGNORECASE):
+            value = clean_value(match.group(1))
+            save(f"allergy_{slugify(value)}", value, 0.95, MemoryStore.CATEGORY_USER)
+
+        work_at = re.search(r"\bi (?:work|worked)\s+at\s+([^.,;!?]{1,80})", text, flags=re.IGNORECASE)
+        if work_at:
+            save("workplace", clean_value(work_at.group(1)), 0.85, MemoryStore.CATEGORY_USER)
+
+        work_as = re.search(r"\bi work as\s+(?:an?\s+)?([^.,;!?]{1,80})", text, flags=re.IGNORECASE)
+        if work_as:
+            save("occupation", clean_value(work_as.group(1)), 0.85, MemoryStore.CATEGORY_USER)
+
+        return stored
+
+    def _extract_llm_memories(self, assistant_message: str, remaining: int) -> int:
+        """Placeholder for optional LLM extraction (feature-gated)."""
+        if remaining <= 0:
+            return 0
+        # Current rollout intentionally uses deterministic extraction only.
+        # Keep API surface for future LLM-based extraction behind config flag.
+        return 0
 
     def _analyze_chat_quality(self, user_message: str) -> ChatQuality:
         """
