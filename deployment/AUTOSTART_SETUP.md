@@ -15,7 +15,7 @@ You can run **either** web mode or SSH mode on startup (not both simultaneously)
 sudo cp deployment/inkling-web.service /etc/systemd/system/
 
 # Create environment file with API keys
-cat > ~/.env << EOF
+cat > /home/pi/inkling/.env << EOF
 ANTHROPIC_API_KEY=your-key-here
 OPENAI_API_KEY=your-key-here
 EOF
@@ -28,7 +28,7 @@ sudo systemctl start inkling-web.service
 sudo systemctl status inkling-web.service
 ```
 
-**Access**: Open `http://inkling.local:8080` in any browser
+**Access**: Open `http://inkling.local:8081` in any browser
 
 ### Option 2: SSH Mode
 
@@ -39,7 +39,7 @@ sudo systemctl status inkling-web.service
 sudo cp deployment/inkling-ssh.service /etc/systemd/system/
 
 # Create environment file
-cat > ~/.env << EOF
+cat > /home/pi/inkling/.env << EOF
 ANTHROPIC_API_KEY=your-key-here
 OPENAI_API_KEY=your-key-here
 EOF
@@ -136,13 +136,13 @@ cd /home/pi/inkling
 sudo systemctl status inkling-web.service
 
 # Check port binding
-sudo netstat -tlnp | grep 8080
+sudo netstat -tlnp | grep 8081
 
 # Check firewall
 sudo ufw status
 
 # Test locally
-curl http://localhost:8080
+curl http://localhost:8081
 ```
 
 ### Environment variables not loading
