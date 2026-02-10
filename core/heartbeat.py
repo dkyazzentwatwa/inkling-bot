@@ -98,6 +98,7 @@ class Heartbeat:
         display_manager=None,
         api_client=None,
         memory_store=None,
+        focus_manager=None,
         brain=None,
         task_manager=None,
         scheduler=None,
@@ -107,6 +108,7 @@ class Heartbeat:
         self.display = display_manager
         self.api_client = api_client
         self.memory = memory_store
+        self.focus_manager = focus_manager
         self.brain = brain
         self.task_manager = task_manager
         self.scheduler = scheduler
@@ -452,13 +454,13 @@ class Heartbeat:
 
         if self.memory:
             try:
-                self.memory.add(
-                    content=f"Thought: {thought}",
-                    importance=0.5,
-                    tags=["thought", "autonomous"],
-                )
+                key = f"thought_{int(time.time())}"
+                self.memory.remember(key, f"Thought: {thought}", importance=0.5, category="event")
             except Exception:
                 pass
+
+        if self.focus_manager and self.focus_manager.is_quiet_mode_active():
+            return
 
         if self._on_message and random.random() < self.config.thought_surface_probability:
             await self._on_message(f"Thought: {thought[:140]}", self.personality.face)
@@ -466,6 +468,7 @@ class Heartbeat:
     async def _run_behaviors(self) -> None:
         """Run proactive behaviors based on configuration."""
         hour = datetime.now().hour
+        quiet_focus = bool(self.focus_manager and self.focus_manager.is_quiet_mode_active())
 
         # Skip most behaviors during quiet hours
         if self._is_quiet_hours(hour):
@@ -481,12 +484,17 @@ class Heartbeat:
             if not self._is_behavior_enabled(behavior):
                 continue
 
+            if quiet_focus and behavior.behavior_type not in (BehaviorType.BATTERY, BehaviorType.MAINTENANCE):
+                continue
+
             if not self._should_run_mood_behavior(behavior):
                 continue
 
             if behavior.should_trigger():
                 result = await self._execute_behavior(behavior)
                 if result:
+                    if quiet_focus and behavior.behavior_type != BehaviorType.BATTERY:
+                        continue
                     # If behavior produced a message, show it
                     # But don't interrupt screensaver
                     if self._on_message and not (self.display and self.display._screensaver_active):

@@ -112,6 +112,23 @@ memory:
     llm_enabled: false
     max_new_per_turn: 5
 
+# Focus / Pomodoro configuration
+focus:
+  enabled: true
+  default_work_minutes: 25
+  short_break_minutes: 5
+  long_break_minutes: 15
+  sessions_until_long_break: 4
+  quiet_mode_during_focus: true
+  allow_pause: true
+  auto_start_breaks: true
+  timer_ui:
+    takeover_enabled: true
+    style: "digital_progress"
+    eink:
+      cadence_normal_sec: 30
+      cadence_final_min_sec: 10
+
 # Heartbeat System - Makes Inkling "alive" with autonomous behaviors
 heartbeat:
   enabled: true  # Set to false to disable autonomous behaviors

@@ -27,6 +27,7 @@ from core.commands import COMMANDS, get_command, get_commands_by_category
 from core.tasks import TaskManager, Task, TaskStatus, Priority
 from core.crypto import Identity
 from core.memory import MemoryStore
+from core.focus import FocusManager
 
 # Command handlers
 from modes.web.commands.play import PlayCommands
@@ -37,6 +38,7 @@ from modes.web.commands.system import SystemCommands
 from modes.web.commands.scheduler import SchedulerCommands
 from modes.web.commands.display import DisplayCommands
 from modes.web.commands.utilities import UtilityCommands
+from modes.web.commands.focus import FocusCommands
 
 
 # Template loading
@@ -81,6 +83,7 @@ class WebChatMode:
         personality: Personality,
         task_manager: Optional[TaskManager] = None,
         memory_store: Optional[MemoryStore] = None,
+        focus_manager: Optional[FocusManager] = None,
         scheduler=None,
         identity: Optional[Identity] = None,
         config: Optional[Dict] = None,
@@ -92,6 +95,7 @@ class WebChatMode:
         self.personality = personality
         self.task_manager = task_manager
         self.memory_store = memory_store
+        self.focus_manager = focus_manager
         self.scheduler = scheduler
         self.identity = identity
         self.host = host
@@ -137,6 +141,7 @@ class WebChatMode:
         self._scheduler_cmds = SchedulerCommands(self)
         self._display_cmds = DisplayCommands(self)
         self._utility_cmds = UtilityCommands(self)
+        self._focus_cmds = FocusCommands(self)
 
         self._setup_routes()
 
@@ -371,6 +376,7 @@ class WebChatMode:
                 "status": self.personality.get_status_line(),
                 "mood": self.personality.mood.current.value,
                 "thought": self.personality.last_thought or "",
+                "focus": self.focus_manager.get_display_snapshot() if self.focus_manager else {"focus_active": False},
             })
 
         @self._app.route("/api/settings", method="GET")
@@ -1297,6 +1303,10 @@ class WebChatMode:
         """Show recent journal entries."""
         return self._utility_cmds.journal()
 
+    def _cmd_focus(self, args: str = "") -> Dict[str, Any]:
+        """Manage focus sessions."""
+        return self._focus_cmds.focus(args)
+
     def _handle_command_sync(self, command: str) -> Dict[str, Any]:
         """Handle slash commands (sync wrapper)."""
         parts = command.split(maxsplit=1)
@@ -1323,7 +1333,7 @@ class WebChatMode:
 
         # Call handler with args if needed
         try:
-            if cmd_obj.name in ("face", "dream", "ask", "schedule", "bash", "task", "done", "cancel", "delete", "tasks", "find"):
+            if cmd_obj.name in ("face", "dream", "ask", "schedule", "bash", "task", "done", "cancel", "delete", "tasks", "find", "focus"):
                 return handler(args) if args or cmd_obj.name in ("tasks", "schedule", "find") else handler()
             else:
                 return handler()

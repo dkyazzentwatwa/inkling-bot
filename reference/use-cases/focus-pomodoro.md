@@ -11,6 +11,21 @@ Inkling helps you:
 - Celebrate productivity
 - Build consistent habits
 
+## Command Quick Reference
+
+Use the `/focus` command family in SSH or Web:
+- `/focus start`
+- `/focus start <minutes>`
+- `/focus start <minutes> <task_ref>`
+- `/focus pause`
+- `/focus resume`
+- `/focus break`
+- `/focus stop`
+- `/focus status`
+- `/focus stats`
+- `/focus week`
+- `/focus config`
+
 ## The Pomodoro Technique
 
 Traditional Pomodoro:
@@ -38,10 +53,22 @@ personality:
 ### Quiet During Focus
 
 ```yaml
+focus:
+  enabled: true
+  quiet_mode_during_focus: true
+  timer_ui:
+    takeover_enabled: true
+    style: "digital_progress"
+    eink:
+      cadence_normal_sec: 30
+      cadence_final_min_sec: 10
+```
+
+```yaml
 heartbeat:
   enabled: true
-  enable_mood_behaviors: false  # No spontaneous messages
-  enable_time_behaviors: true   # Keep time awareness
+  enable_mood_behaviors: true   # Quiet mode suppresses non-critical chatter while active
+  enable_time_behaviors: true
 ```
 
 ## Starting a Focus Session
@@ -49,7 +76,7 @@ heartbeat:
 ### Quick Start
 
 ```
-You: Start a pomodoro
+You: /focus start
 
 Inkling: Pomodoro started! (25 min)
 
@@ -62,7 +89,7 @@ Inkling: Pomodoro started! (25 min)
 ### Custom Duration
 
 ```
-You: I need 45 minutes of focus
+You: /focus start 45
 
 Inkling: Focus session started! (45 min)
 
@@ -75,7 +102,7 @@ Inkling: Focus session started! (45 min)
 ### With Task Context
 
 ```
-You: Start focus on the API documentation
+You: /focus start 25 api-docs
 
 Inkling: Focus: "API documentation" (25 min)
 
@@ -109,7 +136,7 @@ During focus mode, Inkling:
 ### Check Time Remaining
 
 ```
-You: How much time left?
+You: /focus status
 
 Inkling: 12 minutes remaining.
 
@@ -120,7 +147,7 @@ Inkling: 12 minutes remaining.
 ### Emergency Exit
 
 ```
-You: /stop
+You: /focus stop
 
 Inkling: Focus session ended early.
          You completed 13 of 25 minutes.
@@ -363,19 +390,12 @@ Inkling: 1-Minute Reset:
 
 ```yaml
 focus:
-  work_duration: 25      # minutes
-  short_break: 5         # minutes
-  long_break: 15         # minutes
-  sessions_until_long: 4 # pomodoros
-```
-
-### Focus Sounds (Web UI)
-
-```yaml
-focus:
-  sound_start: true      # Chime when starting
-  sound_end: true        # Bell when done
-  sound_break_end: true  # Reminder after break
+  default_work_minutes: 25
+  short_break_minutes: 5
+  long_break_minutes: 15
+  sessions_until_long_break: 4
+  auto_start_breaks: true
+  allow_pause: true
 ```
 
 ### Strict Mode

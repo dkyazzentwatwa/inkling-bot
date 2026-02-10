@@ -148,6 +148,14 @@ memory:
   capture:
     rule_based: true
     llm_enabled: false
+
+focus:
+  enabled: true
+  default_work_minutes: 25
+  short_break_minutes: 5
+  long_break_minutes: 15
+  sessions_until_long_break: 4
+  quiet_mode_during_focus: true
 ```
 
 ### Enable Task Management
@@ -176,6 +184,13 @@ mcp:
 | `/stats` | AI token usage |
 | `/system` | System info (CPU, memory, temp) |
 | `/memory` | Memory stats and recent entries |
+| `/focus start [minutes] [task]` | Start a focus session |
+| `/focus pause` | Pause active focus session |
+| `/focus resume` | Resume paused focus session |
+| `/focus break` | Start a break immediately |
+| `/focus status` | Show current focus timer state |
+| `/focus stats` | Show today's focus totals |
+| `/focus week` | Show 7-day focus totals |
 | `/clear` | Clear conversation history |
 | `/quit` | Exit (SSH mode only) |
 

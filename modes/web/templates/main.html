@@ -328,6 +328,71 @@
             overflow-y: auto;
             padding: 1rem;
         }
+        .focus-takeover {
+            display: none;
+            flex: 1;
+            margin: 1rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--bg) 94%, var(--text) 6%);
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            flex-direction: column;
+            gap: 0.6rem;
+            padding: 1rem;
+        }
+        .focus-takeover.active { display: flex; }
+        .focus-phase {
+            font-size: 0.8rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .focus-timer {
+            font-size: clamp(2.4rem, 10vw, 5rem);
+            font-weight: 800;
+            line-height: 1;
+            font-family: 'Courier New', monospace;
+        }
+        .focus-progress {
+            width: min(360px, 90%);
+            height: 12px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            overflow: hidden;
+            background: var(--panel);
+        }
+        .focus-progress > div {
+            height: 100%;
+            width: 0%;
+            background: var(--text);
+            transition: width 0.2s linear;
+        }
+        .focus-task {
+            font-size: 0.8rem;
+            color: var(--muted);
+            max-width: 90%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .focus-controls {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .focus-controls button {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--panel);
+            color: var(--text);
+            padding: 0.3rem 0.65rem;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.8rem;
+        }
         .message {
             margin-bottom: 1rem;
             padding: 0.75rem;
@@ -617,6 +682,17 @@
     </div>
 
     <div class="messages" id="messages"></div>
+    <div class="focus-takeover" id="focus-takeover">
+        <div class="focus-phase" id="focus-phase">FOCUS</div>
+        <div class="focus-timer" id="focus-timer">25:00</div>
+        <div class="focus-progress"><div id="focus-progress-fill"></div></div>
+        <div class="focus-task" id="focus-task"></div>
+        <div class="focus-controls">
+            <button onclick="runCommand('/focus pause')">Pause</button>
+            <button onclick="runCommand('/focus resume')">Resume</button>
+            <button onclick="runCommand('/focus stop')">Stop</button>
+        </div>
+    </div>
     <div class="toast-container" id="toast-container"></div>
 
     <details class="command-palette" open>
@@ -659,6 +735,17 @@
                     <button onclick="runCommand('/clear')">Clear</button>
                 </div>
             </div>
+
+            <div class="command-group">
+                <h4>Focus</h4>
+                <div class="command-buttons">
+                    <button onclick="runCommand('/focus start')">Start</button>
+                    <button onclick="runCommand('/focus pause')">Pause</button>
+                    <button onclick="runCommand('/focus resume')">Resume</button>
+                    <button onclick="runCommand('/focus stop')">Stop</button>
+                    <button onclick="runCommand('/focus stats')">Stats</button>
+                </div>
+            </div>
         </div>
     </details>
 
@@ -690,6 +777,11 @@
         const statusEl = document.getElementById('status');
         const thoughtEl = document.getElementById('thought');
         const connDot = document.getElementById('conn-dot');
+        const focusTakeoverEl = document.getElementById('focus-takeover');
+        const focusPhaseEl = document.getElementById('focus-phase');
+        const focusTimerEl = document.getElementById('focus-timer');
+        const focusTaskEl = document.getElementById('focus-task');
+        const focusProgressFillEl = document.getElementById('focus-progress-fill');
 
         // Handle enter key
         inputEl.addEventListener('keypress', (e) => {
@@ -856,6 +948,30 @@
             if (data.face && faceEl) faceEl.textContent = data.face;
             if (data.status && statusEl) statusEl.textContent = data.status;
             if (data.thought !== undefined && thoughtEl) thoughtEl.textContent = data.thought || '';
+            if (data.focus !== undefined) updateFocusTakeover(data.focus);
+        }
+
+        function formatTimer(sec) {
+            sec = Math.max(0, Math.floor(sec || 0));
+            const mm = Math.floor(sec / 60);
+            const ss = sec % 60;
+            return String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+        }
+
+        function updateFocusTakeover(focus) {
+            const active = !!(focus && focus.focus_active && focus.takeover_enabled !== false);
+            if (!active) {
+                focusTakeoverEl.classList.remove('active');
+                messagesEl.style.display = 'block';
+                return;
+            }
+            focusTakeoverEl.classList.add('active');
+            messagesEl.style.display = 'none';
+            focusPhaseEl.textContent = focus.focus_phase || 'FOCUS';
+            focusTimerEl.textContent = formatTimer(focus.focus_remaining_sec || 0);
+            focusTaskEl.textContent = focus.focus_task_label ? ('Task: ' + focus.focus_task_label) : '';
+            const pct = Math.max(0, Math.min(100, Math.round((focus.focus_progress || 0) * 100)));
+            focusProgressFillEl.style.width = pct + '%';
         }
 
         function escapeHtml(text) {

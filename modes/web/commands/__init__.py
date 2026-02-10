@@ -19,6 +19,7 @@ class CommandHandler:
         self.brain = web_mode.brain
         self.task_manager = web_mode.task_manager
         self.memory_store = web_mode.memory_store
+        self.focus_manager = web_mode.focus_manager
         self.scheduler = web_mode.scheduler
         self._config = web_mode._config
 

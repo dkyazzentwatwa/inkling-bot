@@ -32,6 +32,7 @@ from core.display import DisplayManager
 from core.mcp_client import MCPClientManager
 from core.personality import Personality, PersonalityTraits
 from core.heartbeat import Heartbeat, HeartbeatConfig
+from core.focus import FocusManager
 from core.memory import MemoryStore
 from core.tasks import TaskManager
 from core.battery import _client as pisugar_client # Import the singleton client for configuration
@@ -125,6 +126,24 @@ def get_default_config() -> dict:
                 "max_new_per_turn": 5,
             },
         },
+        "focus": {
+            "enabled": True,
+            "default_work_minutes": 25,
+            "short_break_minutes": 5,
+            "long_break_minutes": 15,
+            "sessions_until_long_break": 4,
+            "quiet_mode_during_focus": True,
+            "allow_pause": True,
+            "auto_start_breaks": True,
+            "timer_ui": {
+                "takeover_enabled": True,
+                "style": "digital_progress",
+                "eink": {
+                    "cadence_normal_sec": 30,
+                    "cadence_final_min_sec": 10,
+                },
+            },
+        },
     }
 
 
@@ -148,6 +167,7 @@ class Inkling:
         self.heartbeat: Optional[Heartbeat] = None
         self.task_manager: Optional[TaskManager] = None
         self.memory_store: Optional[MemoryStore] = None
+        self.focus_manager: Optional[FocusManager] = None
         # Current mode
         self._mode = None
 
@@ -257,6 +277,17 @@ class Inkling:
             print(f"    Memory store failed to initialize: {e}")
             self.memory_store = None
 
+        # Focus Manager
+        print("  - Initializing focus manager...")
+        try:
+            self.focus_manager = FocusManager(config=self.config.get("focus", {}))
+            self.focus_manager.initialize()
+            self.display.set_focus_manager(self.focus_manager)
+            print("    Focus manager ready")
+        except Exception as e:
+            print(f"    Focus manager failed to initialize: {e}")
+            self.focus_manager = None
+
         # Scheduler (cron-style task scheduling)
         scheduler_config_data = self.config.get("scheduler", {})
         scheduler_enabled = scheduler_config_data.get("enabled", True)
@@ -363,6 +394,7 @@ class Inkling:
                 task_manager=self.task_manager,
                 scheduler=self.scheduler,
                 memory_store=self.memory_store,
+                focus_manager=self.focus_manager,
                 config=heartbeat_config,
             )
 
@@ -416,6 +448,7 @@ class Inkling:
                     task_manager=self.task_manager,
                     scheduler=self.scheduler,
                     memory_store=self.memory_store,
+                    focus_manager=self.focus_manager,
                     config=self.config,
                 )
                 await self._mode.run()
@@ -452,6 +485,7 @@ class Inkling:
                     task_manager=self.task_manager,
                     scheduler=self.scheduler,
                     memory_store=self.memory_store,
+                    focus_manager=self.focus_manager,
                     identity=self.identity,
                     config=self.config,
                     port=port,
@@ -576,6 +610,12 @@ class Inkling:
                 self.memory_store.close()
             except Exception as e:
                 print(f"[Memory] Failed to close memory store: {e}")
+
+        if self.focus_manager:
+            try:
+                self.focus_manager.close()
+            except Exception as e:
+                print(f"[Focus] Failed to close focus manager: {e}")
 
         # Force garbage collection
         gc.collect()

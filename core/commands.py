@@ -76,6 +76,7 @@ COMMANDS: List[Command] = [
     Command("play", "Play with a toy (boosts energy +4 XP)", "cmd_play", "play"),
     Command("pet", "Get petted (boosts mood +3 XP)", "cmd_pet", "play"),
     Command("rest", "Take a short rest (calms down +2 XP)", "cmd_rest", "play"),
+    Command("focus", "Manage focus/pomodoro sessions", "cmd_focus", "session"),
 
     # Session commands (SSH only)
     Command("ask", "Explicit chat command", "cmd_ask", "session", requires_brain=True),

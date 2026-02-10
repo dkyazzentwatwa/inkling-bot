@@ -86,6 +86,14 @@ sudo systemctl disable inkling-web.service
 sudo systemctl status inkling-web.service
 ```
 
+After upgrading Inkling code, restart the service to load schema/runtime changes:
+
+```bash
+cd /home/pi/inkling
+git pull
+sudo systemctl restart inkling-web.service
+```
+
 ## Switching Modes
 
 To switch from web to SSH mode (or vice versa):
@@ -168,13 +176,23 @@ EnvironmentFile=/your/path/to/.env
 ExecStart=/your/path/to/.venv/bin/python main.py --mode web
 ```
 
+## Persistent Local Data
+
+Inkling stores runtime data under `~/.inkling/`:
+- `tasks.db` (task system)
+- `memory.db` (conversation memory)
+- `focus.db` (focus/pomodoro sessions and weekly stats)
+- `conversation.json` (chat history)
+
+Keep this directory across reboots/deploys if you want continuity.
+
 ## Default Choice
 
 **Recommendation**: Use **web mode** for autostart because:
 - ✅ Accessible from any device on your network
 - ✅ No SSH session required
 - ✅ Better for "always-on" companion device
-- ✅ Can still use all 19 commands via web UI
+- ✅ Includes task, memory, and `/focus` workflows in one place
 - ✅ Phone-friendly interface
 
 Only use SSH mode for autostart if you primarily interact via terminal.

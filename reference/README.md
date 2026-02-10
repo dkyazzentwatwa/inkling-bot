@@ -69,8 +69,8 @@ Complete guides for building, configuring, and extending your Inkling AI compani
 │  DisplayManager  │  Personality  │  Brain  │  Heartbeat │
 │  (E-ink/Mock)    │  (Mood/XP)    │ (Multi-AI) │ (Auto)  │
 ├─────────────────────────────────────────────────────────┤
-│ TaskManager │ MemoryStore │ MCPClient                  │
-│ (tasks.db)  │ (memory.db) │ (Tool integration)         │
+│ TaskManager │ MemoryStore │ FocusManager │ MCPClient   │
+│ (tasks.db)  │ (memory.db) │ (focus.db)   │ (Tools)     │
 ├─────────────────────────────────────────────────────────┤
 │          modes/ssh_chat.py  │  modes/web_chat.py       │
 │         (Terminal mode)     │  (Web UI + Kanban)       │
@@ -102,6 +102,13 @@ Inkling now includes a local memory system by default:
 - Automatic rule-based capture from conversation (name, preferences, explicit facts)
 - Relevant-memory prompt context injection for better continuity
 - Memory maintenance via heartbeat pruning
+
+### Focus/Pomodoro System
+Inkling includes a local-first focus timer with persistent analytics:
+- Slash commands via `/focus ...` in SSH and Web UI
+- Session/event storage in `~/.inkling/focus.db`
+- Quiet-mode suppression of non-critical heartbeat chatter during active focus
+- Timer takeover UI in main text area (e-ink + web)
 
 ### Heartbeat System
 Makes Inkling feel "alive" with autonomous behaviors:

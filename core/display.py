@@ -329,6 +329,7 @@ class DisplayManager:
         self._current_face: str = "default"
         self._current_text: str = ""
         self._current_mood: str = "Happy"
+        self._focus_manager = None
 
         # Screen saver state
         self._screensaver_enabled = False
@@ -531,6 +532,13 @@ class DisplayManager:
             pass  # Silently fail if WiFi utilities not available
 
         # Build display context
+        focus_snapshot = {"focus_active": False}
+        if self._focus_manager:
+            try:
+                focus_snapshot = self._focus_manager.get_display_snapshot()
+            except Exception:
+                focus_snapshot = {"focus_active": False}
+
         ctx = DisplayContext(
             name=self.device_name,
             mood_text=mood_text,
@@ -557,6 +565,12 @@ class DisplayManager:
             xp_progress=xp_progress,
             prestige=prestige,
             message=text,
+            focus_active=bool(focus_snapshot.get("focus_active"))
+            and bool(focus_snapshot.get("takeover_enabled", True)),
+            focus_phase=str(focus_snapshot.get("focus_phase", "FOCUS")),
+            focus_remaining_sec=int(focus_snapshot.get("focus_remaining_sec", 0)),
+            focus_progress=float(focus_snapshot.get("focus_progress", 0.0)),
+            focus_task_label=focus_snapshot.get("focus_task_label"),
             mode=self._mode if not status else status[:10].upper(),
         )
 
@@ -1103,15 +1117,28 @@ class DisplayManager:
         idle_ticks = 0
 
         while True:
-            await asyncio.sleep(self._auto_refresh_interval)
+            sleep_interval = self._auto_refresh_interval
+            focus_active = False
+            focus_cadence = None
+            if self._focus_manager:
+                try:
+                    snap = self._focus_manager.get_display_snapshot()
+                    focus_active = bool(snap.get("focus_active")) and bool(snap.get("takeover_enabled", True))
+                    focus_cadence = snap.get("focus_cadence_sec")
+                except Exception:
+                    focus_active = False
+                    focus_cadence = None
+
+            if focus_active and focus_cadence:
+                sleep_interval = max(1.0, float(focus_cadence))
+
+            await asyncio.sleep(sleep_interval)
 
             # Skip auto-refresh if screensaver is active
             if self._screensaver_active:
                 continue
 
-            # Only auto-refresh if using partial refresh (V3 or mock)
-            # V4 full refresh is too slow and wears the display
-            if self._driver and self._driver.supports_partial:
+            if self._driver:
                 face = self._current_face
                 text = self._current_text
 
@@ -1138,9 +1165,13 @@ class DisplayManager:
                     face=face,
                     text=text,
                     mood_text=self._current_mood,
-                    force=True,
+                    force=bool(self._driver.supports_partial),
                     cancel_page_loop=False,
                 )
+
+    def set_focus_manager(self, focus_manager) -> None:
+        """Attach focus manager for timer takeover rendering."""
+        self._focus_manager = focus_manager
 
     def clear(self) -> None:
         """Clear the display."""

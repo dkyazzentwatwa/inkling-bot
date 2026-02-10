@@ -360,6 +360,13 @@ class DisplayContext:
     # Message
     message: str = ""
 
+    # Focus timer takeover
+    focus_active: bool = False
+    focus_phase: str = "FOCUS"
+    focus_remaining_sec: int = 0
+    focus_progress: float = 0.0
+    focus_task_label: Optional[str] = None
+
     # Mode indicator
     mode: str = "AUTO"
 
@@ -577,6 +584,63 @@ class MessagePanel:
             text_y += line_height
 
 
+class FocusTimerPanel:
+    """Large takeover timer rendered in the main message panel."""
+
+    def __init__(self, fonts: Fonts):
+        self.fonts = fonts
+        self.x = 2
+        self.y = HEADER_HEIGHT
+        self.width = MESSAGE_PANEL_WIDTH
+        self.height = MESSAGE_HEIGHT
+
+    def _format_time(self, sec: int) -> str:
+        sec = max(0, int(sec))
+        mm = sec // 60
+        ss = sec % 60
+        return f"{mm:02d}:{ss:02d}"
+
+    def render(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> None:
+        phase_text = (ctx.focus_phase or "FOCUS")[:16]
+        timer_text = self._format_time(ctx.focus_remaining_sec)
+        progress = max(0.0, min(1.0, ctx.focus_progress))
+
+        # Phase label
+        phase_bbox = draw.textbbox((0, 0), phase_text, font=self.fonts.small)
+        phase_w = phase_bbox[2] - phase_bbox[0]
+        phase_x = self.x + (self.width - phase_w) // 2
+        phase_y = self.y + 8
+        draw_text_bold(draw, (phase_x, phase_y), phase_text, font=self.fonts.small, fill=0)
+
+        # Large timer text
+        timer_font = self.fonts.face
+        timer_bbox = draw.textbbox((0, 0), timer_text, font=timer_font)
+        timer_w = timer_bbox[2] - timer_bbox[0]
+        timer_h = timer_bbox[3] - timer_bbox[1]
+        timer_x = self.x + (self.width - timer_w) // 2
+        timer_y = self.y + 24
+        draw.text((timer_x, timer_y), timer_text, font=timer_font, fill=0)
+
+        # Progress bar
+        bar_w = min(180, self.width - 20)
+        bar_h = 8
+        bar_x = self.x + (self.width - bar_w) // 2
+        bar_y = min(self.y + self.height - 20, timer_y + timer_h + 4)
+        draw.rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], outline=0, fill=255, width=1)
+        fill_w = int((bar_w - 2) * progress)
+        if fill_w > 0:
+            draw.rectangle([bar_x + 1, bar_y + 1, bar_x + 1 + fill_w, bar_y + bar_h - 1], outline=0, fill=0)
+
+        # Optional task label
+        if ctx.focus_task_label:
+            task = ctx.focus_task_label[:26]
+            task_bbox = draw.textbbox((0, 0), task, font=self.fonts.tiny)
+            task_w = task_bbox[2] - task_bbox[0]
+            task_x = self.x + (self.width - task_w) // 2
+            task_y = bar_y - 10
+            draw.text((task_x, task_y), task, font=self.fonts.tiny, fill=0)
+
+
 # NOTE: StatsPanel and FaceBox are no longer used in the new layout.
 # All stats and face are now rendered in the compact FooterBar.
 # Keeping these commented out for reference.
@@ -721,6 +785,7 @@ class PwnagotchiUI:
         self.fonts = Fonts.load()
         self.header = HeaderBar(self.fonts)
         self.message_panel = MessagePanel(self.fonts)
+        self.focus_panel = FocusTimerPanel(self.fonts)
         self.footer = FooterBar(self.fonts)
         self.animated_face = AnimatedFace(self.fonts)
 
@@ -744,21 +809,24 @@ class PwnagotchiUI:
         # Render header
         self.header.render(draw, ctx)
 
-        # Render animated emoji face (hides automatically when message present)
-        face_pos = self.animated_face.render(draw, ctx)
-        face_y_end = 0
-        if face_pos != (0, 0):
-            # Face was rendered - estimate height at 50px for large emoji
-            face_y_end = face_pos[1] + 50
-
-        # Adjust message panel to start below face if rendered
-        if face_y_end > 0:
-            # Create adjusted context with message offset
-            from dataclasses import replace as dataclass_replace
-            ctx_adjusted = dataclass_replace(ctx, message_y_offset=face_y_end + 5)
-            self.message_panel.render(draw, ctx_adjusted)
+        if ctx.focus_active:
+            self.focus_panel.render(draw, ctx)
         else:
-            self.message_panel.render(draw, ctx)
+            # Render animated emoji face (hides automatically when message present)
+            face_pos = self.animated_face.render(draw, ctx)
+            face_y_end = 0
+            if face_pos != (0, 0):
+                # Face was rendered - estimate height at 50px for large emoji
+                face_y_end = face_pos[1] + 50
+
+            # Adjust message panel to start below face if rendered
+            if face_y_end > 0:
+                # Create adjusted context with message offset
+                from dataclasses import replace as dataclass_replace
+                ctx_adjusted = dataclass_replace(ctx, message_y_offset=face_y_end + 5)
+                self.message_panel.render(draw, ctx_adjusted)
+            else:
+                self.message_panel.render(draw, ctx)
 
         # Render footer
         self.footer.render(draw, ctx)

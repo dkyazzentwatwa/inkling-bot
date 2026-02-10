@@ -18,6 +18,7 @@ from core.ui import FACES, UNICODE_FACES
 from core.commands import COMMANDS, get_command, get_commands_by_category
 from core.tasks import TaskManager, Task, TaskStatus, Priority
 from core.memory import MemoryStore
+from core.focus import FocusManager
 from core.progression import XPSource
 from core.shell_utils import run_bash_command
 
@@ -90,6 +91,7 @@ class SSHChatMode:
         personality: Personality,
         task_manager: Optional[TaskManager] = None,
         memory_store: Optional[MemoryStore] = None,
+        focus_manager: Optional[FocusManager] = None,
         scheduler=None,
         config: Optional[dict] = None,
     ):
@@ -98,6 +100,7 @@ class SSHChatMode:
         self.personality = personality
         self.task_manager = task_manager
         self.memory_store = memory_store
+        self.focus_manager = focus_manager
         self.scheduler = scheduler
         self._running = False
         self._config = config or {}
@@ -1632,6 +1635,136 @@ class SSHChatMode:
         finally:
             if owns_store:
                 store.close()
+
+    async def cmd_focus(self, args: str) -> None:
+        """Manage focus/pomodoro sessions."""
+        if not self.focus_manager or not self.focus_manager.is_enabled:
+            print(f"{Colors.ERROR}Focus manager is not available.{Colors.RESET}")
+            return
+
+        parts = args.split() if args else []
+        sub = parts[0].lower() if parts else "status"
+
+        if sub == "start":
+            minutes = None
+            task_ref = None
+            if len(parts) >= 2:
+                try:
+                    minutes = int(parts[1])
+                except ValueError:
+                    task_ref = " ".join(parts[1:])
+            if len(parts) >= 3:
+                task_ref = " ".join(parts[2:])
+
+            task_id = None
+            task_title = None
+            if task_ref:
+                task = self._resolve_task_ref(task_ref)
+                if task:
+                    task_id = task.id
+                    task_title = task.title
+                else:
+                    print(f"{Colors.INFO}Task reference not found; starting unlinked focus session.{Colors.RESET}")
+
+            result = self.focus_manager.start(minutes=minutes, task_id=task_id, task_title=task_title)
+            if not result.get("ok"):
+                print(f"{Colors.ERROR}{result.get('error', 'Could not start focus session')}{Colors.RESET}")
+                status = result.get("status")
+                if status:
+                    self._print_focus_status(status)
+                return
+            status = result["status"]
+            self._print_focus_status(status)
+            await self.display.update(face="intense", text="Focus session started", mood_text="Intense")
+            return
+
+        if sub == "stop":
+            result = self.focus_manager.stop(stopped_early=True)
+            if not result.get("ok"):
+                print(f"{Colors.ERROR}{result.get('error', 'No active session')}{Colors.RESET}")
+            else:
+                print(f"{Colors.SUCCESS}Focus session stopped.{Colors.RESET}")
+                await self.display.update(face="cool", text="Focus session stopped", mood_text="Cool")
+            return
+
+        if sub == "pause":
+            result = self.focus_manager.pause()
+            if not result.get("ok"):
+                print(f"{Colors.ERROR}{result.get('error', 'Unable to pause')}{Colors.RESET}")
+            else:
+                self._print_focus_status(result["status"])
+            return
+
+        if sub == "resume":
+            result = self.focus_manager.resume()
+            if not result.get("ok"):
+                print(f"{Colors.ERROR}{result.get('error', 'Unable to resume')}{Colors.RESET}")
+            else:
+                self._print_focus_status(result["status"])
+            return
+
+        if sub == "break":
+            result = self.focus_manager.start_break()
+            if not result.get("ok"):
+                print(f"{Colors.ERROR}{result.get('error', 'Unable to start break')}{Colors.RESET}")
+            else:
+                self._print_focus_status(result["status"])
+            return
+
+        if sub == "stats":
+            stats = self.focus_manager.stats_today()
+            print(f"\n{Colors.HEADER}═══ FOCUS TODAY ═══{Colors.RESET}")
+            print(f"Sessions: {stats['sessions']}")
+            print(f"Completed: {stats['completed_count']}")
+            print(f"Total time: {stats['total_sec'] // 60}m")
+            print(f"Work time: {stats['work_sec'] // 60}m")
+            return
+
+        if sub == "week":
+            week = self.focus_manager.stats_week()
+            print(f"\n{Colors.HEADER}═══ FOCUS WEEK ═══{Colors.RESET}")
+            for day in week["days"]:
+                print(f"{day['date']}: {day['sessions']} sessions ({day['total_sec'] // 60}m)")
+            print(f"Total: {week['total_sessions']} sessions ({week['total_sec'] // 60}m)")
+            return
+
+        if sub == "config":
+            cfg = self.focus_manager.config
+            print(f"\n{Colors.HEADER}═══ FOCUS CONFIG ═══{Colors.RESET}")
+            print(f"Work: {cfg.default_work_minutes}m")
+            print(f"Short break: {cfg.short_break_minutes}m")
+            print(f"Long break: {cfg.long_break_minutes}m")
+            print(f"Long break cadence: every {cfg.sessions_until_long_break} sessions")
+            print(f"Quiet mode: {'on' if cfg.quiet_mode_during_focus else 'off'}")
+            return
+
+        status = self.focus_manager.status()
+        self._print_focus_status(status)
+
+    def _print_focus_status(self, status: dict) -> None:
+        if not status.get("active"):
+            print(f"{Colors.INFO}No active focus session.{Colors.RESET}")
+            return
+        mm = int(status["remaining_sec"]) // 60
+        ss = int(status["remaining_sec"]) % 60
+        label = status.get("phase_label", "FOCUS")
+        task = status.get("task_title")
+        task_line = f" | Task: {task}" if task else ""
+        pause_line = " [PAUSED]" if status.get("paused") else ""
+        print(f"{Colors.SUCCESS}{label}{pause_line} {mm:02d}:{ss:02d}{task_line}{Colors.RESET}")
+
+    def _resolve_task_ref(self, task_ref: str) -> Optional[Task]:
+        if not self.task_manager:
+            return None
+        task = self.task_manager.get_task(task_ref)
+        if task:
+            return task
+        ref = task_ref.lower()
+        matches = [
+            t for t in self.task_manager.list_tasks()
+            if t.id.startswith(task_ref) or ref in t.title.lower()
+        ]
+        return matches[0] if len(matches) == 1 else None
 
     async def cmd_settings(self) -> None:
         """Show current settings."""
