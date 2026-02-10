@@ -1859,3 +1859,376 @@ class SSHChatMode:
             else:
                 print(f"  {line}")
             print()
+
+    # ========================================
+    # Crypto Watcher Commands
+    # ========================================
+
+    async def cmd_price(self, args: str = "") -> None:
+        """Check cryptocurrency price."""
+        if not args:
+            print(f"{Colors.INFO}Usage: /price <symbol>{Colors.RESET}")
+            print("  Example: /price BTC")
+            return
+
+        symbol = args.upper().strip()
+
+        try:
+            from core.crypto_watcher import CryptoWatcher
+
+            async with CryptoWatcher() as watcher:
+                price = await watcher.get_price(symbol)
+
+                if not price:
+                    print(f"{Colors.ERROR}Failed to fetch price for {symbol}{Colors.RESET}")
+                    return
+
+                # Format with color based on change
+                if price.price_change_24h > 0:
+                    change_color = Colors.SUCCESS
+                else:
+                    change_color = Colors.ERROR
+
+                print(f"\n{Colors.HEADER}═══ {symbol} PRICE ═══{Colors.RESET}\n")
+                print(f"  {watcher.format_price(price)}")
+                print(f"  Volume 24h: ${price.volume_24h:,.0f}")
+                if price.market_cap:
+                    print(f"  Market Cap: ${price.market_cap:,.0f}")
+                print(f"  Mood: {price.mood} {'🚀' if price.is_pumping else '💀' if price.is_dumping else '📊'}")
+                print()
+
+        except Exception as e:
+            print(f"{Colors.ERROR}Error: {e}{Colors.RESET}")
+
+    async def cmd_chart(self, args: str = "") -> None:
+        """Show TA indicators for a cryptocurrency."""
+        if not args:
+            print(f"{Colors.INFO}Usage: /chart <symbol> [timeframe]{Colors.RESET}")
+            print("  Example: /chart BTC")
+            print("  Example: /chart ETH 4h")
+            return
+
+        parts = args.upper().split()
+        symbol = parts[0]
+        timeframe = parts[1] if len(parts) > 1 else "1h"
+
+        try:
+            from core.crypto_watcher import CryptoWatcher
+            from core.crypto_ta import CryptoTA
+
+            print(f"\n{Colors.INFO}Fetching chart data for {symbol}...{Colors.RESET}")
+
+            async with CryptoWatcher() as watcher:
+                ohlcv = await watcher.get_ohlcv(symbol, timeframe, 100)
+
+                if not ohlcv:
+                    print(f"{Colors.ERROR}Failed to fetch chart data for {symbol}{Colors.RESET}")
+                    return
+
+                ta = CryptoTA()
+                indicators = ta.calculate_indicators(ohlcv)
+                patterns = ta.detect_patterns(ohlcv)
+                supports, resistances = ta.get_support_resistance(ohlcv)
+
+                signal = indicators.get_signal()
+
+                print(f"\n{Colors.HEADER}═══ {symbol} TA ({timeframe}) ═══{Colors.RESET}\n")
+                print(f"  {Colors.BOLD}Signal: {signal.crypto_bro_text} {signal.emoji}{Colors.RESET}\n")
+
+                print(f"  {Colors.BOLD}Indicators:{Colors.RESET}")
+                if indicators.rsi:
+                    rsi_status = "oversold" if indicators.rsi < 30 else "overbought" if indicators.rsi > 70 else "neutral"
+                    print(f"    RSI: {indicators.rsi:.1f} ({rsi_status})")
+                if indicators.macd:
+                    macd_trend = "bullish" if indicators.macd > indicators.macd_signal else "bearish"
+                    print(f"    MACD: {macd_trend} ({indicators.macd:.2f})")
+                if indicators.sma_20 and indicators.sma_50:
+                    trend = "golden cross" if indicators.sma_20 > indicators.sma_50 else "death cross"
+                    print(f"    Trend: {trend}")
+                if indicators.atr:
+                    print(f"    ATR: {indicators.atr:.2f} (volatility)")
+
+                if patterns:
+                    print(f"\n  {Colors.BOLD}Patterns:{Colors.RESET}")
+                    for pattern in patterns:
+                        print(f"    {pattern}")
+
+                if supports and resistances:
+                    print(f"\n  {Colors.BOLD}Levels:{Colors.RESET}")
+                    print(f"    Support: {', '.join([f'${s:,.0f}' for s in supports[:3]])}")
+                    print(f"    Resistance: {', '.join([f'${r:,.0f}' for r in resistances[:3]])}")
+
+                print()
+
+        except Exception as e:
+            print(f"{Colors.ERROR}Error: {e}{Colors.RESET}")
+
+    async def cmd_watch(self) -> None:
+        """Show watchlist with current prices."""
+        try:
+            from core.crypto_watcher import CryptoWatcher
+
+            # Load watchlist from config or MCP storage
+            config = self.config or {}
+            crypto_config = config.get("crypto", {})
+            watchlist = crypto_config.get("watchlist", ["BTC", "ETH", "SOL"])
+
+            print(f"\n{Colors.HEADER}═══ WATCHLIST ═══{Colors.RESET}\n")
+            print(f"{Colors.INFO}Fetching prices...{Colors.RESET}\n")
+
+            async with CryptoWatcher() as watcher:
+                prices = await watcher.get_multiple_prices(watchlist)
+
+                if not prices:
+                    print(f"{Colors.ERROR}Failed to fetch prices{Colors.RESET}")
+                    return
+
+                for symbol in watchlist:
+                    if symbol in prices:
+                        price = prices[symbol]
+                        print(f"  {watcher.format_price(price)}")
+
+                print()
+
+        except Exception as e:
+            print(f"{Colors.ERROR}Error: {e}{Colors.RESET}")
+
+    async def cmd_portfolio(self) -> None:
+        """Show portfolio value and holdings."""
+        try:
+            from core.crypto_watcher import CryptoWatcher
+            from pathlib import Path
+            import json
+
+            # Load portfolio from storage
+            portfolio_file = Path.home() / ".inkling" / "crypto_portfolio.json"
+            if not portfolio_file.exists():
+                print(f"\n{Colors.INFO}Portfolio is empty. Use /add to add holdings.{Colors.RESET}")
+                print(f"  Example: /add BTC 0.5")
+                print()
+                return
+
+            with open(portfolio_file) as f:
+                holdings = json.load(f)
+
+            if not holdings:
+                print(f"\n{Colors.INFO}Portfolio is empty. Use /add to add holdings.{Colors.RESET}")
+                return
+
+            print(f"\n{Colors.HEADER}═══ PORTFOLIO ═══{Colors.RESET}\n")
+            print(f"{Colors.INFO}Calculating value...{Colors.RESET}\n")
+
+            async with CryptoWatcher() as watcher:
+                symbols = list(holdings.keys())
+                prices = await watcher.get_multiple_prices(symbols)
+
+                total_value = 0.0
+
+                for symbol, amount in holdings.items():
+                    if symbol in prices:
+                        price = prices[symbol]
+                        value = amount * price.price_usd
+                        total_value += value
+
+                        change_color = Colors.SUCCESS if price.price_change_24h > 0 else Colors.ERROR
+                        emoji = "🚀" if price.price_change_24h > 5 else "📈" if price.price_change_24h > 0 else "📉" if price.price_change_24h > -5 else "💀"
+
+                        print(f"  {symbol}: {amount} × ${price.price_usd:,.2f} = {change_color}${value:,.2f}{Colors.RESET} ({price.price_change_24h:+.1f}%) {emoji}")
+
+                print(f"\n  {Colors.BOLD}💎 Total: ${total_value:,.2f}{Colors.RESET}")
+                print()
+
+        except Exception as e:
+            print(f"{Colors.ERROR}Error: {e}{Colors.RESET}")
+
+    async def cmd_add(self, args: str = "") -> None:
+        """Add coin to watchlist or portfolio."""
+        if not args:
+            print(f"{Colors.INFO}Usage:{Colors.RESET}")
+            print("  /add <symbol>         - Add to watchlist")
+            print("  /add <symbol> <amount> - Add to portfolio")
+            print("  Example: /add DOGE")
+            print("  Example: /add BTC 0.5")
+            return
+
+        parts = args.upper().split()
+        symbol = parts[0]
+
+        try:
+            from pathlib import Path
+            import json
+
+            if len(parts) == 1:
+                # Add to watchlist
+                config = self.config or {}
+                crypto_config = config.get("crypto", {})
+                watchlist = crypto_config.get("watchlist", [])
+
+                if symbol in watchlist:
+                    print(f"{Colors.INFO}{symbol} already in watchlist{Colors.RESET}")
+                    return
+
+                print(f"{Colors.INFO}Note: Add {symbol} to config.yml watchlist for persistence{Colors.RESET}")
+                print(f"{Colors.SUCCESS}Would add {symbol} to watchlist{Colors.RESET}")
+
+            else:
+                # Add to portfolio
+                amount = float(parts[1])
+
+                portfolio_file = Path.home() / ".inkling" / "crypto_portfolio.json"
+                portfolio_file.parent.mkdir(parents=True, exist_ok=True)
+
+                if portfolio_file.exists():
+                    with open(portfolio_file) as f:
+                        holdings = json.load(f)
+                else:
+                    holdings = {}
+
+                holdings[symbol] = holdings.get(symbol, 0) + amount
+
+                with open(portfolio_file, 'w') as f:
+                    json.dump(holdings, f, indent=2)
+
+                print(f"{Colors.SUCCESS}Added {amount} {symbol} to portfolio (total: {holdings[symbol]}){Colors.RESET}")
+
+        except ValueError:
+            print(f"{Colors.ERROR}Invalid amount. Use a number (e.g., 0.5){Colors.RESET}")
+        except Exception as e:
+            print(f"{Colors.ERROR}Error: {e}{Colors.RESET}")
+
+    async def cmd_remove(self, args: str = "") -> None:
+        """Remove coin from portfolio."""
+        if not args:
+            print(f"{Colors.INFO}Usage: /remove <symbol> <amount>{Colors.RESET}")
+            print("  Example: /remove BTC 0.1")
+            return
+
+        parts = args.upper().split()
+        if len(parts) < 2:
+            print(f"{Colors.ERROR}Please specify amount{Colors.RESET}")
+            return
+
+        symbol = parts[0]
+
+        try:
+            amount = float(parts[1])
+
+            from pathlib import Path
+            import json
+
+            portfolio_file = Path.home() / ".inkling" / "crypto_portfolio.json"
+            if not portfolio_file.exists():
+                print(f"{Colors.ERROR}Portfolio is empty{Colors.RESET}")
+                return
+
+            with open(portfolio_file) as f:
+                holdings = json.load(f)
+
+            if symbol not in holdings:
+                print(f"{Colors.ERROR}{symbol} not in portfolio{Colors.RESET}")
+                return
+
+            holdings[symbol] = max(0, holdings[symbol] - amount)
+
+            if holdings[symbol] == 0:
+                del holdings[symbol]
+                print(f"{Colors.SUCCESS}Removed all {symbol} from portfolio{Colors.RESET}")
+            else:
+                print(f"{Colors.SUCCESS}Removed {amount} {symbol} (remaining: {holdings[symbol]}){Colors.RESET}")
+
+            with open(portfolio_file, 'w') as f:
+                json.dump(holdings, f, indent=2)
+
+        except ValueError:
+            print(f"{Colors.ERROR}Invalid amount{Colors.RESET}")
+        except Exception as e:
+            print(f"{Colors.ERROR}Error: {e}{Colors.RESET}")
+
+    async def cmd_alert(self, args: str = "") -> None:
+        """Set a price alert."""
+        if not args:
+            print(f"{Colors.INFO}Usage: /alert <symbol> <price> <above|below>{Colors.RESET}")
+            print("  Example: /alert BTC 70000 above")
+            print("  Example: /alert ETH 3000 below")
+            return
+
+        parts = args.split()
+        if len(parts) < 3:
+            print(f"{Colors.ERROR}Please specify symbol, price, and condition{Colors.RESET}")
+            return
+
+        symbol = parts[0].upper()
+
+        try:
+            target_price = float(parts[1])
+            condition = parts[2].lower()
+
+            if condition not in ["above", "below"]:
+                print(f"{Colors.ERROR}Condition must be 'above' or 'below'{Colors.RESET}")
+                return
+
+            from pathlib import Path
+            import json
+
+            alerts_file = Path.home() / ".inkling" / "crypto_alerts.json"
+            alerts_file.parent.mkdir(parents=True, exist_ok=True)
+
+            if alerts_file.exists():
+                with open(alerts_file) as f:
+                    alerts = json.load(f)
+            else:
+                alerts = []
+
+            alert = {
+                "symbol": symbol,
+                "target_price": target_price,
+                "condition": condition,
+                "active": True
+            }
+
+            alerts.append(alert)
+
+            with open(alerts_file, 'w') as f:
+                json.dump(alerts, f, indent=2)
+
+            print(f"{Colors.SUCCESS}🔔 Alert set: {symbol} {condition} ${target_price:,.0f}{Colors.RESET}")
+
+        except ValueError:
+            print(f"{Colors.ERROR}Invalid price{Colors.RESET}")
+        except Exception as e:
+            print(f"{Colors.ERROR}Error: {e}{Colors.RESET}")
+
+    async def cmd_alerts(self) -> None:
+        """List all active price alerts."""
+        try:
+            from pathlib import Path
+            import json
+
+            alerts_file = Path.home() / ".inkling" / "crypto_alerts.json"
+            if not alerts_file.exists():
+                print(f"\n{Colors.INFO}No alerts set. Use /alert to create one.{Colors.RESET}")
+                return
+
+            with open(alerts_file) as f:
+                alerts = json.load(f)
+
+            active_alerts = [a for a in alerts if a.get("active", True)]
+
+            if not active_alerts:
+                print(f"\n{Colors.INFO}No active alerts.{Colors.RESET}")
+                return
+
+            print(f"\n{Colors.HEADER}═══ PRICE ALERTS ═══{Colors.RESET}\n")
+
+            for alert in active_alerts:
+                symbol = alert["symbol"]
+                price = alert["target_price"]
+                condition = alert["condition"]
+                emoji = "⬆️" if condition == "above" else "⬇️"
+
+                print(f"  {emoji} {symbol} {condition} ${price:,.0f}")
+
+            print()
+
+        except Exception as e:
+            print(f"{Colors.ERROR}Error: {e}{Colors.RESET}")
