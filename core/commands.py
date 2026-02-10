@@ -45,24 +45,25 @@ COMMANDS: List[Command] = [
     Command("screensaver", "Toggle screen saver on/off", "cmd_screensaver", "display"),
     Command("darkmode", "Toggle dark mode (inverted display)", "cmd_darkmode", "display"),
 
-    # Task management commands
-    Command("tasks", "List all tasks", "cmd_tasks", "tasks"),
-    Command("task", "Show or create a task", "cmd_task", "tasks"),
-    Command("done", "Mark task as complete", "cmd_done", "tasks"),
-    Command("cancel", "Cancel a task", "cmd_cancel", "tasks"),
-    Command("delete", "Delete a task", "cmd_delete", "tasks"),
-    Command("taskstats", "Show task statistics", "cmd_taskstats", "tasks"),
+    # Crypto commands
+    Command("price", "Check price of a cryptocurrency", "cmd_price", "crypto"),
+    Command("watch", "List watched cryptocurrencies", "cmd_watch", "crypto"),
+    Command("chart", "Show TA indicators for a coin", "cmd_chart", "crypto"),
+    Command("portfolio", "Show portfolio value and holdings", "cmd_portfolio", "crypto"),
+    Command("add", "Add coin to watchlist", "cmd_add", "crypto"),
+    Command("remove", "Remove coin from watchlist", "cmd_remove", "crypto"),
+    Command("alert", "Set price alert", "cmd_alert", "crypto"),
+    Command("alerts", "List active price alerts", "cmd_alerts", "crypto"),
+    Command("top", "Show top gainers/losers", "cmd_top", "crypto"),
 
     # Scheduler commands
-    Command("schedule", "Manage scheduled tasks", "cmd_schedule", "scheduler"),
+    Command("schedule", "Manage scheduled price checks", "cmd_schedule", "scheduler"),
 
     # New utility commands
     Command("thoughts", "Show recent autonomous thoughts", "cmd_thoughts", "info"),
-    Command("find", "Search tasks by keyword", "cmd_find", "tasks"),
     Command("memory", "Show memory stats and entries", "cmd_memory", "info"),
     Command("settings", "Show current settings (SSH)", "cmd_settings", "system"),
-    Command("backup", "Create backup of Inkling data", "cmd_backup", "system"),
-    Command("journal", "Show recent journal entries", "cmd_journal", "info"),
+    Command("backup", "Create backup of crypto data", "cmd_backup", "system"),
 
     # WiFi commands
     Command("wifi", "Show WiFi status and saved networks", "cmd_wifi", "system"),

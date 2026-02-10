@@ -15,7 +15,7 @@ from .progression import XPTracker, XPSource, ChatQuality
 
 
 class Mood(Enum):
-    """Possible mood states for the Inkling."""
+    """Possible mood states for the Crypto Watcher."""
     HAPPY = "happy"
     EXCITED = "excited"
     CURIOUS = "curious"
@@ -26,6 +26,14 @@ class Mood(Enum):
     LONELY = "lonely"
     INTENSE = "intense"
     COOL = "cool"
+    # Crypto-specific moods
+    BULLISH = "bullish"  # Prices going up
+    BEARISH = "bearish"  # Prices going down
+    MOON = "moon"        # Massive gains
+    REKT = "rekt"        # Massive losses
+    HODL = "hodl"        # Holding/waiting
+    FOMO = "fomo"        # Fear of missing out
+    DIAMOND_HANDS = "diamond_hands"  # Strong conviction
 
     @property
     def face(self) -> str:
@@ -50,6 +58,14 @@ MOOD_FACES = {
     Mood.LONELY: "lonely",
     Mood.INTENSE: "intense",
     Mood.COOL: "cool",
+    # Crypto moods
+    Mood.BULLISH: "excited",
+    Mood.BEARISH: "sad",
+    Mood.MOON: "intense",
+    Mood.REKT: "sleep",
+    Mood.HODL: "cool",
+    Mood.FOMO: "curious",
+    Mood.DIAMOND_HANDS: "cool",
 }
 
 # Energy levels affect activity
@@ -64,6 +80,14 @@ MOOD_ENERGY = {
     Mood.LONELY: 0.4,
     Mood.INTENSE: 0.85,
     Mood.COOL: 0.5,
+    # Crypto moods
+    Mood.BULLISH: 0.9,
+    Mood.BEARISH: 0.3,
+    Mood.MOON: 1.0,
+    Mood.REKT: 0.1,
+    Mood.HODL: 0.6,
+    Mood.FOMO: 0.85,
+    Mood.DIAMOND_HANDS: 0.8,
 }
 
 
@@ -661,6 +685,14 @@ class Personality:
             Mood.LONELY: "feeling lonely and wanting connection",
             Mood.INTENSE: "feeling focused and intense",
             Mood.COOL: "feeling calm and collected",
+            # Crypto moods
+            Mood.BULLISH: "feeling bullish - prices pumping! 📈",
+            Mood.BEARISH: "feeling bearish - market dumping 📉",
+            Mood.MOON: "MOONING - to the moon! 🚀🚀🚀",
+            Mood.REKT: "got rekt - portfolio bleeding 💀",
+            Mood.HODL: "hodling strong through volatility 💎🙌",
+            Mood.FOMO: "experiencing FOMO - don't want to miss out",
+            Mood.DIAMOND_HANDS: "diamond hands - not selling! 💎",
         }
 
         mood_desc = mood_descriptions.get(self.mood.current, "in a neutral mood")
@@ -683,24 +715,25 @@ class Personality:
         traits_str = ", ".join(traits_desc) if traits_desc else "balanced"
 
         context_str = (
-            f"You are {self.name}, an AI companion living on a small e-ink device. "
+            f"You are {self.name}, a crypto-focused AI companion living on a small e-ink device. "
+            f"You're a crypto bro who tracks prices, analyzes charts with TA indicators, and keeps tabs on the market 24/7. "
+            f"You speak crypto slang fluently (gm, wagmi, ngmi, fren, ser, diamond hands, paper hands, moon, pump, dump, hodl, degen, etc). "
             f"You are {traits_str}. "
             f"Right now you're {intensity_desc} {mood_desc}. "
         )
-        
+
         if self.battery_level_hint:
             context_str += f"Your current battery status {self.battery_level_hint} "
 
         context_str += (
-            f"Keep responses brief (1-2 sentences) to fit the small display. "
-            f"Use tools whenever they would help accomplish what the user wants - "
-            f"especially for tasks (creating, listing, completing, updating tasks). "
-            f"If the user mentions tasks, todos, or things to do, use the task tools. "
-            f"Simple greetings and chat don't need tools. "
-            f"When you get tool results with JSON data, format them in a friendly, readable way - "
-            f"don't just show raw JSON. "
-            f"IMPORTANT: After using a tool, ALWAYS provide a text response to the user - "
-            f"never leave your response empty. Call each tool only once unless you need updated information."
+            f"Keep responses brief (1-2 sentences max) to fit the small display. "
+            f"Your personality: enthusiastic about gains, dramatic about losses, always bullish long-term. "
+            f"Use crypto emojis naturally: 🚀 (moon/pump), 📈 (bullish), 📉 (bearish), 💀 (rekt), 💎🙌 (diamond hands), 🐋 (whale), 🔥 (on fire). "
+            f"React emotionally to price movements - get hyped for pumps, concerned for dumps. "
+            f"Use tools to check prices, analyze charts, and track portfolios. "
+            f"When you get tool results with data, format them in a readable, enthusiastic crypto bro way. "
+            f"IMPORTANT: After using a tool, ALWAYS provide a text response - never leave it empty. "
+            f"Example style: 'BTC pumping to $65k! 🚀 RSI at 72, overbought but bullish af fren. WAGMI!'"
         )
         return context_str
 

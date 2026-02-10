@@ -42,6 +42,11 @@ feedparser>=6.0.10
 # spidev>=3.6  # Uncomment on Raspberry Pi
 # RPi.GPIO>=0.7.1  # Uncomment on Raspberry Pi
 
+# Crypto & Trading
+TA-Lib>=0.4.28
+ccxt>=4.2.0
+pycoingecko>=3.1.0
+
 # Development
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
