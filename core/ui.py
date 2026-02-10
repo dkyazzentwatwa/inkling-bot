@@ -621,15 +621,15 @@ class FocusTimerPanel:
         timer_y = self.y + 24
         draw.text((timer_x, timer_y), timer_text, font=timer_font, fill=0)
 
-        # Progress bar
-        bar_w = min(180, self.width - 20)
-        bar_h = 8
+        # XP-style progress line, anchored above footer so it never touches clock/stats.
+        bar_text = format_xp_bar(progress, bar_width=12, show_percentage=True)
+        bar_bbox = draw.textbbox((0, 0), bar_text, font=self.fonts.small)
+        bar_w = bar_bbox[2] - bar_bbox[0]
+        bar_h = bar_bbox[3] - bar_bbox[1]
         bar_x = self.x + (self.width - bar_w) // 2
-        bar_y = min(self.y + self.height - 20, timer_y + timer_h + 4)
-        draw.rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], outline=0, fill=255, width=1)
-        fill_w = int((bar_w - 2) * progress)
-        if fill_w > 0:
-            draw.rectangle([bar_x + 1, bar_y + 1, bar_x + 1 + fill_w, bar_y + bar_h - 1], outline=0, fill=0)
+        footer_start = DISPLAY_HEIGHT - FOOTER_HEIGHT
+        bar_y = max(self.y + 48, footer_start - bar_h - 10)
+        draw.text((bar_x, bar_y), bar_text, font=self.fonts.small, fill=0)
 
         # Optional task label
         if ctx.focus_task_label:
