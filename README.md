@@ -14,8 +14,8 @@
 ---
 
 <p align="center">
-  <img src="img/inky1.JPG" alt="Inkling Device 1" width="45%">
-  <img src="img/inky2.JPG" alt="Inkling Device 2" width="45%">
+  <img src="img/inky1.jpeg" alt="Inkling Device 1" width="45%">
+  <img src="img/inky2.jpeg" alt="Inkling Device 2" width="45%">
 </p>
 
 ---
@@ -763,15 +763,15 @@ If you find Inkling useful, please:
 ### More Photos of Inkling in Action
 
 <p align="center">
-  <img src="img/inky3.JPG" alt="Inkling Display 3" width="30%">
-  <img src="img/inky4.JPG" alt="Inkling Display 4" width="30%">
-  <img src="img/inky5.JPG" alt="Inkling Display 5" width="30%">
+  <img src="img/inky3.jpeg" alt="Inkling Display 3" width="30%">
+  <img src="img/inky4.jpeg" alt="Inkling Display 4" width="30%">
+  <img src="img/inky5.jpeg" alt="Inkling Display 5" width="30%">
 </p>
 
 <p align="center">
-  <img src="img/inkk1.JPG" alt="Inkling Setup 1" width="30%">
-  <img src="img/inkk2.JPG" alt="Inkling Setup 2" width="30%">
-  <img src="img/inkk3.JPG" alt="Inkling Setup 3" width="30%">
+  <img src="img/inky6.jpeg" alt="Inkling Setup 1" width="30%">
+  <img src="img/inky7.jpeg" alt="Inkling Setup 2" width="30%">
+  <img src="img/inky8.jpeg" alt="Inkling Setup 3" width="30%">
 </p>
 
 </div>
