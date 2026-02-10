@@ -5,6 +5,7 @@ Tests for core/memory.py - persistent memory storage.
 """
 
 import time
+import threading
 import pytest
 
 
@@ -257,6 +258,24 @@ class TestMemoryStore:
         mem2 = memory_store.get("test")
 
         assert mem2.access_count > mem1.access_count
+
+    def test_cross_thread_access_on_shared_store(self, memory_store):
+        """Shared MemoryStore should support access from another thread."""
+        memory_store.remember("thread_key", "thread_value")
+        result = {"count": None, "error": None}
+
+        def worker():
+            try:
+                result["count"] = memory_store.count()
+            except Exception as exc:
+                result["error"] = str(exc)
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join()
+
+        assert result["error"] is None
+        assert result["count"] is not None
 
 
 class TestConvenienceFunctions:

@@ -8,6 +8,7 @@ Remembers important information across sessions and conversations.
 import sqlite3
 import time
 import json
+import threading
 from pathlib import Path
 from typing import Optional, List, Dict
 from dataclasses import dataclass
@@ -59,34 +60,42 @@ class MemoryStore:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data_dir / "memory.db"
         self._conn: Optional[sqlite3.Connection] = None
+        self._lock = threading.RLock()
 
     def initialize(self) -> None:
         """Initialize the database."""
-        self._conn = sqlite3.connect(str(self.db_path))
-        self._conn.row_factory = sqlite3.Row
-        self._create_tables()
+        with self._lock:
+            self._conn = sqlite3.connect(
+                str(self.db_path),
+                check_same_thread=False,
+                timeout=5.0,
+            )
+            self._conn.row_factory = sqlite3.Row
+            self._create_tables()
 
     def _create_tables(self) -> None:
         """Create the memory tables."""
         self._conn.execute("""
-            CREATE TABLE IF NOT EXISTS memories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                key TEXT NOT NULL,
-                value TEXT NOT NULL,
-                importance REAL DEFAULT 0.5,
-                category TEXT DEFAULT 'fact',
-                created_at REAL NOT NULL,
-                last_accessed REAL NOT NULL,
-                access_count INTEGER DEFAULT 1,
-                UNIQUE(key, category)
-            )
+        CREATE TABLE IF NOT EXISTS memories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT NOT NULL,
+            value TEXT NOT NULL,
+            importance REAL DEFAULT 0.5,
+            category TEXT DEFAULT 'fact',
+            created_at REAL NOT NULL,
+            last_accessed REAL NOT NULL,
+            access_count INTEGER DEFAULT 1,
+            UNIQUE(key, category)
+        )
         """)
         self._conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category)
+        CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category)
         """)
         self._conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC)
+        CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC)
         """)
+        # WAL mode improves read/write coexistence for multi-threaded access.
+        self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.commit()
 
     def remember(
@@ -110,31 +119,34 @@ class MemoryStore:
         """
         importance = max(0.0, min(1.0, importance))
         now = time.time()
-
-        # Try to update existing memory
-        cursor = self._conn.execute(
-            """
-            UPDATE memories
-            SET value = ?, importance = MAX(importance, ?),
-                last_accessed = ?, access_count = access_count + 1
-            WHERE key = ? AND category = ?
-            """,
-            (value, importance, now, key, category)
-        )
-
-        if cursor.rowcount == 0:
-            # Insert new memory
+        with self._lock:
+            # Try to update existing memory
             cursor = self._conn.execute(
                 """
-                INSERT INTO memories (key, value, importance, category, created_at, last_accessed)
-                VALUES (?, ?, ?, ?, ?, ?)
+                UPDATE memories
+                SET value = ?, importance = MAX(importance, ?),
+                    last_accessed = ?, access_count = access_count + 1
+                WHERE key = ? AND category = ?
                 """,
-                (key, value, importance, category, now, now)
+                (value, importance, now, key, category)
             )
 
-        self._conn.commit()
+            if cursor.rowcount == 0:
+                # Insert new memory
+                cursor = self._conn.execute(
+                    """
+                    INSERT INTO memories (key, value, importance, category, created_at, last_accessed)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (key, value, importance, category, now, now)
+                )
 
-        return self.get(key, category)
+            self._conn.commit()
+            row = self._conn.execute(
+                "SELECT * FROM memories WHERE key = ? AND category = ?",
+                (key, category)
+            ).fetchone()
+            return self._row_to_memory(row)
 
     def get(self, key: str, category: str = "fact") -> Optional[Memory]:
         """
@@ -142,19 +154,20 @@ class MemoryStore:
 
         Updates access time and count.
         """
-        row = self._conn.execute(
-            "SELECT * FROM memories WHERE key = ? AND category = ?",
-            (key, category)
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM memories WHERE key = ? AND category = ?",
+                (key, category)
+            ).fetchone()
 
-        if row:
-            # Update access stats
-            self._conn.execute(
-                "UPDATE memories SET last_accessed = ?, access_count = access_count + 1 WHERE id = ?",
-                (time.time(), row["id"])
-            )
-            self._conn.commit()
-            return self._row_to_memory(row)
+            if row:
+                # Update access stats
+                self._conn.execute(
+                    "UPDATE memories SET last_accessed = ?, access_count = access_count + 1 WHERE id = ?",
+                    (time.time(), row["id"])
+                )
+                self._conn.commit()
+                return self._row_to_memory(row)
 
         return None
 
@@ -177,34 +190,35 @@ class MemoryStore:
         """
         query_pattern = f"%{query.lower()}%"
 
-        if category:
-            rows = self._conn.execute(
-                """
-                SELECT * FROM memories
-                WHERE category = ? AND (LOWER(key) LIKE ? OR LOWER(value) LIKE ?)
-                ORDER BY importance DESC, last_accessed DESC
-                LIMIT ?
-                """,
-                (category, query_pattern, query_pattern, limit)
-            ).fetchall()
-        else:
-            rows = self._conn.execute(
-                """
-                SELECT * FROM memories
-                WHERE LOWER(key) LIKE ? OR LOWER(value) LIKE ?
-                ORDER BY importance DESC, last_accessed DESC
-                LIMIT ?
-                """,
-                (query_pattern, query_pattern, limit)
-            ).fetchall()
+        with self._lock:
+            if category:
+                rows = self._conn.execute(
+                    """
+                    SELECT * FROM memories
+                    WHERE category = ? AND (LOWER(key) LIKE ? OR LOWER(value) LIKE ?)
+                    ORDER BY importance DESC, last_accessed DESC
+                    LIMIT ?
+                    """,
+                    (category, query_pattern, query_pattern, limit)
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    """
+                    SELECT * FROM memories
+                    WHERE LOWER(key) LIKE ? OR LOWER(value) LIKE ?
+                    ORDER BY importance DESC, last_accessed DESC
+                    LIMIT ?
+                    """,
+                    (query_pattern, query_pattern, limit)
+                ).fetchall()
 
-        # Update access stats for recalled memories
-        for row in rows:
-            self._conn.execute(
-                "UPDATE memories SET last_accessed = ?, access_count = access_count + 1 WHERE id = ?",
-                (time.time(), row["id"])
-            )
-        self._conn.commit()
+            # Update access stats for recalled memories
+            for row in rows:
+                self._conn.execute(
+                    "UPDATE memories SET last_accessed = ?, access_count = access_count + 1 WHERE id = ?",
+                    (time.time(), row["id"])
+                )
+            self._conn.commit()
 
         return [self._row_to_memory(row) for row in rows]
 
@@ -214,41 +228,44 @@ class MemoryStore:
         limit: int = 10,
     ) -> List[Memory]:
         """Get all memories in a category."""
-        rows = self._conn.execute(
-            """
-            SELECT * FROM memories
-            WHERE category = ?
-            ORDER BY importance DESC, last_accessed DESC
-            LIMIT ?
-            """,
-            (category, limit)
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM memories
+                WHERE category = ?
+                ORDER BY importance DESC, last_accessed DESC
+                LIMIT ?
+                """,
+                (category, limit)
+            ).fetchall()
 
         return [self._row_to_memory(row) for row in rows]
 
     def recall_recent(self, limit: int = 10) -> List[Memory]:
         """Get most recently accessed memories."""
-        rows = self._conn.execute(
-            """
-            SELECT * FROM memories
-            ORDER BY last_accessed DESC
-            LIMIT ?
-            """,
-            (limit,)
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM memories
+                ORDER BY last_accessed DESC
+                LIMIT ?
+                """,
+                (limit,)
+            ).fetchall()
 
         return [self._row_to_memory(row) for row in rows]
 
     def recall_important(self, limit: int = 10) -> List[Memory]:
         """Get most important memories."""
-        rows = self._conn.execute(
-            """
-            SELECT * FROM memories
-            ORDER BY importance DESC, access_count DESC
-            LIMIT ?
-            """,
-            (limit,)
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM memories
+                ORDER BY importance DESC, access_count DESC
+                LIMIT ?
+                """,
+                (limit,)
+            ).fetchall()
 
         return [self._row_to_memory(row) for row in rows]
 
@@ -258,12 +275,13 @@ class MemoryStore:
 
         Returns True if memory existed and was removed.
         """
-        cursor = self._conn.execute(
-            "DELETE FROM memories WHERE key = ? AND category = ?",
-            (key, category)
-        )
-        self._conn.commit()
-        return cursor.rowcount > 0
+        with self._lock:
+            cursor = self._conn.execute(
+                "DELETE FROM memories WHERE key = ? AND category = ?",
+                (key, category)
+            )
+            self._conn.commit()
+            return cursor.rowcount > 0
 
     def forget_old(
         self,
@@ -282,28 +300,30 @@ class MemoryStore:
         """
         cutoff_time = time.time() - (max_age_days * 86400)
 
-        cursor = self._conn.execute(
-            """
-            DELETE FROM memories
-            WHERE last_accessed < ?
-              AND importance < ?
-              AND access_count < 5
-            """,
-            (cutoff_time, importance_threshold)
-        )
-        self._conn.commit()
-        return cursor.rowcount
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                DELETE FROM memories
+                WHERE last_accessed < ?
+                  AND importance < ?
+                  AND access_count < 5
+                """,
+                (cutoff_time, importance_threshold)
+            )
+            self._conn.commit()
+            return cursor.rowcount
 
     def count(self, category: Optional[str] = None) -> int:
         """Count memories, optionally by category."""
-        if category:
-            row = self._conn.execute(
-                "SELECT COUNT(*) FROM memories WHERE category = ?",
-                (category,)
-            ).fetchone()
-        else:
-            row = self._conn.execute("SELECT COUNT(*) FROM memories").fetchone()
-        return row[0]
+        with self._lock:
+            if category:
+                row = self._conn.execute(
+                    "SELECT COUNT(*) FROM memories WHERE category = ?",
+                    (category,)
+                ).fetchone()
+            else:
+                row = self._conn.execute("SELECT COUNT(*) FROM memories").fetchone()
+            return row[0]
 
     def get_context_for_prompt(self, limit: int = 10) -> str:
         """
@@ -337,9 +357,10 @@ class MemoryStore:
 
     def close(self) -> None:
         """Close the database connection."""
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        with self._lock:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
 
 
 # Convenience functions for common memory operations
