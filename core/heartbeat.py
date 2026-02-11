@@ -723,10 +723,13 @@ class Heartbeat:
     async def _generate_thought(self) -> Optional[str]:
         """Generate a brief autonomous thought using the AI brain."""
         try:
+            # Get base system prompt (custom or default)
+            base_prompt = self.personality.get_system_prompt(
+                custom_prompt=self.brain.config.get("system_prompt")
+            )
             result = await self.brain.think(
                 user_message="Write one brief thought (1-2 sentences). Keep it gentle and reflective.",
-                system_prompt=self.personality.get_system_prompt_context() +
-                              " You are thinking to yourself, jotting a quiet observation.",
+                system_prompt=base_prompt + " You are thinking to yourself, jotting a quiet observation.",
                 use_tools=False,
             )
             if not result or not result.content:
@@ -760,10 +763,13 @@ class Heartbeat:
             topic = random.choice(topics)
 
             # Use AI to explore the topic
+            # Get base system prompt (custom or default)
+            base_prompt = self.personality.get_system_prompt(
+                custom_prompt=self.brain.config.get("system_prompt")
+            )
             result = await self.brain.think(
                 user_message=f"Share one interesting thought about {topic}. Keep it brief and poetic.",
-                system_prompt=self.personality.get_system_prompt_context() +
-                              " You are thinking to yourself, contemplating the world.",
+                system_prompt=base_prompt + " You are thinking to yourself, contemplating the world.",
                 use_tools=False,  # Disable tools for introspection
             )
 
@@ -934,10 +940,14 @@ class Heartbeat:
             return None
 
         try:
+            # Get base system prompt (custom or default)
+            base_prompt = self.personality.get_system_prompt(
+                custom_prompt=self.brain.config.get("system_prompt")
+            )
             result = await self.brain.think(
                 user_message="Write a brief journal entry (2-3 sentences) reflecting on today. Be personal and introspective.",
                 system_prompt=(
-                    self.personality.get_system_prompt_context()
+                    base_prompt
                     + " You are writing in your private journal. Be genuine and reflective."
                 ),
                 use_tools=False,

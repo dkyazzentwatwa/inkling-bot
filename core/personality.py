@@ -687,7 +687,7 @@ class Personality:
             f"You are {traits_str}. "
             f"Right now you're {intensity_desc} {mood_desc}. "
         )
-        
+
         if self.battery_level_hint:
             context_str += f"Your current battery status {self.battery_level_hint} "
 
@@ -703,6 +703,23 @@ class Personality:
             f"never leave your response empty. Call each tool only once unless you need updated information."
         )
         return context_str
+
+    def get_system_prompt(self, custom_prompt: Optional[str] = None) -> str:
+        """
+        Get system prompt for AI, using custom or default.
+
+        Args:
+            custom_prompt: Optional custom prompt from config. If provided,
+                          uses this instead of generating one.
+
+        Returns:
+            System prompt string
+        """
+        if custom_prompt:
+            return custom_prompt.strip()
+
+        # Use default personality-based prompt
+        return self.get_system_prompt_context()
 
     def get_status_line(self) -> str:
         """Get a short status string for display."""

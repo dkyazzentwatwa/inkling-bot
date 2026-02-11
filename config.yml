@@ -49,6 +49,12 @@ ai:
     daily_tokens: 100000  # ~$0.03/day with Haiku
     per_request_max: 5000
 
+  # Custom system prompt (optional)
+  # If set, this overrides the default personality-based prompt
+  # Leave empty/null to use the default dynamic prompt
+  # Requires restart to take effect
+  system_prompt: null
+
 # Display Configuration
 display:
   # auto, v3, v4, or mock

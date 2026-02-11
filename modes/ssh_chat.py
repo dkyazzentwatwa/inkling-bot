@@ -571,7 +571,9 @@ class SSHChatMode:
             # Get AI response
             result = await self.brain.think(
                 user_message=message,
-                system_prompt=self.personality.get_system_prompt_context(),
+                system_prompt=self.personality.get_system_prompt(
+                    custom_prompt=self._config.get("ai", {}).get("system_prompt")
+                ),
                 status_callback=on_tool_status,
             )
 

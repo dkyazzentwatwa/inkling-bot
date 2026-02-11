@@ -453,6 +453,26 @@
             </p>
         </div>
 
+        <h2>⚡ System Power</h2>
+
+        <div class="input-group">
+            <button id="restart-btn" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; font-weight: 600; border: 2px solid var(--border); background: var(--accent); color: white; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                🔄 Restart Device
+            </button>
+            <p style="font-size: 0.875rem; color: var(--muted); margin: 0.5rem 0 0 0;">
+                Restarts the Inkling service and device. Takes about 30 seconds to come back online.
+            </p>
+        </div>
+
+        <div class="input-group">
+            <button id="shutdown-btn" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; font-weight: 600; border: 2px solid #d9534f; background: #d9534f; color: white; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                🔴 Shutdown Device
+            </button>
+            <p style="font-size: 0.875rem; color: var(--muted); margin: 0.5rem 0 0 0;">
+                Safely shuts down the device. You'll need physical access to power it back on.
+            </p>
+        </div>
+
         <h2>👤 Device & Personality</h2>
 
         <div class="input-group">
@@ -571,6 +591,43 @@
             <p style="font-size: 0.875rem; color: var(--muted); margin-top: 0.25rem;">Maximum tokens per day (~$0.03 per 10,000 with Haiku)</p>
         </div>
 
+        <h2>🧠 AI Behavior</h2>
+
+        <div class="input-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label for="system-prompt">Custom System Prompt</label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                    <input type="checkbox" id="use-default-prompt" style="width: 18px; height: 18px; cursor: pointer;">
+                    <span style="font-size: 0.875rem;">Use Default</span>
+                </label>
+            </div>
+
+            <textarea
+                id="system-prompt"
+                rows="8"
+                placeholder="Enter custom system prompt, or check 'Use Default' for personality-based prompt..."
+                style="width: 100%; padding: 0.75rem; font-family: 'Courier New', monospace; font-size: 0.9rem; border: 2px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; resize: vertical; min-height: 150px;"
+            ></textarea>
+
+            <details style="margin-top: 8px;">
+                <summary style="cursor: pointer; color: var(--muted); font-size: 0.875rem;">ℹ️ What is this?</summary>
+                <p style="font-size: 0.875rem; color: var(--muted); margin: 0.5rem 0 0 0; line-height: 1.5;">
+                    The system prompt tells the AI how to behave and respond. The default prompt is based on
+                    your device's personality, mood, and traits. You can override it here to customize the AI's
+                    behavior, tone, knowledge, or constraints.
+                </p>
+                <p style="font-size: 0.875rem; color: var(--muted); margin: 0.5rem 0 0 0; line-height: 1.5;">
+                    <strong>Examples:</strong> Add domain expertise ("You are an expert in Python programming"),
+                    change response style ("Always respond in haiku form"), or add custom instructions
+                    ("Never mention the weather").
+                </p>
+                <p style="font-size: 0.875rem; color: var(--muted); margin: 0.5rem 0 0 0; line-height: 1.5;">
+                    ⚠️ <strong>Note:</strong> Custom prompts require a restart to take effect. Check "Use Default"
+                    to revert to personality-based prompts.
+                </p>
+            </details>
+        </div>
+
         <p style="padding: 0.75rem; border: 2px solid var(--accent); background: var(--bg); font-size: 0.875rem; color: var(--muted); margin-top: 1rem;">
             ⚠️ <strong>Restart required:</strong> Changes to AI settings will take effect after restarting the application.
         </p>
@@ -648,6 +705,81 @@
             console.log('Theme reset to default (cream)');
         });
 
+        // Restart button
+        document.getElementById('restart-btn').addEventListener('click', async function() {
+            if (!confirm('⚠️ Restart Device?\n\nThis will restart the Inkling service and reboot the device. It will take about 30 seconds to come back online.\n\nContinue?')) {
+                return;
+            }
+
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = '⏳ Restarting...';
+
+            try {
+                const response = await fetch('/api/system/restart', { method: 'POST' });
+                const data = await response.json();
+
+                if (response.ok) {
+                    btn.textContent = '✅ Restarting! Reconnecting in 30s...';
+                    btn.style.background = '#5cb85c';
+
+                    // Show countdown
+                    let countdown = 30;
+                    const interval = setInterval(() => {
+                        countdown--;
+                        btn.textContent = `⏳ Reconnecting in ${countdown}s...`;
+                        if (countdown <= 0) {
+                            clearInterval(interval);
+                            window.location.reload();
+                        }
+                    }, 1000);
+                } else {
+                    throw new Error(data.error || 'Restart failed');
+                }
+            } catch (err) {
+                alert('❌ Restart failed: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = '🔄 Restart Device';
+            }
+        });
+
+        // Shutdown button
+        document.getElementById('shutdown-btn').addEventListener('click', async function() {
+            if (!confirm('⚠️ SHUTDOWN DEVICE?\n\n⚠️ WARNING: This will completely shut down the device. You will need PHYSICAL ACCESS to power it back on.\n\nAre you absolutely sure?')) {
+                return;
+            }
+
+            // Double confirmation for shutdown
+            if (!confirm('🔴 FINAL CONFIRMATION\n\nThe device will shut down in 5 seconds.\n\nYou will need to physically unplug and replug the power to restart.\n\nProceed with shutdown?')) {
+                return;
+            }
+
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = '⏳ Shutting down...';
+
+            try {
+                const response = await fetch('/api/system/shutdown', { method: 'POST' });
+                const data = await response.json();
+
+                if (response.ok) {
+                    btn.textContent = '✅ Shutting down now...';
+                    btn.style.background = '#333';
+
+                    // Show shutdown message
+                    setTimeout(() => {
+                        document.body.innerHTML = '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; text-align: center; padding: 2rem;"><h1 style="font-size: 3rem; margin-bottom: 1rem;">💤</h1><h2>Device Shutting Down</h2><p style="margin-top: 1rem; color: var(--muted);">You can safely unplug the device now.</p></div>';
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || 'Shutdown failed');
+                }
+            } catch (err) {
+                alert('❌ Shutdown failed: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = '🔴 Shutdown Device';
+            }
+        });
+
         function updateHeader() {
             fetch('/api/state')
                 .then(r => r.json())
@@ -661,6 +793,18 @@
         updateHeader();
         setInterval(updateHeader, 5000);
 
+        // Handle "Use Default" checkbox for system prompt
+        document.getElementById('use-default-prompt').addEventListener('change', function() {
+            const promptField = document.getElementById('system-prompt');
+            if (this.checked) {
+                promptField.value = '';
+                promptField.disabled = true;
+            } else {
+                promptField.disabled = false;
+                promptField.focus();
+            }
+        });
+
         // Load current AI settings on page load
         fetch('/api/settings')
             .then(resp => resp.json())
@@ -673,6 +817,12 @@
                     document.getElementById('ollama-model').value = data.ai.ollama?.model || 'qwen3-coder-next';
                     document.getElementById('max-tokens').value = data.ai.budget?.max_tokens || 150;
                     document.getElementById('daily-tokens').value = data.ai.budget?.daily_tokens || 10000;
+
+                    // Load system prompt
+                    const customPrompt = data.ai.system_prompt || '';
+                    document.getElementById('system-prompt').value = customPrompt;
+                    document.getElementById('use-default-prompt').checked = !customPrompt;
+                    document.getElementById('system-prompt').disabled = !customPrompt;
                 }
                 if (data.display) {
                     document.getElementById('display-dark-mode').checked = data.display.dark_mode || false;
@@ -729,7 +879,8 @@
                     budget: {
                         daily_tokens: parseInt(document.getElementById('daily-tokens').value),
                         per_request_max: parseInt(document.getElementById('max-tokens').value),
-                    }
+                    },
+                    system_prompt: document.getElementById('system-prompt').value.trim() || null,
                 }
             };
 

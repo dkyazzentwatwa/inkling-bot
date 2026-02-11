@@ -462,7 +462,8 @@ class WebChatMode:
                 "budget": {
                     "daily_tokens": self.brain.budget.daily_limit,
                     "max_tokens": self.brain.config.get("budget", {}).get("per_request_max", 150),
-                }
+                },
+                "system_prompt": self.brain.config.get("system_prompt", ""),
             }
 
             # Get display config
@@ -1089,6 +1090,50 @@ class WebChatMode:
             except Exception as e:
                 return json.dumps({"error": str(e)})
 
+        @self._app.route("/api/system/restart", method="POST")
+        def restart_device():
+            """Restart the device (sudo reboot)."""
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
+            response.content_type = "application/json"
+
+            try:
+                import subprocess
+                # Run sudo reboot in background to allow response to be sent
+                subprocess.Popen(["sudo", "reboot"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return json.dumps({
+                    "success": True,
+                    "message": "Device restarting... Please wait 30 seconds."
+                })
+            except Exception as e:
+                return json.dumps({
+                    "success": False,
+                    "error": f"Failed to restart: {str(e)}"
+                })
+
+        @self._app.route("/api/system/shutdown", method="POST")
+        def shutdown_device():
+            """Shutdown the device (sudo shutdown -h now)."""
+            auth_err = self._require_api_auth()
+            if auth_err:
+                return auth_err
+            response.content_type = "application/json"
+
+            try:
+                import subprocess
+                # Run sudo shutdown in background to allow response to be sent
+                subprocess.Popen(["sudo", "shutdown", "-h", "now"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return json.dumps({
+                    "success": True,
+                    "message": "Device shutting down... Goodbye!"
+                })
+            except Exception as e:
+                return json.dumps({
+                    "success": False,
+                    "error": f"Failed to shutdown: {str(e)}"
+                })
+
     def _task_to_dict(self, task: Task) -> Dict[str, Any]:
         """Convert Task to JSON-serializable dict."""
         from datetime import datetime
@@ -1190,6 +1235,10 @@ class WebChatMode:
                 if "budget" not in config["ai"]:
                     config["ai"]["budget"] = {}
                 config["ai"]["budget"].update(ai_settings["budget"])
+
+            # Update system prompt (optional)
+            if "system_prompt" in ai_settings:
+                config["ai"]["system_prompt"] = ai_settings["system_prompt"] or None
 
         # Write back to file
         with open(config_file, 'w') as f:
@@ -1411,7 +1460,9 @@ class WebChatMode:
             future = asyncio.run_coroutine_threadsafe(
                 self.brain.think(
                     user_message=message,
-                    system_prompt=self.personality.get_system_prompt_context(),
+                    system_prompt=self.personality.get_system_prompt(
+                        custom_prompt=self._config.get("ai", {}).get("system_prompt")
+                    ),
                 ),
                 self._loop
             )
