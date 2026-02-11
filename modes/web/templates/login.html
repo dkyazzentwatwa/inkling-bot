@@ -203,6 +203,7 @@
         const themeAuto = localStorage.getItem('inklingThemeAuto') === 'true';
         const theme = themeAuto ? getAutoTheme() : (localStorage.getItem('inklingTheme') || 'cream');
         document.documentElement.setAttribute('data-theme', theme);
+        console.log('Theme initialized:', theme, 'Auto:', themeAuto);
     </script>
 </body>
 </html>

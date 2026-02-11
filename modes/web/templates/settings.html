@@ -401,30 +401,34 @@
 
         <div class="input-group">
             <label for="theme">Color Theme</label>
-            <select id="theme" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text);">
-                <option value="cream">Cream (Default)</option>
-                <option value="pink">Soft Pink</option>
-                <option value="mint">Mint Green</option>
-                <option value="lavender">Lavender</option>
-                <option value="peach">Peach</option>
-                <option value="sky">Sky Blue</option>
-                <option value="butter">Butter Yellow</option>
-                <option value="rose">Rose</option>
-                <option value="sage">Sage</option>
-                <option value="periwinkle">Periwinkle</option>
-                <option value="dark">Dark Mode</option>
-                <option value="midnight">Midnight Blue</option>
-                <option value="charcoal">Charcoal</option>
-                <option value="ocean">Ocean</option>
-                <option value="sunset">Sunset</option>
-                <option value="forest">Forest</option>
-                <option value="noir">Noir</option>
-                <option value="retro">Retro (CRT Green)</option>
+            <select id="theme" style="width: 100%; padding: 0.75rem; font-family: inherit; font-size: 1rem; border: 2px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px;">
+                <option value="cream">☀️ Cream (Default)</option>
+                <option value="pink">🌸 Soft Pink</option>
+                <option value="mint">🌿 Mint Green</option>
+                <option value="lavender">💜 Lavender</option>
+                <option value="peach">🍑 Peach</option>
+                <option value="sky">☁️ Sky Blue</option>
+                <option value="butter">🧈 Butter Yellow</option>
+                <option value="rose">🌹 Rose</option>
+                <option value="sage">🍃 Sage</option>
+                <option value="periwinkle">🔵 Periwinkle</option>
+                <option value="dark">🌙 Dark Mode</option>
+                <option value="midnight">🌌 Midnight Blue</option>
+                <option value="charcoal">⚫ Charcoal</option>
+                <option value="ocean">🌊 Ocean</option>
+                <option value="sunset">🌅 Sunset</option>
+                <option value="forest">🌲 Forest</option>
+                <option value="noir">⬛ Noir</option>
+                <option value="retro">💚 Retro (CRT Green)</option>
             </select>
+            <div id="theme-status" style="margin-top: 8px; padding: 8px; border-radius: 6px; background: var(--accent); color: white; font-size: 0.875rem; font-weight: 500;"></div>
             <label style="display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.875rem; cursor: pointer;">
                 <input type="checkbox" id="theme-auto" style="width: 18px; height: 18px; cursor: pointer;">
                 Auto day/night (cream by day, midnight at night)
             </label>
+            <button id="reset-theme" style="margin-top: 8px; padding: 8px 16px; background: var(--muted); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.875rem;">
+                Reset Theme to Default
+            </button>
         </div>
 
         <h2>🖥️ E-ink Display</h2>
@@ -593,11 +597,25 @@
         const themeAutoEnabled = localStorage.getItem('inklingThemeAuto') === 'true';
         const savedTheme = themeAutoEnabled ? getAutoTheme() : (localStorage.getItem('inklingTheme') || 'cream');
         document.documentElement.setAttribute('data-theme', savedTheme);
-        document.getElementById('theme').value = localStorage.getItem('inklingTheme') || 'cream';
+        // FIX: Set dropdown to match the actually applied theme
+        document.getElementById('theme').value = savedTheme;
         document.getElementById('theme-auto').checked = themeAutoEnabled;
         if (themeAutoEnabled) {
             document.getElementById('theme').disabled = true;
         }
+        // Debug: log the applied theme
+        console.log('Theme applied:', savedTheme, 'Auto:', themeAutoEnabled);
+
+        // Update theme status indicator
+        function updateThemeStatus() {
+            const statusDiv = document.getElementById('theme-status');
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'cream';
+            const isAuto = localStorage.getItem('inklingThemeAuto') === 'true';
+            const themeName = document.querySelector(`#theme option[value="${currentTheme}"]`)?.textContent || currentTheme;
+            statusDiv.textContent = `Currently active: ${themeName}${isAuto ? ' (auto-selected)' : ''}`;
+        }
+        updateThemeStatus();
+
         const statusEl = document.getElementById('status');
         const thoughtEl = document.getElementById('thought');
 
@@ -606,6 +624,7 @@
             const theme = this.value;
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('inklingTheme', theme);
+            updateThemeStatus();
         });
 
         // Auto-theme toggle
@@ -620,6 +639,21 @@
                 localStorage.setItem('inklingTheme', autoTheme);
                 document.getElementById('theme').value = autoTheme;
             }
+            updateThemeStatus();
+        });
+
+        // Reset theme button
+        document.getElementById('reset-theme').addEventListener('click', function() {
+            // Clear all theme settings
+            localStorage.removeItem('inklingTheme');
+            localStorage.removeItem('inklingThemeAuto');
+            // Set to default
+            document.documentElement.setAttribute('data-theme', 'cream');
+            document.getElementById('theme').value = 'cream';
+            document.getElementById('theme-auto').checked = false;
+            document.getElementById('theme').disabled = false;
+            updateThemeStatus();
+            console.log('Theme reset to default (cream)');
         });
 
         function updateHeader() {

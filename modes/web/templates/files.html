@@ -523,6 +523,15 @@
         const themeAuto = localStorage.getItem('inklingThemeAuto') === 'true';
         const theme = themeAuto ? getAutoTheme() : (localStorage.getItem('inklingTheme') || 'cream');
         document.documentElement.setAttribute('data-theme', theme);
+        console.log('Theme initialized:', theme, 'Auto:', themeAuto);
+        // Re-check auto theme every 5 minutes
+        if (themeAuto) {
+            setInterval(() => {
+                const newTheme = getAutoTheme();
+                document.documentElement.setAttribute('data-theme', newTheme);
+                console.log('Auto theme updated:', newTheme);
+            }, 300000);
+        }
 
         function updateHeader() {
             fetch('/api/state')
