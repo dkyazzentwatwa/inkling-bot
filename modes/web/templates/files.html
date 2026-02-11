@@ -515,8 +515,13 @@
         const statusEl = document.getElementById('status');
         const thoughtEl = document.getElementById('thought');
 
-        // Apply saved theme
-        const theme = localStorage.getItem('inklingTheme') || 'cream';
+        // Apply saved theme with auto day/night support
+        function getAutoTheme() {
+            const hour = new Date().getHours();
+            return (hour >= 20 || hour < 7) ? 'midnight' : 'cream';
+        }
+        const themeAuto = localStorage.getItem('inklingThemeAuto') === 'true';
+        const theme = themeAuto ? getAutoTheme() : (localStorage.getItem('inklingTheme') || 'cream');
         document.documentElement.setAttribute('data-theme', theme);
 
         function updateHeader() {

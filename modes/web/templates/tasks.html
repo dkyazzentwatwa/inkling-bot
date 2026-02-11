@@ -838,8 +838,13 @@
     </div>
 
     <script>
-        // Load theme
-        const theme = localStorage.getItem('inklingTheme') || 'cream';
+        // Load theme with auto day/night support
+        function getAutoTheme() {
+            const hour = new Date().getHours();
+            return (hour >= 20 || hour < 7) ? 'midnight' : 'cream';
+        }
+        const themeAuto = localStorage.getItem('inklingThemeAuto') === 'true';
+        const theme = themeAuto ? getAutoTheme() : (localStorage.getItem('inklingTheme') || 'cream');
         document.documentElement.setAttribute('data-theme', theme);
 
         let tasks = [];
