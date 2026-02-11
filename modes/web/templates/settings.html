@@ -585,11 +585,15 @@
     </div>
 
     <script>
-        // Load and apply saved theme
+        // Load and apply saved theme with auto day/night support
+        function getAutoTheme() {
+            const hour = new Date().getHours();
+            return (hour >= 20 || hour < 7) ? 'midnight' : 'cream';
+        }
         const themeAutoEnabled = localStorage.getItem('inklingThemeAuto') === 'true';
-        const savedTheme = localStorage.getItem('inklingTheme') || 'cream';
+        const savedTheme = themeAutoEnabled ? getAutoTheme() : (localStorage.getItem('inklingTheme') || 'cream');
         document.documentElement.setAttribute('data-theme', savedTheme);
-        document.getElementById('theme').value = savedTheme;
+        document.getElementById('theme').value = localStorage.getItem('inklingTheme') || 'cream';
         document.getElementById('theme-auto').checked = themeAutoEnabled;
         if (themeAutoEnabled) {
             document.getElementById('theme').disabled = true;
