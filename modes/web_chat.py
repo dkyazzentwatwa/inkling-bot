@@ -124,6 +124,9 @@ class WebChatMode:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._message_queue: Queue = Queue()
 
+        # Performance optimizations: gzip compression and caching
+        self._setup_performance_hooks()
+
         # Import faces from UI module
         # Use Unicode faces for web (better appearance), with ASCII fallback
         from core.ui import FACES, UNICODE_FACES
@@ -144,6 +147,61 @@ class WebChatMode:
         self._focus_cmds = FocusCommands(self)
 
         self._setup_routes()
+
+    def _setup_performance_hooks(self):
+        """Setup performance optimization hooks for gzip compression and caching."""
+        from bottle import hook
+        import gzip
+        from io import BytesIO
+
+        @hook('after_request')
+        def enable_gzip():
+            """Compress responses with gzip if client supports it."""
+            accept_encoding = request.environ.get('HTTP_ACCEPT_ENCODING', '')
+            if 'gzip' not in accept_encoding:
+                return
+
+            # Only compress text responses
+            content_type = response.content_type
+            if not (content_type.startswith('text/') or
+                   content_type.startswith('application/json')):
+                return
+
+            # Get response body
+            body = response.body
+            if isinstance(body, str):
+                body = body.encode('utf-8')
+            elif isinstance(body, (list, tuple)):
+                body = b''.join(
+                    b if isinstance(b, bytes) else b.encode('utf-8')
+                    for b in body
+                )
+            else:
+                # Already bytes or other type
+                if not isinstance(body, bytes):
+                    return
+
+            # Compress response body
+            compressed = BytesIO()
+            with gzip.GzipFile(fileobj=compressed, mode='wb') as f:
+                f.write(body)
+
+            response.body = compressed.getvalue()
+            response.set_header('Content-Encoding', 'gzip')
+            response.set_header('Content-Length', len(response.body))
+
+        @hook('after_request')
+        def set_cache_headers():
+            """Add caching headers for static content."""
+            path = request.path
+
+            # Cache templates for 5 minutes (they rarely change during a session)
+            if path in ['/', '/settings', '/tasks', '/files']:
+                response.set_header('Cache-Control', 'public, max-age=300')
+
+            # Don't cache API endpoints (always fresh data)
+            elif path.startswith('/api/'):
+                response.set_header('Cache-Control', 'no-cache, no-store, must-revalidate')
 
     def _create_auth_token(self) -> str:
         """Create a signed authentication token."""
@@ -1475,12 +1533,15 @@ class WebChatMode:
             print("🔐 Authentication required")
         print("Press Ctrl+C to stop")
 
-        # Run Bottle in a thread
+        # Run Bottle in a thread using Waitress (multi-threaded production server)
         def run_server():
-            self._app.run(
+            from waitress import serve
+            serve(
+                self._app,
                 host=self.host,
                 port=self.port,
-                quiet=True,
+                threads=6,  # Handle 6 concurrent requests (huge improvement over single-threaded default)
+                channel_timeout=30,
             )
 
         server_thread = threading.Thread(target=run_server, daemon=True)

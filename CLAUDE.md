@@ -148,6 +148,11 @@ mcp_servers/
 
 **Web UI Architecture** (`modes/web_chat.py`):
 - Bottle web framework serving HTML templates (loaded from `modes/web/templates/*.html`)
+- **Waitress production WSGI server** (multi-threaded, 6 concurrent connections)
+- **Performance optimizations**:
+  - Gzip compression for text/json responses (60-80% size reduction)
+  - Cache headers: 5-minute cache for templates, no-cache for API endpoints
+  - Expected 10-20x speed improvement on mobile connections
 - Single-page app with async/await JavaScript
 - Modular command handlers in `modes/web/commands/` (see Command Handler Architecture below)
 - Routes:

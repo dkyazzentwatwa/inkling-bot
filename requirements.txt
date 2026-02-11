@@ -25,6 +25,7 @@ python-dotenv>=1.0.0
 # Web Server (Phase 2)
 bottle>=0.12.25
 pyngrok>=7.0.0
+waitress>=2.1.0  # Production WSGI server for web UI
 
 # Task Scheduling
 schedule>=1.2.0
