@@ -949,12 +949,8 @@ class WebChatMode:
                 if not os.path.isfile(full_path):
                     return "Not a file"
 
-                # Check file extension (match view endpoint restrictions)
-                ext = os.path.splitext(full_path)[1].lower()
-                if ext not in ['.txt', '.md', '.csv', '.json', '.log']:
-                    return "File type not supported for download"
-
                 # Use Bottle's static_file for proper download handling
+                # No file type restrictions - users can download any file they have access to
                 directory = os.path.dirname(full_path)
                 filename = os.path.basename(full_path)
                 return static_file(filename, root=directory, download=True)

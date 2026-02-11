@@ -238,7 +238,8 @@ Project Inkling supports multiple storage locations for user files:
 **Web UI /files Page**:
 - Storage selector dropdown to switch between locations
 - Same browse/view/download functionality for both
-- File type restrictions apply to all storage locations (.txt, .md, .csv, .json, .log)
+- **View/Edit**: Text-based files only (.txt, .md, .html, .py, .js, .json, .csv, .yaml, .sh, etc.)
+- **Download**: All file types supported (no restrictions)
 - Auto-disables SD card option if not available
 
 ### Task Management System
