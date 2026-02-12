@@ -545,7 +545,7 @@ Copy `config.yml` to `config.local.yml` for local overrides. Key settings:
 - `ai.anthropic.model`: Model selection (claude-haiku-4-5/claude-sonnet-4-5/claude-opus-4-5)
 - `ai.openai.model`: Model selection (gpt-5-mini/gpt-5.2)
 - `ai.gemini.model`: Model selection (gemini-2.0-flash-exp/gemini-1.5-flash/gemini-1.5-pro)
-- `ai.ollama.model`: Model selection (qwen3-coder-next/kimi-k2.5/ministral-3:8b-cloud/rnj-1:8b-cloud/nemotron-3-nano:30b-cloud/gemini-3-flash-preview:cloud/glm-4.7:cloud/gpt-oss:120b-cloud/gpt-oss:20b-cloud)
+- `ai.ollama.model`: Model selection (qwen3-coder-next/kimi-k2.5/ministral-3:8b-cloud/rnj-1:8b-cloud/nemotron-3-nano:30b-cloud/gemini-3-flash-preview:cloud/glm-4.7:cloud/glm-5:cloud/gpt-oss:120b-cloud/gpt-oss:20b-cloud)
 - `ai.ollama.base_url`: Ollama API URL (default: https://ollama.com/api for cloud, http://localhost:11434/api for local)
 - `ai.budget.daily_tokens`: Daily token limit (default 10000)
 - `ai.budget.per_request_max`: Max tokens per request (default 500)
