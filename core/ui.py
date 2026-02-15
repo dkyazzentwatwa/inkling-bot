@@ -161,7 +161,7 @@ MESSAGE_HEIGHT = DISPLAY_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT - 2
 
 # Full-width message panel (no side stats panel anymore)
 MESSAGE_PANEL_WIDTH = DISPLAY_WIDTH - 4  # Full width with small margins
-MESSAGE_LINE_HEIGHT = 13
+MESSAGE_LINE_HEIGHT = 17  # Increased for larger font (14px) + spacing
 MESSAGE_MAX_LINES = max(1, MESSAGE_HEIGHT // MESSAGE_LINE_HEIGHT)
 
 
@@ -543,9 +543,9 @@ class MessagePanel:
         if not ctx.message:
             return
 
-        # Pixel-based word wrap with actual font measurement
+        # Pixel-based word wrap with actual font measurement (use larger font)
         max_width = self.width - 10  # Leave some margin
-        lines = word_wrap_pixels(ctx.message, max_width, self.fonts.normal, draw)
+        lines = word_wrap_pixels(ctx.message, max_width, self.fonts.large, draw)
 
         # Calculate available space accounting for footer boundary
         line_height = MESSAGE_LINE_HEIGHT
@@ -583,13 +583,14 @@ class MessagePanel:
             if text_y + line_height > max_bottom_y:
                 break
 
-            # Calculate width of this line to center it
-            bbox = draw.textbbox((0, 0), line, font=self.fonts.normal)
-            text_width = bbox[2] - bbox[0]
+            # Calculate width of this line with spacing to center it
+            bbox = draw.textbbox((0, 0), line, font=self.fonts.large)
+            text_width = bbox[2] - bbox[0] + (len(line) * 2)  # Account for 2px spacing
             # Center horizontally within the message panel
             text_x = self.x + (self.width - text_width) // 2
-            draw.text((text_x, text_y), line, font=self.fonts.normal, fill=0)
-            text_y += line_height
+            # Draw with letter spacing for better readability
+            draw_text_spaced(draw, (text_x, text_y), line, font=self.fonts.large, fill=0, spacing=2)
+            text_y += line_height + 2  # Add extra vertical spacing between lines
 
 
 class FocusTimerPanel:
