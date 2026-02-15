@@ -359,21 +359,21 @@ def start_btcfg() -> Tuple[bool, str]:
 
 def get_wifi_bars(signal_strength: int) -> str:
     """
-    Convert signal strength percentage to Unicode bar indicator.
+    Convert signal strength percentage to ASCII bar indicator.
 
     Args:
         signal_strength: 0-100 percentage
 
     Returns:
-        Bar indicator string (e.g., "●●●○" or "▂▄▆█")
+        Bar indicator string using ASCII characters (e.g., "||||" or "||")
     """
     if signal_strength >= 80:
-        return "▂▄▆█"  # Excellent
+        return "||||"  # Excellent - 4 bars
     elif signal_strength >= 60:
-        return "▂▄▆"   # Good
+        return "|||"   # Good - 3 bars
     elif signal_strength >= 40:
-        return "▂▄"    # Fair
+        return "||"    # Fair - 2 bars
     elif signal_strength >= 20:
-        return "▂"     # Poor
+        return "|"     # Poor - 1 bar
     else:
-        return "○"     # Very poor
+        return "."     # Very poor - disconnected

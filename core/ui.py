@@ -487,7 +487,7 @@ class HeaderBar:
 
         # Name + mood together (left-aligned, no cursor) with letter spacing
         name_mood = f"{ctx.name[:8]}> {ctx.mood_text[:12]}"
-        draw_text_spaced(draw, (3, self.y + 2), name_mood, font=self.fonts.small, fill=0, spacing=1)
+        draw_text_spaced(draw, (3, self.y + 2), name_mood, font=self.fonts.small, fill=0, spacing=3)
 
         # Build right-side text: WiFi + Battery + Uptime
         right_parts = []
@@ -518,10 +518,10 @@ class HeaderBar:
         else:
             print(f"[Header] WARNING: right_text is empty! WiFi={ctx.wifi_ssid}, Battery={ctx.battery_percentage}, Uptime={ctx.uptime}")
 
-        # Calculate width with spacing (approximate: add 1px per char)
-        right_width = text_width(draw, right_text, self.fonts.small) + len(right_text)
+        # Calculate width with spacing (approximate: add 3px per char)
+        right_width = text_width(draw, right_text, self.fonts.small) + (len(right_text) * 3)
         right_x = DISPLAY_WIDTH - right_width - 6
-        draw_text_spaced(draw, (right_x, self.y + 2), right_text, font=self.fonts.small, fill=0, spacing=1)
+        draw_text_spaced(draw, (right_x, self.y + 2), right_text, font=self.fonts.small, fill=0, spacing=3)
 
 
 class MessagePanel:
@@ -717,25 +717,25 @@ class FooterBar:
         line1_segments = interleave_with_separator(line1, separator)
         line2_segments = interleave_with_separator(line2_left, separator)
 
-        # Center line 1
-        line1_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line1_segments)
+        # Center line 1 (account for letter spacing)
+        line1_width = sum(text_width(draw, seg.text, self.fonts.small) + len(seg.text) * 2 for seg in line1_segments)
         line1_x = (DISPLAY_WIDTH - line1_width) // 2
 
-        # Draw line 1
+        # Draw line 1 with letter spacing
         x = line1_x
         for seg in line1_segments:
-            draw.text((x, line1_y), seg.text, font=self.fonts.small, fill=0)
-            x += text_width(draw, seg.text, self.fonts.small)
+            width = draw_text_spaced(draw, (x, line1_y), seg.text, font=self.fonts.small, fill=0, spacing=2)
+            x += width + 4  # Add small gap between segments
 
-        # Center line 2
-        line2_width = sum(text_width(draw, seg.text, self.fonts.small) for seg in line2_segments)
+        # Center line 2 (account for letter spacing)
+        line2_width = sum(text_width(draw, seg.text, self.fonts.small) + len(seg.text) * 2 for seg in line2_segments)
         line2_x = (DISPLAY_WIDTH - line2_width) // 2
 
-        # Draw line 2
+        # Draw line 2 with letter spacing
         x = line2_x
         for seg in line2_segments:
-            draw.text((x, line2_y), seg.text, font=self.fonts.small, fill=0)
-            x += text_width(draw, seg.text, self.fonts.small)
+            width = draw_text_spaced(draw, (x, line2_y), seg.text, font=self.fonts.small, fill=0, spacing=2)
+            x += width + 4  # Add small gap between segments
 
 
 def format_xp_bar(progress: float, bar_width: int = 10, show_percentage: bool = True) -> str:
