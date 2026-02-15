@@ -511,6 +511,13 @@ class HeaderBar:
 
         # Join and right-align
         right_text = " ".join(right_parts)
+
+        # Debug: Print what we're trying to render
+        if right_text:
+            print(f"[Header] Rendering right-side: '{right_text}' at x={DISPLAY_WIDTH - text_width(draw, right_text, self.fonts.small) - 6}")
+        else:
+            print(f"[Header] WARNING: right_text is empty! WiFi={ctx.wifi_ssid}, Battery={ctx.battery_percentage}, Uptime={ctx.uptime}")
+
         right_width = text_width(draw, right_text, self.fonts.small)
         right_x = DISPLAY_WIDTH - right_width - 6
         draw.text((right_x, self.y + 2), right_text, font=self.fonts.small, fill=0)
