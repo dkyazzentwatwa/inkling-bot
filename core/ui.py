@@ -470,9 +470,9 @@ class AnimatedFace:
 
 class HeaderBar:
     """
-    Top header bar with name, mood, WiFi signal, battery, and uptime.
+    Top header bar with name, mood, battery, WiFi, and uptime.
 
-    Format: "name> Mood  [WiFi bars] BAT 92% UP HH:MM:SS"
+    Format: "Inkling> Mood     BAT%66 ||| UP 00:00:00"
     """
 
     def __init__(self, fonts: Fonts):
@@ -480,31 +480,41 @@ class HeaderBar:
         self.height = HEADER_HEIGHT
         self.y = 0
 
+    def _get_wifi_bars_ascii(self, signal: int) -> str:
+        """Get WiFi signal as ASCII vertical bars."""
+        if signal >= 80:
+            return "||||"
+        elif signal >= 60:
+            return "|||"
+        elif signal >= 40:
+            return "||"
+        elif signal >= 20:
+            return "|"
+        else:
+            return ""
+
     def render(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> None:
         """Render the header bar."""
         # Background
         draw_box(draw, 0, self.y, DISPLAY_WIDTH, self.height, fill=255, outline=0)
 
-        # Name + mood together (left-aligned, no cursor) with letter spacing
+        # Name + mood together (left-aligned) with letter spacing
         name_mood = f"{ctx.name[:8]}> {ctx.mood_text[:12]}"
         draw_text_spaced(draw, (3, self.y + 2), name_mood, font=self.fonts.small, fill=0, spacing=1)
 
-        # Build right-side text: WiFi + Battery + Uptime
+        # Build right-side text: Battery + WiFi + Uptime
         right_parts = []
-
-        # WiFi bars if connected
-        if ctx.wifi_ssid and ctx.wifi_signal > 0:
-            from core.wifi_utils import get_wifi_bars
-            wifi_bars = get_wifi_bars(ctx.wifi_signal)
-            right_parts.append(wifi_bars)
 
         # Battery percentage if available
         if ctx.battery_percentage != -1:
-            if ctx.prefer_ascii:
-                battery_icon = "CHG" if ctx.is_charging else "BAT"
-            else:
-                battery_icon = "⚡" if ctx.is_charging else "🔋"
+            battery_icon = "CHG" if ctx.is_charging else "BAT"
             right_parts.append(f"{battery_icon}%{ctx.battery_percentage}")
+
+        # WiFi bars if connected (ASCII vertical bars)
+        if ctx.wifi_ssid and ctx.wifi_signal > 0:
+            wifi_bars = self._get_wifi_bars_ascii(ctx.wifi_signal)
+            if wifi_bars:
+                right_parts.append(wifi_bars)
 
         # Uptime
         right_parts.append(f"UP {ctx.uptime}")
@@ -659,8 +669,8 @@ class FooterBar:
     Bottom footer bar with system stats and info.
 
     Two-line format:
-    Line 1: "SSH | [========--] 80% | L1*"
-    Line 2: "54%m 1%c 43° | CH3 | 14:23"
+    Line 1: "XP [====---] 50% | L1* NEWB | SSH"
+    Line 2: "54%m 1%c 43° | CH3 | TIME 14:23"
 
     Note: Battery moved to header for better visibility.
           Stars after level number indicate prestige.
@@ -687,18 +697,19 @@ class FooterBar:
         # Line 1 components
         line1_parts = []
 
-        # 1. Mode (SSH/WEB/SCN)
-        line1_parts.append(mode)
+        # 1. XP Bar with "XP" prefix
+        xp_bar = format_xp_bar(ctx.xp_progress, bar_width=8, show_percentage=True)
+        line1_parts.append(f"XP {xp_bar}")
 
-        # 2. XP Bar
-        xp_bar = format_xp_bar(ctx.xp_progress, bar_width=10, show_percentage=True)
-        line1_parts.append(xp_bar)
-
-        # 3. Level with prestige stars (compact: L1 instead of LEVEL 1)
+        # 2. Level with prestige stars + level name (L1* NEWB)
         level_str = f"L{ctx.level}"
         if ctx.prestige > 0:
             level_str += "*" * min(ctx.prestige, 3)
+        level_str += f" {ctx.level_name[:4].upper()}"
         line1_parts.append(level_str)
+
+        # 3. Mode (SSH/WEB/SCN)
+        line1_parts.append(mode)
 
         # Line 2 components
         line2_parts = []
@@ -710,8 +721,8 @@ class FooterBar:
         # 2. Chat count
         line2_parts.append(f"CH{ctx.chat_count}")
 
-        # 3. Clock time
-        line2_parts.append(ctx.clock_time)
+        # 3. Clock time with "TIME" prefix
+        line2_parts.append(f"TIME {ctx.clock_time}")
 
         # Join with vertical bar separator
         separator = " | "
