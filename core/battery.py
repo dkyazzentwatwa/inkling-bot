@@ -2,7 +2,7 @@
 Project Inkling - PiSugar Battery Management
 
 Handles communication with PiSugar 2/3 battery power management boards.
-Uses the pisugar-server API (default port 8000).
+Uses the pisugar-server TCP API (port 8423).
 """
 
 from typing import Dict
@@ -13,16 +13,25 @@ logger = logging.getLogger(__name__)
 
 
 class PiSugarClient:
-    """Client for interacting with pisugar-server."""
+    """Client for interacting with pisugar-server via TCP API.
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8000, enabled: bool = True):
+    The pisugar-server exposes a TCP command interface on port 8423.
+    Commands are sent as text lines and responses are text-based.
+    """
+
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8423,  # TCP command API port (not 8000!)
+        enabled: bool = True
+    ):
         self.host = host
         self.port = port
         self.enabled = enabled
         self.timeout = 2.0
 
     def _send_command(self, command: str) -> str:
-        """Send a text command to the pisugar-server."""
+        """Send a text command to the pisugar-server TCP API."""
         if not self.enabled:
             return ""
 
@@ -31,25 +40,33 @@ class PiSugarClient:
                 sock.sendall(f"{command}\n".encode())
                 response = sock.recv(1024).decode().strip()
                 return response
-        except (socket.timeout, ConnectionRefusedError, OSError):
-            # Silently fail if server isn't running (likely not on a PiSugar device)
+        except (socket.timeout, ConnectionRefusedError, OSError) as e:
+            # Silently fail if server isn't running
+            logger.debug(f"PiSugar connection failed: {e}")
             return ""
 
     def get_battery_percentage(self) -> int:
         """Get battery percentage (0-100)."""
         response = self._send_command("get battery")
-        if response.startswith("battery:"):
-            try:
+        # Response format: "battery: 85.5" or just the value
+        if not response:
+            return -1
+
+        try:
+            if ":" in response:
                 # Format: "battery: 85.5"
-                return int(float(response.split(":", maxsplit=1)[1].strip()))
-            except (ValueError, IndexError):
-                pass
-        return -1
+                value = response.split(":", maxsplit=1)[1].strip()
+            else:
+                # Format: "85.5"
+                value = response.strip()
+            return int(float(value))
+        except (ValueError, IndexError):
+            return -1
 
     def is_charging(self) -> bool:
         """Check if the battery is currently charging."""
-        response = self._send_command("get charging")
-        # Format: "charging: true" or "charging: false"
+        response = self._send_command("get battery_charging")
+        # Format: "battery_charging: true" or "true"
         return "true" in response.lower()
 
     def get_info(self) -> Dict[str, object]:

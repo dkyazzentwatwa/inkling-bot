@@ -22,6 +22,8 @@ from .ui import PwnagotchiUI, DisplayContext, FACES, UNICODE_FACES
 
 # Environment variable to disable terminal rendering
 DISABLE_DISPLAY_ECHO = os.getenv("INKLING_NO_DISPLAY_ECHO", "").lower() in ("1", "true", "yes")
+# Debug mode - enable verbose logging
+_DEBUG = os.getenv("INKLING_DEBUG", "").lower() in ("1", "true", "yes")
 from . import system_stats
 
 
@@ -101,10 +103,12 @@ class MockDisplay(DisplayDriver):
         self._current_image: Optional[Image.Image] = None
 
     def init(self) -> None:
-        print(f"[MockDisplay] Initialized {self.width}x{self.height}")
+        if _DEBUG:
+            print(f"[MockDisplay] Initialized {self.width}x{self.height}")
 
     def clear(self) -> None:
-        print("[MockDisplay] Cleared")
+        if _DEBUG:
+            print("[MockDisplay] Cleared")
         self._current_image = Image.new("1", (self.width, self.height), 255)
 
     def display(self, image: Image.Image) -> None:
@@ -116,7 +120,8 @@ class MockDisplay(DisplayDriver):
         self.display(image)
 
     def sleep(self) -> None:
-        print("[MockDisplay] Sleeping")
+        if _DEBUG:
+            print("[MockDisplay] Sleeping")
 
     @property
     def supports_partial(self) -> bool:
@@ -427,7 +432,8 @@ class DisplayManager:
             pass
 
         # Fall back to mock
-        print("[Display] No hardware detected, using mock display")
+        if _DEBUG:
+            print("[Display] No hardware detected, using mock display")
         return MockDisplay(self.width, self.height)
 
     def _load_fonts(self) -> None:
@@ -675,7 +681,8 @@ class DisplayManager:
 
         self._screensaver_active = True
         self._screensaver_current_page = 0
-        print(f"[Screensaver] Starting with {len(self._screensaver_pages)} pages, duration={self._screensaver_page_duration}s")
+        if _DEBUG:
+            print(f"[Screensaver] Starting with {len(self._screensaver_pages)} pages, duration={self._screensaver_page_duration}s")
 
         async def _screensaver_loop():
             while self._screensaver_active:
@@ -683,22 +690,26 @@ class DisplayManager:
                     # Render current page
                     page_config = self._screensaver_pages[self._screensaver_current_page]
                     page_type = page_config.get("type", "unknown")
-                    print(f"[Screensaver] Showing page {self._screensaver_current_page + 1}/{len(self._screensaver_pages)}: {page_type}")
+                    if _DEBUG:
+                        print(f"[Screensaver] Showing page {self._screensaver_current_page + 1}/{len(self._screensaver_pages)}: {page_type}")
 
                     await self._render_screensaver_page(page_config)
 
                     # Wait before next page
-                    print(f"[Screensaver] Waiting {self._screensaver_page_duration}s before next page...")
+                    if _DEBUG:
+                        print(f"[Screensaver] Waiting {self._screensaver_page_duration}s before next page...")
                     await asyncio.sleep(self._screensaver_page_duration)
 
                     # Next page (cycle)
                     self._screensaver_current_page = (self._screensaver_current_page + 1) % len(self._screensaver_pages)
 
                 except asyncio.CancelledError:
-                    print("[Screensaver] Loop cancelled")
+                    if _DEBUG:
+                        print("[Screensaver] Loop cancelled")
                     break
                 except Exception as e:
-                    print(f"[Screensaver] Error in loop: {e}")
+                    if _DEBUG:
+                        print(f"[Screensaver] Error in loop: {e}")
                     import traceback
                     traceback.print_exc()
                     # Continue to next page on error
@@ -713,11 +724,12 @@ class DisplayManager:
             return
 
         # Debug: log what's stopping the screensaver
-        import traceback
-        print("[Screensaver] Stopping screensaver, called from:")
-        for line in traceback.format_stack()[:-1]:
-            if "/core/" in line or "/modes/" in line:
-                print(line.strip())
+        if _DEBUG:
+            import traceback
+            print("[Screensaver] Stopping screensaver, called from:")
+            for line in traceback.format_stack()[:-1]:
+                if "/core/" in line or "/modes/" in line:
+                    print(line.strip())
 
         self._screensaver_active = False
 
@@ -849,7 +861,7 @@ class DisplayManager:
             if not force and not self._can_refresh():
                 wait_time = self._wait_for_refresh()
                 # Only log rate limiting for non-partial displays (V4)
-                if not (self._driver and self._driver.supports_partial):
+                if _DEBUG and not (self._driver and self._driver.supports_partial):
                     print(f"[Display] Rate limited, wait {wait_time:.1f}s")
                 return False
 
@@ -1030,7 +1042,8 @@ class DisplayManager:
             await self.update(face="happy", text=f"Connect: {url}", force=True)
             return True
         except Exception as e:
-            print(f"[Display] QR code error: {e}")
+            if _DEBUG:
+                print(f"[Display] QR code error: {e}")
         return False
 
     # ========================================================================

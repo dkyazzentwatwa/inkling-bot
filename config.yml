@@ -294,7 +294,7 @@ web:
 battery:
   enabled: true  # Set to true to enable battery monitoring and display
   host: "127.0.0.1" # PiSugar server host
-  port: 8000      # PiSugar server port
+  port: 8423      # PiSugar TCP API port (default: 8423)
 
 # MCP Servers (Model Context Protocol)
 # Gives Inkling access to external tools

@@ -869,7 +869,8 @@ def word_wrap_pixels(
     text: str,
     max_width: int,
     font: ImageFont.ImageFont,
-    draw: ImageDraw.ImageDraw
+    draw: ImageDraw.ImageDraw,
+    letter_spacing: int = 1
 ) -> List[str]:
     """
     Wrap text based on actual pixel width using the given font.
@@ -882,6 +883,7 @@ def word_wrap_pixels(
         max_width: Maximum width in pixels
         font: Font to use for measuring
         draw: ImageDraw object for text measurement
+        letter_spacing: Extra pixels between characters (default: 1, matches draw_text_spaced)
 
     Returns:
         List of wrapped lines
@@ -890,11 +892,20 @@ def word_wrap_pixels(
     lines = []
     current_line = ""
 
+    def measure_with_spacing(s: str) -> int:
+        """Measure text width including letter spacing."""
+        if not s:
+            return 0
+        bbox = draw.textbbox((0, 0), s, font=font)
+        base_width = bbox[2] - bbox[0]
+        # Add letter spacing for each character (minus 1 since no spacing after last char)
+        spacing_width = max(0, len(s) - 1) * letter_spacing
+        return base_width + spacing_width
+
     for word in words:
         # Measure width of current line + new word
         test_line = current_line + (" " if current_line else "") + word
-        bbox = draw.textbbox((0, 0), test_line, font=font)
-        width = bbox[2] - bbox[0]
+        width = measure_with_spacing(test_line)
 
         if width <= max_width:
             # Fits on current line
@@ -905,16 +916,15 @@ def word_wrap_pixels(
                 lines.append(current_line)
 
             # Check if single word is too long
-            bbox = draw.textbbox((0, 0), word, font=font)
-            word_width = bbox[2] - bbox[0]
+            word_width = measure_with_spacing(word)
 
             if word_width > max_width:
                 # Word is too long - break it with hyphen
                 current_line = ""
                 for i in range(len(word)):
                     test = current_line + word[i]
-                    bbox = draw.textbbox((0, 0), test + "-", font=font)
-                    if bbox[2] - bbox[0] > max_width and current_line:
+                    test_with_hyphen = test + "-"
+                    if measure_with_spacing(test_with_hyphen) > max_width and current_line:
                         lines.append(current_line + "-")
                         current_line = word[i]
                     else:
