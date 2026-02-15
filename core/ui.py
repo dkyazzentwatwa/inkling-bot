@@ -485,9 +485,9 @@ class HeaderBar:
         # Background
         draw_box(draw, 0, self.y, DISPLAY_WIDTH, self.height, fill=255, outline=0)
 
-        # Name + mood together (left-aligned, no cursor)
+        # Name + mood together (left-aligned, no cursor) with letter spacing
         name_mood = f"{ctx.name[:8]}> {ctx.mood_text[:12]}"
-        draw_text_bold(draw, (3, self.y + 2), name_mood, font=self.fonts.small, fill=0)
+        draw_text_spaced(draw, (3, self.y + 2), name_mood, font=self.fonts.small, fill=0, spacing=1)
 
         # Build right-side text: WiFi + Battery + Uptime
         right_parts = []
@@ -518,9 +518,10 @@ class HeaderBar:
         else:
             print(f"[Header] WARNING: right_text is empty! WiFi={ctx.wifi_ssid}, Battery={ctx.battery_percentage}, Uptime={ctx.uptime}")
 
-        right_width = text_width(draw, right_text, self.fonts.small)
+        # Calculate width with spacing (approximate: add 1px per char)
+        right_width = text_width(draw, right_text, self.fonts.small) + len(right_text)
         right_x = DISPLAY_WIDTH - right_width - 6
-        draw.text((right_x, self.y + 2), right_text, font=self.fonts.small, fill=0)
+        draw_text_spaced(draw, (right_x, self.y + 2), right_text, font=self.fonts.small, fill=0, spacing=1)
 
 
 class MessagePanel:
@@ -739,7 +740,7 @@ class FooterBar:
 
 def format_xp_bar(progress: float, bar_width: int = 10, show_percentage: bool = True) -> str:
     """
-    Generate visual XP progress bar.
+    Generate visual XP progress bar with better e-ink visibility.
 
     Args:
         progress: Progress as 0.0-1.0
@@ -747,16 +748,17 @@ def format_xp_bar(progress: float, bar_width: int = 10, show_percentage: bool = 
         show_percentage: Include percentage text
 
     Returns:
-        XP bar string like "[████████░░] 80%"
+        XP bar string like "|========--| 80%"
     """
     filled = int(progress * bar_width)
     empty = bar_width - filled
 
-    # Use Unicode blocks for filled/empty
-    filled_char = "█"
-    empty_char = "░"
+    # Use ASCII characters for better e-ink rendering
+    filled_char = "="
+    empty_char = "-"
 
-    bar = f"[{filled_char * filled}{empty_char * empty}]"
+    # Cleaner bracket style for e-ink
+    bar = f"|{filled_char * filled}{empty_char * empty}|"
 
     if show_percentage:
         pct = int(progress * 100)
@@ -937,6 +939,43 @@ def text_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) 
         return 0
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0]
+
+
+def draw_text_spaced(
+    draw: ImageDraw.ImageDraw,
+    position: Tuple[int, int],
+    text: str,
+    font: ImageFont.ImageFont,
+    fill: int = 0,
+    spacing: int = 2,
+) -> int:
+    """
+    Draw text with letter spacing for better e-ink readability.
+
+    Args:
+        draw: PIL ImageDraw instance
+        position: (x, y) position to start drawing
+        text: Text to draw
+        font: Font to use
+        fill: Fill color (0=black, 255=white)
+        spacing: Extra pixels between characters
+
+    Returns:
+        Total width of drawn text including spacing
+    """
+    x, y = position
+    total_width = 0
+
+    for char in text:
+        # Draw character
+        draw.text((x, y), char, font=font, fill=fill)
+        # Measure character width
+        char_width = text_width(draw, char, font)
+        # Move to next position with spacing
+        x += char_width + spacing
+        total_width += char_width + spacing
+
+    return total_width - spacing if total_width > 0 else 0
 
 
 def draw_text_bold(
