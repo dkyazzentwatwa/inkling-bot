@@ -156,7 +156,7 @@ DISPLAY_HEIGHT = 122
 
 # Region heights
 HEADER_HEIGHT = 14
-FOOTER_HEIGHT = 30  # Taller footer for less crowded stats + clock
+FOOTER_HEIGHT = 14  # Single line footer: L1 | SSH
 MESSAGE_HEIGHT = DISPLAY_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT - 2
 
 # Full-width message panel (no side stats panel anymore)
@@ -656,14 +656,10 @@ class FocusTimerPanel:
 
 class FooterBar:
     """
-    Bottom footer bar with system stats and info.
+    Bottom footer bar with level and mode.
 
-    Two-line format:
-    Line 1: "[████████░░] 80% | LEVEL 12 * | SSH"
-    Line 2: "54%m 1%c 43° | CH3 | 14:23"
-
-    Note: Battery moved to header for better visibility.
-          Stars after level number indicate prestige.
+    Single-line format: "L1 | SSH"
+    Mode can be: SSH, WEB, SCN (screensaver)
     """
 
     def __init__(self, fonts: Fonts):
@@ -671,66 +667,30 @@ class FooterBar:
         self.y = DISPLAY_HEIGHT - FOOTER_HEIGHT
 
     def render(self, draw: ImageDraw.ImageDraw, ctx: DisplayContext) -> None:
-        """Render the footer bar with compact stats."""
+        """Render the footer bar with level and mode."""
         # Top separator
         draw_hline(draw, 0, self.y, DISPLAY_WIDTH, color=0)
 
-        line1_y = self.y + 3
-        line2_y = self.y + 16
+        line_y = self.y + 2
 
-        # Line 1 components
-        line1_center = []
-
-        # 1. XP Bar
-        xp_bar = format_xp_bar(ctx.xp_progress, bar_width=10, show_percentage=True)
-        line1_center.append(xp_bar)
-
-        # 2. Level with prestige stars
-        level_str = f"LEVEL {ctx.level}"
+        # Level with prestige stars
+        level_str = f"L{ctx.level}"
         if ctx.prestige > 0:
-            level_str += " " + ("*" * min(ctx.prestige, 3))
-        line1_center.append(level_str)
+            level_str += "*" * min(ctx.prestige, 3)
 
-        # Line 2 components
-        line2_left = []
+        # Mode indicator (SCN for screensaver)
+        mode = ctx.mode
+        if mode == "SCREENSAVER":
+            mode = "SCN"
 
-        # 1. System stats (memory, cpu, temp)
-        temp_str = f"{ctx.temperature}°" if ctx.temperature > 0 else "--°"
-        line2_left.append(f"{ctx.memory_percent}%m {ctx.cpu_percent}%c {temp_str}")
+        # Format: "L1 | SSH" centered
+        footer_text = f"{level_str} | {mode}"
 
-        # 2. Chat count
-        line2_left.append(f"CH{ctx.chat_count}")
+        # Center the footer text
+        footer_width = text_width(draw, footer_text, self.fonts.small) + len(footer_text) * 2
+        footer_x = (DISPLAY_WIDTH - footer_width) // 2
 
-        # 3. Clock time
-        line2_left.append(ctx.clock_time)
-
-        # Join with vertical bar separator
-        separator = "   |   "
-        line1_segments = interleave_with_separator(line1_center, separator)
-        line2_segments = interleave_with_separator(line2_left, separator)
-
-        # Draw mode on LEFT side of line 1
-        mode_width = draw_text_spaced(draw, (6, line1_y), ctx.mode, font=self.fonts.small, fill=0, spacing=2)
-
-        # Center line 1 (XP bar + Level) after mode
-        line1_width = sum(text_width(draw, seg.text, self.fonts.small) + len(seg.text) * 2 for seg in line1_segments)
-        line1_x = (DISPLAY_WIDTH - line1_width) // 2
-
-        # Draw line 1 (centered) with letter spacing
-        x = line1_x
-        for seg in line1_segments:
-            width = draw_text_spaced(draw, (x, line1_y), seg.text, font=self.fonts.small, fill=0, spacing=2)
-            x += width + 4  # Add small gap between segments
-
-        # Center line 2 (account for letter spacing)
-        line2_width = sum(text_width(draw, seg.text, self.fonts.small) + len(seg.text) * 2 for seg in line2_segments)
-        line2_x = (DISPLAY_WIDTH - line2_width) // 2
-
-        # Draw line 2 with letter spacing
-        x = line2_x
-        for seg in line2_segments:
-            width = draw_text_spaced(draw, (x, line2_y), seg.text, font=self.fonts.small, fill=0, spacing=2)
-            x += width + 4  # Add small gap between segments
+        draw_text_spaced(draw, (footer_x, line_y), footer_text, font=self.fonts.small, fill=0, spacing=2)
 
 
 def format_xp_bar(progress: float, bar_width: int = 10, show_percentage: bool = True) -> str:
