@@ -511,9 +511,9 @@ class HeaderBar:
 
         # Join and right-align
         right_text = " ".join(right_parts)
-        right_width = text_width(draw, right_text, self.fonts.tiny)
+        right_width = text_width(draw, right_text, self.fonts.small)
         right_x = DISPLAY_WIDTH - right_width - 6
-        draw.text((right_x, self.y + 3), right_text, font=self.fonts.tiny, fill=0)
+        draw.text((right_x, self.y + 2), right_text, font=self.fonts.small, fill=0)
 
 
 class MessagePanel:
