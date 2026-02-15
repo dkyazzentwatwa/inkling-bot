@@ -990,11 +990,11 @@ class Heartbeat:
 
         try:
             # Get recent conversation for context
-            recent = self.brain.messages[-10:] if self.brain.messages else []
+            recent = self.brain._messages[-10:] if self.brain._messages else []
             if len(recent) < 4:
                 return None  # Need enough conversation to extract from
 
-            user_msgs = [m["content"] for m in recent if m.get("role") == "user"]
+            user_msgs = [m.content for m in recent if m.role == "user"]
             if not user_msgs:
                 return None
 
