@@ -487,7 +487,7 @@ class HeaderBar:
 
         # Name + mood together (left-aligned, no cursor) with letter spacing
         name_mood = f"{ctx.name[:8]}> {ctx.mood_text[:12]}"
-        draw_text_spaced(draw, (3, self.y + 2), name_mood, font=self.fonts.small, fill=0, spacing=3)
+        draw_text_spaced(draw, (3, self.y + 2), name_mood, font=self.fonts.small, fill=0, spacing=1)
 
         # Build right-side text: WiFi + Battery + Uptime
         right_parts = []
@@ -518,10 +518,10 @@ class HeaderBar:
         else:
             print(f"[Header] WARNING: right_text is empty! WiFi={ctx.wifi_ssid}, Battery={ctx.battery_percentage}, Uptime={ctx.uptime}")
 
-        # Calculate width with spacing (approximate: add 3px per char)
-        right_width = text_width(draw, right_text, self.fonts.small) + (len(right_text) * 3)
+        # Calculate width with spacing (approximate: add 1px per char)
+        right_width = text_width(draw, right_text, self.fonts.small) + len(right_text)
         right_x = DISPLAY_WIDTH - right_width - 6
-        draw_text_spaced(draw, (right_x, self.y + 2), right_text, font=self.fonts.small, fill=0, spacing=3)
+        draw_text_spaced(draw, (right_x, self.y + 2), right_text, font=self.fonts.small, fill=0, spacing=1)
 
 
 class MessagePanel:
@@ -685,20 +685,17 @@ class FooterBar:
         line2_y = self.y + 16
 
         # Line 1 components
-        line1 = []
+        line1_center = []
 
-        # 1. XP Bar (replaces face)
+        # 1. XP Bar
         xp_bar = format_xp_bar(ctx.xp_progress, bar_width=10, show_percentage=True)
-        line1.append(xp_bar)
+        line1_center.append(xp_bar)
 
         # 2. Level with prestige stars
         level_str = f"LEVEL {ctx.level}"
         if ctx.prestige > 0:
             level_str += " " + ("*" * min(ctx.prestige, 3))
-        line1.append(level_str)
-
-        # 3. Mode
-        line1.append(ctx.mode)
+        line1_center.append(level_str)
 
         # Line 2 components
         line2_left = []
@@ -715,14 +712,17 @@ class FooterBar:
 
         # Join with vertical bar separator
         separator = "   |   "
-        line1_segments = interleave_with_separator(line1, separator)
+        line1_segments = interleave_with_separator(line1_center, separator)
         line2_segments = interleave_with_separator(line2_left, separator)
 
-        # Center line 1 (account for letter spacing)
+        # Draw mode on LEFT side of line 1
+        mode_width = draw_text_spaced(draw, (6, line1_y), ctx.mode, font=self.fonts.small, fill=0, spacing=2)
+
+        # Center line 1 (XP bar + Level) after mode
         line1_width = sum(text_width(draw, seg.text, self.fonts.small) + len(seg.text) * 2 for seg in line1_segments)
         line1_x = (DISPLAY_WIDTH - line1_width) // 2
 
-        # Draw line 1 with letter spacing
+        # Draw line 1 (centered) with letter spacing
         x = line1_x
         for seg in line1_segments:
             width = draw_text_spaced(draw, (x, line1_y), seg.text, font=self.fonts.small, fill=0, spacing=2)
