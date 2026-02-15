@@ -507,8 +507,7 @@ class HeaderBar:
 
         # Battery percentage if available
         if ctx.battery_percentage != -1:
-            battery_icon = "CHG" if ctx.is_charging else "BAT"
-            right_parts.append(f"{battery_icon}%{ctx.battery_percentage}")
+            right_parts.append(f"BAT%{ctx.battery_percentage}")
 
         # WiFi bars if connected (ASCII vertical bars)
         if ctx.wifi_ssid and ctx.wifi_signal > 0:
