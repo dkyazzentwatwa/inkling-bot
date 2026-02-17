@@ -785,3 +785,7 @@ If you find Inkling useful, please:
 *Give your AI a home. Give it a personality. Give it a soul.*
 
 </div>
+
+#### AI Agent Marketplace Index And Agent Router | [API Doc](https://www.deepnlp.org/doc/ai_agent_marketplace)
+    [![AI Agent Marketplace and Router Badge](https://www.deepnlp.org/api/ai_agent_marketplace/svg?name=dkyazzentwatwa/inkling-bot&badge_type=review)](https://www.deepnlp.org/store/ai-agent/ai-agent/pub-dkyazzentwatwa/inkling-bot)
+    
